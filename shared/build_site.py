@@ -271,6 +271,12 @@ def build_references_list_html(refs, ch_num):
         ref_html = ref_text
         ref_html = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', ref_html)
         ref_html = re.sub(r'\*(.+?)\*', r'<em>\1</em>', ref_html)
+        # Convert markdown links [text](url) to HTML <a> tags
+        ref_html = re.sub(
+            r'\[([^\]]+)\]\(([^)]+)\)',
+            r'<a href="\2" target="_blank" rel="noopener">\1</a>',
+            ref_html
+        )
         items.append(f'  <li id="ch{ch_num}-ref-{i}" value="{i}">{ref_html}</li>')
     return '<ol class="references-list">\n' + '\n'.join(items) + '\n</ol>'
 
@@ -713,9 +719,50 @@ def parse_bib(bib_path):
     return refs
 
 
-def build_references_html(config, lang_code, bib_path):
-    """Build references page from BibTeX."""
-    refs = parse_bib(bib_path)
+def collect_all_chapter_refs(book_dir):
+    """Collect all references from all chapters, deduplicated."""
+    all_refs = []
+    seen_keys = set()
+
+    for fname in sorted(os.listdir(book_dir)):
+        if not fname.startswith('ch') or not fname.endswith('.md'):
+            continue
+        with open(os.path.join(book_dir, fname), 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        ref_section = None
+        for marker in ['## 참고문헌', '## References']:
+            idx = content.find(marker)
+            if idx != -1:
+                ref_section = content[idx:]
+                break
+        if not ref_section:
+            continue
+
+        for line in ref_section.split('\n'):
+            m = re.match(r'^\d+\.\s+(.+)', line.strip())
+            if m:
+                ref_text = m.group(1).strip()
+                # Dedup key: first 80 chars lowercase (catches same paper across chapters)
+                key = re.sub(r'\s+', ' ', ref_text[:80]).lower()
+                if key not in seen_keys:
+                    seen_keys.add(key)
+                    all_refs.append(ref_text)
+
+    return all_refs
+
+
+def build_references_html(config, lang_code, bib_path, book_dir=None):
+    """Build consolidated references page from all chapter references."""
+    # Collect refs from all chapters (primary source)
+    chapter_refs = []
+    if book_dir and os.path.isdir(book_dir):
+        chapter_refs = collect_all_chapter_refs(book_dir)
+
+    # Also parse BibTeX for any additional refs not in chapters
+    bib_refs = []
+    if os.path.exists(bib_path):
+        bib_refs = parse_bib(bib_path)
 
     if lang_code == 'ko':
         page_title = '통합 참고문헌 (References)'
@@ -723,20 +770,42 @@ def build_references_html(config, lang_code, bib_path):
         page_title = 'Consolidated References'
 
     ref_items = []
-    for i, ref in enumerate(refs, 1):
-        authors = ref.get('author', 'Unknown')
-        year = ref.get('year', '')
-        title = ref.get('title', '')
-        venue = ref.get('journal', ref.get('booktitle', ''))
-        url = ref.get('url', '')
-        url_html = f' <a href="{url}" target="_blank" rel="noopener">[Link]</a>' if url else ''
-        ref_items.append(
-            f'<div class="ref-item" id="ref-{ref["key"]}">'
-            f'<span class="ref-id">[{i}]</span> '
-            f'{authors} ({year}). <strong>{title}</strong>. <em>{venue}</em>.{url_html}'
-            f'</div>'
-        )
 
+    if chapter_refs:
+        # Use chapter refs as primary (they include [scholar] links etc.)
+        for i, ref_text in enumerate(chapter_refs, 1):
+            ref_html = ref_text
+            ref_html = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', ref_html)
+            ref_html = re.sub(r'\*(.+?)\*', r'<em>\1</em>', ref_html)
+            # Convert markdown links to HTML
+            ref_html = re.sub(
+                r'\[([^\]]+)\]\(([^)]+)\)',
+                r'<a href="\2" target="_blank" rel="noopener">\1</a>',
+                ref_html
+            )
+            ref_items.append(
+                f'<div class="ref-item" id="consolidated-ref-{i}">'
+                f'<span class="ref-id">[{i}]</span> '
+                f'{ref_html}'
+                f'</div>'
+            )
+    else:
+        # Fallback to BibTeX
+        for i, ref in enumerate(bib_refs, 1):
+            authors = ref.get('author', 'Unknown')
+            year = ref.get('year', '')
+            title = ref.get('title', '')
+            venue = ref.get('journal', ref.get('booktitle', ''))
+            url = ref.get('url', '')
+            url_html = f' <a href="{url}" target="_blank" rel="noopener">[Link]</a>' if url else ''
+            ref_items.append(
+                f'<div class="ref-item" id="ref-{ref["key"]}">'
+                f'<span class="ref-id">[{i}]</span> '
+                f'{authors} ({year}). <strong>{title}</strong>. <em>{venue}</em>.{url_html}'
+                f'</div>'
+            )
+
+    total_refs = len(ref_items)
     content = '\n'.join(ref_items)
 
     # Acknowledgment from config
@@ -778,7 +847,7 @@ def build_references_html(config, lang_code, bib_path):
     <div class="references-section">
       <header class="chapter-header">
         <h1>{page_title}</h1>
-        <p class="chapter-summary">{len(refs)} references</p>
+        <p class="chapter-summary">{total_refs} references</p>
       </header>
 {content}
 {ack_html}
@@ -1118,16 +1187,16 @@ def build_survey(config, survey_dir, shared_dir):
                 f.write(html)
             print(f"  Created: en/ch{ch:02d}.html")
 
-    # Build References
+    # Build References (consolidated from all chapters)
     print("Building references...")
-    if os.path.exists(bib_path):
-        for lang_code in ['ko', 'en']:
-            html = build_references_html(config, lang_code, bib_path)
-            out_path = os.path.join(docs_dir, lang_code, 'references.html')
-            with open(out_path, 'w', encoding='utf-8') as f:
-                f.write(html)
-            print(f"  Created: {lang_code}/references.html")
-    else:
+    for lang_code in ['ko', 'en']:
+        lang_book_dir = book_ko if lang_code == 'ko' else book_en
+        html = build_references_html(config, lang_code, bib_path, book_dir=lang_book_dir)
+        out_path = os.path.join(docs_dir, lang_code, 'references.html')
+        with open(out_path, 'w', encoding='utf-8') as f:
+            f.write(html)
+        print(f"  Created: {lang_code}/references.html")
+    if not os.path.exists(bib_path):
         print("  WARNING: references.bib not found, skipping references page")
 
     # Build Glossary (if enabled)
