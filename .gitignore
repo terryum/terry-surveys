@@ -4,3 +4,16 @@ __pycache__/
 *.pyc
 .DS_Store
 node_modules/
+_refs_extracted.json
+
+# snu-tactile-hand: group-restricted content (visible to snu/admin only)
+# The survey's existence and metadata (survey.json) are public,
+# but all content files are excluded from the public repo.
+surveys/snu-tactile-hand/book/
+surveys/snu-tactile-hand/assets/
+surveys/snu-tactile-hand/docs/
+surveys/snu-tactile-hand/paper/
+surveys/snu-tactile-hand/scripts/
+surveys/snu-tactile-hand/260406-collab-book-tacscale-tacplay.md
+surveys/snu-tactile-hand/_factcheck_report.md
+surveys/snu-tactile-hand/CLAUDE.md
