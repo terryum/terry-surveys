@@ -90,21 +90,21 @@ def main():
         scaffold_new(sys.argv[2])
 
     elif arg == '--index':
-        from shared.refs_index import build_index
+        from bibtex.refs_index import build_index
         build_index()
 
     elif arg == '--match':
         if len(sys.argv) < 3:
             print("Usage: python build.py --match <post-slug>")
             sys.exit(1)
-        from shared.refs_index import match_post_slug
+        from bibtex.refs_index import match_post_slug
         match_post_slug(sys.argv[2])
 
     elif arg == '--search':
         if len(sys.argv) < 3:
             print("Usage: python build.py --search <keyword>")
             sys.exit(1)
-        from shared.refs_index import search_index
+        from bibtex.refs_index import search_index
         search_index(sys.argv[2])
 
     else:

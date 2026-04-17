@@ -22,7 +22,7 @@ description: "새 논문 포스팅이 홈페이지에 추가된 후, 모든 surv
 
 ```bash
 cd /Users/terrytaewoongum/Codes/personal/terry-surveys
-python3 shared/refs_index.py match <post-slug>
+python3 bibtex/refs_index.py match <post-slug>
 ```
 
 이 명령은 포스트 slug의 키워드를 인덱스의 모든 참고문헌과 대조하여 매칭 후보를 score 순으로 반환한다. 수백 개 참고문헌을 밀리초 내에 검색할 수 있다.
@@ -68,7 +68,7 @@ DexUMI [Xu et al., 2025] [#8](https://terry.artlab.ai/ko/posts/2505-dexumi)
 
 작업 완료 후 인덱스를 갱신한다:
 ```bash
-python3 shared/refs_index.py build
+python3 bibtex/refs_index.py build
 ```
 
 ### Step 6: 리빌드
@@ -94,7 +94,7 @@ python3 build.py <affected-survey-name>
 서베이 참고문헌에 인용되어 있는지 확인할 수 있다:
 
 cd /Users/terrytaewoongum/Codes/personal/terry-surveys
-python3 shared/refs_index.py match <new-post-slug>
+python3 bibtex/refs_index.py match <new-post-slug>
 
 매칭 결과가 있으면 /link-post-to-surveys <slug> 를 실행하여 
 서베이 참고문헌에 [post] 링크를 자동 추가한다.
@@ -106,11 +106,11 @@ python3 shared/refs_index.py match <new-post-slug>
 
 ```bash
 # 인덱스 재빌드 (새 서베이 포함)
-python3 shared/refs_index.py build
+python3 bibtex/refs_index.py build
 
 # 각 포스트 slug로 매칭 검색
 for slug in $(ls /Users/terrytaewoongum/Codes/personal/terry-artlab-homepage/posts/papers/); do
-  python3 shared/refs_index.py match "$slug" 2>/dev/null | head -3
+  python3 bibtex/refs_index.py match "$slug" 2>/dev/null | head -3
 done
 ```
 
@@ -118,6 +118,6 @@ done
 
 ## 주의사항
 
-- `refs_index.json`은 참고문헌이 변경될 때마다 `python3 shared/refs_index.py build`로 재빌드 필요
+- `refs_index.json`은 참고문헌이 변경될 때마다 `python3 bibtex/refs_index.py build`로 재빌드 필요
 - 포스트 링크가 이미 있는 참고문헌에는 중복 추가하지 않음
 - `[post]` 링크는 `[arXiv]`와 `[scholar]` 사이에 배치

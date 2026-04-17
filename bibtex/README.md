@@ -6,10 +6,39 @@
 
 - `references.bib` — 마스터 파일 (중복 키 금지, 서베이 간 동일 논문은 반드시 동일 키)
 - `README.md` — 본 문서
+- `refs_index.py` — 인덱스 빌더 + post↔survey 매칭 도구 (Tier 1 arXiv/DOI/Nature ID exact + Tier 3 fuzzy fallback)
+- `add_ref_links.py` — 레거시 ref 링크 삽입 도우미
+- `__init__.py` — 패키지 마커 (Python import 용)
+- `refs_index.json` — 생성물: 모든 서베이 ref를 파싱해 arXiv/DOI/Nature ID로 인덱싱 (gitignored)
+- `posts_index.json` — 생성물: terry-artlab-homepage의 포스트 meta.json을 읽어 post↔ID 매핑 (gitignored)
+
+> **설계 원칙**: 참고문헌 관련 모든 파일·도구·생성물은 `bibtex/` 안에서 관리된다. 다른 디렉토리에 ref 관련 코드를 두지 않는다.
+
+## 인덱스 도구 사용법
+
+```bash
+# 서베이 ref 인덱스 갱신 (서베이 챕터 수정 후)
+python3 bibtex/refs_index.py build
+
+# 홈페이지 포스트 인덱스 갱신 (새 포스트 등록 후)
+python3 bibtex/refs_index.py build-posts
+
+# 둘 다
+python3 bibtex/refs_index.py build-all
+
+# 특정 포스트 slug가 서베이에서 인용됐는지 찾기 (Tier 1 exact + Tier 3 fuzzy)
+python3 bibtex/refs_index.py match 2412-f-tac-hand
+
+# 키워드로 서베이 ref 검색
+python3 bibtex/refs_index.py search "pi0"
+```
+
+`build.py` 래퍼로도 호출 가능: `python3 build.py --index`, `--match <slug>`, `--search <kw>`.
 
 ## 왜 두 파일(마스터 + 서베이별)이 공존하는가
 
 - **빌드 속도/가독성**: `shared/build_site.py`는 서베이별 `.bib`만 읽는다. 로컬 파일은 해당 서베이가 실제 인용하는 엔트리만 유지.
+- **Tier 1 매칭**: 포스트↔서베이 연결은 `bibtex/refs_index.py`가 서베이 로컬 `.bib`와 ref 라인에서 arXiv ID / DOI / Nature 아티클 ID를 추출해 exact match로 판정한다. 잘못된 논문에 링크가 붙는 false positive가 차단된다.
 - **일관성 보장**: 자매 서베이에서 같은 논문을 다른 키로 중복 작성하지 않도록 마스터에서 먼저 키를 확정.
 
 ## 워크플로우 (신규 논문 인용 시 4단계)
