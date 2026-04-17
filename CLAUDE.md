@@ -45,6 +45,28 @@ python3 build.py --list            # 서베이 목록
 python3 build.py --all
 ```
 
+## 통합 BibTeX 관리
+
+`bibtex/references.bib`는 **모든 서베이가 공유하는 단일 source of truth**. 각 서베이의 `surveys/<name>/book/references.bib`는 이 마스터의 subset으로 유지한다 (빌드 스크립트는 로컬 파일만 읽음).
+
+### 신규 논문 인용 시 4단계 워크플로우 (필수)
+
+1. **grep 먼저**: `grep -i "<title-keyword>\|<arxiv-id>" bibtex/references.bib`
+2. **있으면 재사용**: 마스터 키를 서베이 로컬 `.bib`에 복사
+3. **없으면 마스터에 먼저**: 엔트리를 마스터에 추가한 후 서베이 로컬에도 복사
+4. **자매 서베이 일관성**: 다른 서베이가 이미 쓰는 키가 있으면 반드시 동일 키 사용
+
+### 신규 서베이 생성 체크리스트
+
+`python3 build.py --new <name>` 실행 후에도 **반드시**:
+- [ ] 첫 인용을 추가하기 전에 `bibtex/references.bib` grep으로 기존 키 확인
+- [ ] 기존 논문은 마스터 키를 그대로 재사용 (중복 키 금지)
+- [ ] 신규 엔트리는 마스터에 먼저 추가하고 서베이 로컬로 복사
+
+### 키 네이밍 규약
+
+`{firstauthorlastname}{year}{keyword}` (소문자). 예: `zhang2025soft`, `almeida2025roleoftouch`. 자세한 규약과 충돌 해결은 `bibtex/README.md` 참조.
+
 ## 서베이별 콘텐츠 구조
 
 ```
