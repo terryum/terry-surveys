@@ -94,5 +94,5 @@ python3 bibtex/refs_index.py search "pi0"
 
 | 키 | 이슈 | 해결 예정 |
 |-----|------|-----------|
-| `npj2026activepalm` | 첫 저자 미확인 (nature.com fetch 차단) | PDF 확인 후 `{surname}2026activepalm`으로 재명명 |
+| ~~`npj2026activepalm`~~ → `zhou2026activepalm` | **2026-04-17 해결**: 저자 Zhou/Lee/Gu/She 확정, 키 재명명 완료 |
 | `zhang2025soft` | 네이밍이 제너릭 | 충돌 발생 시 `zhang2025softpalm`으로 재명명 고려 |

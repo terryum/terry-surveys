@@ -349,21 +349,57 @@ def _load_post_entry(slug):
     }
 
 
+# --------------------------------------------------------------------
+# Tier 2 helpers — title Jaccard similarity over meaningful tokens
+# --------------------------------------------------------------------
+# Stopwords that inflate Jaccard scores without adding signal.
+_TITLE_STOP = frozenset({
+    'the', 'a', 'an', 'of', 'for', 'in', 'on', 'to', 'and', 'or', 'with',
+    'via', 'from', 'by', 'is', 'as', 'at', 'we', 'our', 'be', 'are', 'can',
+    'this', 'that', 'these', 'those', 'their', 'paper', 'learning',
+    'toward', 'towards',
+})
+# Tier 2 similarity threshold — set empirically. Jaccard on 5+ char tokens
+# rarely crosses 0.55 unless titles share most meaningful words.
+TIER2_THRESHOLD = 0.55
+
+
+def _title_tokens(title):
+    """Return lower-case word tokens of length ≥ 5 minus a short stopword set.
+
+    Length filter drops "hand", "tac", "the", etc. — the same failure mode
+    that produced F-TAC → Sparsh-skin false positives in the legacy matcher.
+    """
+    if not title:
+        return set()
+    words = re.findall(r"[A-Za-z][A-Za-z0-9\-]+", title.lower())
+    return {w for w in words if len(w) >= 5 and w not in _TITLE_STOP}
+
+
+def _jaccard(a, b):
+    if not a or not b:
+        return 0.0
+    inter = a & b
+    union = a | b
+    return len(inter) / len(union) if union else 0.0
+
+
 def match_post_slug(slug):
     """Match a homepage post slug to survey references.
 
-    Two-tier strategy:
-      Tier 1 — arXiv/DOI/Nature ID exact match   (confidence=exact)
-      Tier 3 — slug-token fuzzy fallback         (confidence=low, needs review)
+    Three-tier strategy:
+      Tier 1 — arXiv/DOI/Nature ID exact match     (confidence=exact)
+      Tier 2 — Title-token Jaccard ≥ TIER2_THRESHOLD (confidence=medium)
+      Tier 3 — slug-token fuzzy fallback            (confidence=low, review)
 
-    Tier 1 is the primary signal. When any Tier 1 hit exists, Tier 3 matches
-    are reported separately and callers should NOT auto-link them without
-    human review. When no Tier 1 hit exists, Tier 3 matches are still
-    returned as suggestions but always need review.
+    Tier 1 is always preferred. Tier 2 covers the gap when a paper has no
+    arXiv/DOI/Nature identifier but the post title matches the survey ref
+    title closely enough that false positives are unlikely. Tier 3 is a
+    last-resort suggestion surface — it is reported but never auto-linked.
     """
     if not os.path.isfile(INDEX_PATH):
-        print("Refs index not found. Run: python3 shared/refs_index.py build")
-        return {'tier1': [], 'tier3': []}
+        print("Refs index not found. Run: python3 bibtex/refs_index.py build")
+        return {'tier1': [], 'tier2': [], 'tier3': []}
 
     with open(INDEX_PATH) as f:
         index = json.load(f)
@@ -397,17 +433,32 @@ def match_post_slug(slug):
                         'matched_ids': sorted(overlap),
                     })
 
+    # --- Tier 2: title Jaccard similarity ---------------------------------
+    tier1_titles = {m['paper']['title'].lower().strip() for m in tier1}
+    tier2 = []
+    if post and post.get('source_title'):
+        post_tokens = _title_tokens(post['source_title'])
+        if post_tokens:
+            for key, paper in index['papers'].items():
+                if paper['title'].lower().strip() in tier1_titles:
+                    continue
+                ref_tokens = _title_tokens(paper.get('title', ''))
+                sim = _jaccard(post_tokens, ref_tokens)
+                if sim >= TIER2_THRESHOLD:
+                    tier2.append({'paper': paper, 'similarity': round(sim, 3)})
+            tier2.sort(key=lambda m: -m['similarity'])
+
+    tier2_titles = {m['paper']['title'].lower().strip() for m in tier2}
+
     # --- Tier 3: legacy slug-token fuzzy fallback -------------------------
     parts = slug.split('-')
     if parts and re.match(r'^\d{4}$', parts[0]):
         parts = parts[1:]
 
     tier3 = []
-    # Title/location keys already hit via Tier 1 — exclude from fuzzy output.
-    tier1_titles = {m['paper']['title'].lower().strip() for m in tier1}
-
     for key, paper in index['papers'].items():
-        if paper['title'].lower().strip() in tier1_titles:
+        title_lc = paper['title'].lower().strip()
+        if title_lc in tier1_titles or title_lc in tier2_titles:
             continue
         score = 0
         for kw in paper.get('keywords', []):
@@ -426,9 +477,9 @@ def match_post_slug(slug):
     tier3.sort(key=lambda x: -x[0])
 
     # --- Report ------------------------------------------------------------
-    if not tier1 and not tier3:
+    if not tier1 and not tier2 and not tier3:
         print(f"No matches for post slug '{slug}'")
-        return {'tier1': [], 'tier3': []}
+        return {'tier1': [], 'tier2': [], 'tier3': []}
 
     if post and not post.get('ids', {}).get('arxiv') \
             and not post.get('ids', {}).get('doi') \
@@ -450,11 +501,28 @@ def match_post_slug(slug):
             print(f"    -> {locs}")
             print()
 
+    if tier2:
+        header = (
+            f"📗 Tier 2 (title-Jaccard ≥ {TIER2_THRESHOLD}) — {len(tier2)} paper(s)"
+            if tier1 else
+            f"📗 Tier 2 (title-Jaccard ≥ {TIER2_THRESHOLD}) — {len(tier2)} paper(s) (no Tier 1 hit)"
+        )
+        print(f"\n{header}:\n")
+        for hit in tier2:
+            p = hit['paper']
+            locs = ', '.join(
+                f"{l['survey']} ch{l['chapter']}[{l['ref_num']}]"
+                for l in p['locations']
+            )
+            print(f"  • [sim={hit['similarity']}] {p['first_author']} ({p['year']}). {p['title'][:80]}")
+            print(f"    -> {locs}")
+            print()
+
     if tier3:
         header = (
             "⚠️  Tier 3 (slug-token fuzzy — REQUIRES HUMAN REVIEW)"
-            if tier1 else
-            "⚠️  Tier 3 only (no Tier 1 hit — REQUIRES HUMAN REVIEW)"
+            if tier1 or tier2 else
+            "⚠️  Tier 3 only (no Tier 1/2 hit — REQUIRES HUMAN REVIEW)"
         )
         print(f"\n{header} — top {min(len(tier3), 5)} of {len(tier3)}:\n")
         for score, paper in tier3[:5]:
@@ -468,6 +536,7 @@ def match_post_slug(slug):
 
     return {
         'tier1': tier1,
+        'tier2': tier2,
         'tier3': [{'score': s, 'paper': p} for s, p in tier3],
     }
 
