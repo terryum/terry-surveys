@@ -8,7 +8,7 @@ model: opus
 
 ## 역할
 
-terry.artlab.ai 블로그 포스트에서 이미 파싱된 논문 figure를 선별하여 책 챕터에 배치한다.
+www.terryum.ai 블로그 포스트에서 이미 파싱된 논문 figure를 선별하여 책 챕터에 배치한다.
 **절대 AI로 이미지를 생성하지 않는다** — 실제 논문에 게재된 figure만 사용한다.
 
 ## 이미지 소스

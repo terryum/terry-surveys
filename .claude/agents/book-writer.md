@@ -74,7 +74,7 @@ date: "2026-04-01"
 last_updated: "2026-04-01"
 sources:
   - "세미나 PDF: 260319_Seminar_SNU_Junsoo_Jihwan (해당 시)"
-  - "논문 요약 포스트: terry.artlab.ai (해당 시)"
+  - "논문 요약 포스트: www.terryum.ai (해당 시)"
   - "Literature survey 결과"
 ---
 
@@ -113,7 +113,7 @@ date: "2026-04-01"
 last_updated: "2026-04-01"
 sources:
   - "SNU Seminar materials (when applicable)"
-  - "Paper summary posts: terry.artlab.ai (when applicable)"
+  - "Paper summary posts: www.terryum.ai (when applicable)"
   - "Literature survey results"
 ---
 

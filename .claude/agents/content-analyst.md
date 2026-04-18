@@ -22,7 +22,7 @@
 | 세미나 1 | `/Users/terrytaewoongum/Downloads/260319_Seminar_SNU_Junsoo_Jihwan_TactileHand_Maipulation.pdf` | Tactile hand + manipulation |
 | 세미나 2 | `/Users/terrytaewoongum/Downloads/260323_Seminar_SNU_Taejoon_DataGlove_Sensors.pdf` | Data glove + sensors |
 | 세미나 3 | `/Users/terrytaewoongum/Downloads/260323_Seminar_SNU_Inchul_Hand_Gripper_Machanism.pdf` | Hand/gripper mechanism |
-| 홈페이지 포스트 | `https://terry.artlab.ai/en/posts?tab=papers` | 논문 요약 모음 |
+| 홈페이지 포스트 | `https://www.terryum.ai/en/posts?tab=papers` | 논문 요약 모음 |
 | 포스트 원본 (md) | `https://github.com/terryum/terry-artlab-homepage/tree/main/posts/papers` | 마크다운 원본 |
 
 ## 입력/출력 프로토콜

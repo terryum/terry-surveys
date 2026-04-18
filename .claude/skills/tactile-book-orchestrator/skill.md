@@ -39,7 +39,7 @@ Tactile Sensing for Robot Hands 책 집필 + 웹사이트 구축 프로젝트를
 - /Users/terrytaewoongum/Downloads/260323_Seminar_SNU_Inchul_Hand_Gripper_Machanism.pdf
 
 ## 홈페이지 포스트
-- https://terry.artlab.ai/en/posts?tab=papers
+- https://www.terryum.ai/en/posts?tab=papers
 - https://github.com/terryum/terry-artlab-homepage/tree/main/posts/papers
 ```
 

@@ -1,11 +1,11 @@
 ---
 name: cite-post
-description: "terry.artlab.ai 포스팅 번호를 책의 인라인 인용과 참고문헌에 추가하는 스킬. '/cite-post', '포스팅 링크 추가', '포스트 번호 매칭', '블로그 레퍼런스 연결' 요청 시 반드시 이 스킬을 사용할 것. 새 포스팅이 추가된 후 책을 업데이트할 때 사용한다."
+description: "www.terryum.ai 포스팅 번호를 책의 인라인 인용과 참고문헌에 추가하는 스킬. '/cite-post', '포스팅 링크 추가', '포스트 번호 매칭', '블로그 레퍼런스 연결' 요청 시 반드시 이 스킬을 사용할 것. 새 포스팅이 추가된 후 책을 업데이트할 때 사용한다."
 ---
 
 # Cite Post — 포스팅 레퍼런스 매칭 및 추가
 
-terry.artlab.ai의 논문 포스팅 번호(`[#N]`)를 책의 인라인 인용과 참고문헌에 추가한다.
+www.terryum.ai의 논문 포스팅 번호(`[#N]`)를 책의 인라인 인용과 참고문헌에 추가한다.
 
 ## 사용 예시
 
@@ -21,7 +21,7 @@ terry.artlab.ai의 논문 포스팅 번호(`[#N]`)를 책의 인라인 인용과
 terry-artlab-homepage 프로젝트에서 전체 포스팅 목록을 읽는다:
 - 경로: `/Users/terrytaewoongum/Codes/personal/terry-artlab-homepage/posts/papers/`
 - 각 폴더의 `meta.json`에서 `postNumber`, `title`, 슬러그(폴더명) 추출
-- URL 패턴: `https://terry.artlab.ai/ko/posts/{slug}`
+- URL 패턴: `https://www.terryum.ai/ko/posts/{slug}`
 
 ### Step 2: 책의 참고문헌 파싱
 
@@ -46,7 +46,7 @@ ExoStart [Smith et al., 2025]
 
 **변경 후 (마크다운):**
 ```
-ExoStart [Smith et al., 2025] [#9](https://terry.artlab.ai/ko/posts/2506-exostart)
+ExoStart [Smith et al., 2025] [#9](https://www.terryum.ai/ko/posts/2506-exostart)
 ```
 
 빌드 시 `[#9](URL)`은 일반 마크다운 링크로 변환된다. `target="_blank"` 처리는 build_site.py에서 수행.
@@ -62,13 +62,13 @@ ExoStart [Smith et al., 2025] [#9](https://terry.artlab.ai/ko/posts/2506-exostar
 
 **변경 후:**
 ```
-7. Smith et al. (2025). ExoStart: ... *arXiv*. https://arxiv.org/... [#9](https://terry.artlab.ai/ko/posts/2506-exostart)
+7. Smith et al. (2025). ExoStart: ... *arXiv*. https://arxiv.org/... [#9](https://www.terryum.ai/ko/posts/2506-exostart)
 ```
 
 ### Step 6: 영문 챕터도 동일 처리
 
 `book/en/ch*.md`에도 동일한 매칭과 추가를 수행한다.
-영문 URL: `https://terry.artlab.ai/en/posts/{slug}`
+영문 URL: `https://www.terryum.ai/en/posts/{slug}`
 
 ### Step 7: 리빌드
 
@@ -101,5 +101,5 @@ build_site.py의 `process_inline()`에서 `[#N](URL)` → `<a href="URL" target=
 
 - 인라인 인용의 `[Author, Year]`는 빌드 시 `<sup>` 숫자 링크로 변환되고, 포스팅 `[#N]`은 별도 링크로 남음
 - 같은 논문이 여러 챕터에 인용된 경우, 모든 챕터에서 포스팅 번호를 추가
-- 포스팅 번호는 terry.artlab.ai의 전역 번호체계를 따름 (논문 #1~#27+)
+- 포스팅 번호는 www.terryum.ai의 전역 번호체계를 따름 (논문 #1~#27+)
 - 영문 챕터의 포스팅 URL은 `/en/posts/` 사용

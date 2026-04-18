@@ -5,7 +5,7 @@ description: "새 논문 포스팅이 homepage에 추가된 뒤, Tier 1 exact ID
 
 # Link Post to Surveys — Tier 1 기반 포스트↔서베이 교차 연결
 
-새 논문 포스트가 terry.artlab.ai에 추가되었을 때, terry-surveys 모노레포의 모든 서베이에서 **같은 논문**(arXiv ID / DOI / Nature 아티클 ID 일치)을 찾아 해당 참고문헌 라인에 `[#NN](post-url)` 링크를 자동 삽입한다.
+새 논문 포스트가 www.terryum.ai에 추가되었을 때, terry-surveys 모노레포의 모든 서베이에서 **같은 논문**(arXiv ID / DOI / Nature 아티클 ID 일치)을 찾아 해당 참고문헌 라인에 `[#NN](post-url)` 링크를 자동 삽입한다.
 
 **핵심 원칙**: false positive 0. slug 토큰 유사도로 엉뚱한 논문에 링크가 붙으면 서베이 신뢰도를 크게 해치므로, Tier 1 exact ID match만 자동 링크 대상이다. Tier 3 fuzzy 매칭은 사용자 확인 후에만 진행한다.
 
@@ -48,8 +48,8 @@ python3 bibtex/refs_index.py match <post-slug>
 2. `## 참고문헌` (ko) / `## References` (en) 섹션에서 `<ref_num>.` 으로 시작하는 라인을 찾음
 3. 그 라인에 포스트 링크가 이미 없는지 확인 (`[#` 토큰이 없으면 신규). **이미 있으면 스킵** — 중복 방지
 4. `[scholar](...)` 직전에 포스트 링크 삽입:
-   - ko: `[#<post_number>](https://terry.artlab.ai/ko/posts/<slug>)`
-   - en: `[#<post_number>](https://terry.artlab.ai/en/posts/<slug>)`
+   - ko: `[#<post_number>](https://www.terryum.ai/ko/posts/<slug>)`
+   - en: `[#<post_number>](https://www.terryum.ai/en/posts/<slug>)`
 
 `post_number`는 `bibtex/posts_index.json`의 해당 slug 엔트리에서 읽는다.
 
@@ -62,7 +62,7 @@ python3 bibtex/refs_index.py match <post-slug>
 
 **After**:
 ```
-17. Zhao, Z., et al. (2025). Embedding high-resolution touch across robotic hands... https://arxiv.org/abs/2412.14482 [#39](https://terry.artlab.ai/ko/posts/2412-f-tac-hand) [scholar](...)
+17. Zhao, Z., et al. (2025). Embedding high-resolution touch across robotic hands... https://arxiv.org/abs/2412.14482 [#39](https://www.terryum.ai/ko/posts/2412-f-tac-hand) [scholar](...)
 ```
 
 ## Step 4) 본문 인라인 인용은 수정하지 않는다
@@ -81,15 +81,15 @@ python3 build.py <affected-survey-name>
 
 여러 서베이가 영향받으면 각각 실행. `--all`은 불필요.
 
-## Step 6) snu-tactile-hand 특수 처리 (private Vercel 배포)
+## Step 6) snu-tactile-hand 특수 처리 (private Cloudflare Pages 배포)
 
-`snu-tactile-hand`는 `.gitignore`로 공개 repo에서 제외되고, 별도 private repo(`terryum/survey-snu-largescale-tactile-hand`)에서 Vercel이 배포를 서빙한다. 링크 삽입 + 리빌드 후 반드시:
+`snu-tactile-hand`는 `.gitignore`로 공개 repo에서 제외되고, 별도 private repo(`terryum/survey-snu-largescale-tactile-hand`)에서 Cloudflare Pages가 배포를 서빙한다. 링크 삽입 + 리빌드 후 반드시:
 
 ```bash
 bash surveys/snu-tactile-hand/scripts/push-private.sh "link post <slug> (#<N>) to snu-tactile-hand"
 ```
 
-이 스크립트가 private repo를 임시 clone → book/, docs/, assets/ 를 rsync → commit + push → Vercel 재배포 트리거 → 임시 dir 삭제 순서로 돌린다.
+이 스크립트가 private repo를 임시 clone → book/, docs/, assets/ 를 rsync → commit + push → Cloudflare Pages 자동 재배포 트리거 → 임시 dir 삭제 순서로 돌린다.
 
 snu-tactile-hand이 Tier 1 매칭에 없으면 이 단계는 생략.
 
