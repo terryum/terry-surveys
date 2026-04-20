@@ -10,7 +10,7 @@ reported separately so callers can require human review before acting.
 
 Usage:
     python3 bibtex/refs_index.py build          # Rebuild survey refs index
-    python3 bibtex/refs_index.py build-posts    # Rebuild posts index (terry-artlab-homepage)
+    python3 bibtex/refs_index.py build-posts    # Rebuild posts index (terryum-ai)
     python3 bibtex/refs_index.py build-all      # Both
     python3 bibtex/refs_index.py search "pi0"   # Search by keyword
     python3 bibtex/refs_index.py match <slug>   # Match a post slug to survey refs
@@ -36,7 +36,7 @@ SURVEYS_DIR = os.path.join(ROOT, 'surveys')
 INDEX_PATH = os.path.join(BIBTEX_DIR, 'refs_index.json')
 POSTS_INDEX_PATH = os.path.join(BIBTEX_DIR, 'posts_index.json')
 HOMEPAGE_POSTS_DIR = os.path.join(
-    os.path.dirname(ROOT), 'terry-artlab-homepage', 'posts', 'papers'
+    os.path.dirname(ROOT), 'terryum-ai', 'posts', 'papers'
 )
 
 # --------------------------------------------------------------------
@@ -272,7 +272,7 @@ def search_index(query):
 
 
 def build_posts_index():
-    """Scan terry-artlab-homepage posts and extract Tier 1 identifiers.
+    """Scan terryum-ai posts and extract Tier 1 identifiers.
 
     Produces posts_index.json with one entry per post containing slug,
     post_number, source_title, source_author, source_date, and the set

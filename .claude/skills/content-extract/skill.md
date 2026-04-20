@@ -20,7 +20,7 @@ description: "사용자의 기존 자료(세미나 PDF, 홈페이지 논문 요�
 ### 홈페이지 논문 포스트
 
 - **웹 URL**: `https://www.terryum.ai/en/posts?tab=papers`
-- **GitHub 원본**: `https://github.com/terryum/terry-artlab-homepage/tree/main/posts/papers`
+- **GitHub 원본**: `https://github.com/terryum/terryum-ai/tree/main/posts/papers`
 - GitHub raw URL로 md 파일 직접 접근 가능
 
 ## 워크플로우

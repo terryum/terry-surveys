@@ -10,7 +10,7 @@
 - `add_ref_links.py` — 레거시 ref 링크 삽입 도우미
 - `__init__.py` — 패키지 마커 (Python import 용)
 - `refs_index.json` — 생성물: 모든 서베이 ref를 파싱해 arXiv/DOI/Nature ID로 인덱싱 (gitignored)
-- `posts_index.json` — 생성물: terry-artlab-homepage의 포스트 meta.json을 읽어 post↔ID 매핑 (gitignored)
+- `posts_index.json` — 생성물: terryum-ai의 포스트 meta.json을 읽어 post↔ID 매핑 (gitignored)
 
 > **설계 원칙**: 참고문헌 관련 모든 파일·도구·생성물은 `bibtex/` 안에서 관리된다. 다른 디렉토리에 ref 관련 코드를 두지 않는다.
 

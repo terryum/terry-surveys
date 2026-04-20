@@ -40,7 +40,7 @@ Tactile Sensing for Robot Hands 책 집필 + 웹사이트 구축 프로젝트를
 
 ## 홈페이지 포스트
 - https://www.terryum.ai/en/posts?tab=papers
-- https://github.com/terryum/terry-artlab-homepage/tree/main/posts/papers
+- https://github.com/terryum/terryum-ai/tree/main/posts/papers
 ```
 
 3. `book/` 및 `docs/` 디렉토리 생성

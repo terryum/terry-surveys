@@ -18,8 +18,8 @@ www.terryum.ai의 논문 포스팅 번호(`[#N]`)를 책의 인라인 인용과 
 
 ### Step 1: 포스팅 목록 수집
 
-terry-artlab-homepage 프로젝트에서 전체 포스팅 목록을 읽는다:
-- 경로: `/Users/terrytaewoongum/Codes/personal/terry-artlab-homepage/posts/papers/`
+terryum-ai 프로젝트에서 전체 포스팅 목록을 읽는다:
+- 경로: `/Users/terrytaewoongum/Codes/personal/terryum-ai/posts/papers/`
 - 각 폴더의 `meta.json`에서 `postNumber`, `title`, 슬러그(폴더명) 추출
 - URL 패턴: `https://www.terryum.ai/ko/posts/{slug}`
 

@@ -15,7 +15,7 @@ description: "논문 figure를 선별하여 책 챕터에 삽입하고, 논문 �
 ## 이미지 소스 (우선순위 순)
 
 1. **세미나 PDF**: `docs/revise-source/(Modular Approach) Literature Review.pdf` — 크롭
-2. **블로그 포스트**: `terry-artlab-homepage/posts/papers/{slug}/` — fig-{N}.{ext} + meta.json
+2. **블로그 포스트**: `terryum-ai/posts/papers/{slug}/` — fig-{N}.{ext} + meta.json
 3. **arXiv 논문 PDF**: 직접 다운로드 → figure 크롭
 4. **Gemini 생성**: `/gemini-3-image-generation` 스킬 — 보조 일러스트 (챕터당 최대 2개)
 
@@ -65,7 +65,7 @@ description: "논문 figure를 선별하여 책 챕터에 삽입하고, 논문 �
 
 **소스별 크롭 방법:**
 - 세미나 PDF: 해당 페이지에서 figure 영역 크롭, PNG/JPG 저장
-- 블로그: `terry-artlab-homepage/posts/papers/{slug}/fig-{N}.{ext}` 복사
+- 블로그: `terryum-ai/posts/papers/{slug}/fig-{N}.{ext}` 복사
 - arXiv: 논문 PDF 다운로드 → figure 크롭 → 저장
 
 ### Step 5: 논문 원문과 내용 대조·보강

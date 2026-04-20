@@ -105,7 +105,7 @@ git push origin main
 
 ## /post 스킬과의 연동
 
-`terry-artlab-homepage/.claude/skills/post/SKILL.md`의 Step R12.7이 이 스킬을 자동 호출한다. R12.7의 판정 규칙:
+`terryum-ai/.claude/skills/post/SKILL.md`의 Step R12.7이 이 스킬을 자동 호출한다. R12.7의 판정 규칙:
 
 - **Tier 1 hit 있음** → 즉시 `/link-post-to-surveys <slug>` 실행 (Step 1~7 모두 자동)
 - **Tier 3만 있음** → 사용자에게 매칭 후보 제시, 확인 후에만 수동 진행

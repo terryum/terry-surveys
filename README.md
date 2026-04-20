@@ -4,7 +4,7 @@
 
 > Unified workspace for creating, building, and managing research survey books on [terry.artlab.ai](https://terry.artlab.ai/ko/surveys).
 
-This workspace is part of the [terry-artlab-homepage](https://github.com/terryum/terry-artlab-homepage) ecosystem. For full site documentation, architecture, and setup guide, see the [main repository README](https://github.com/terryum/terry-artlab-homepage#readme).
+This workspace is part of the [terryum-ai](https://github.com/terryum/terryum-ai) ecosystem. For full site documentation, architecture, and setup guide, see the [main repository README](https://github.com/terryum/terryum-ai#readme).
 
 ---
 
@@ -88,7 +88,7 @@ Surveys can be restricted to specific groups (e.g., SNU collaborators):
 
 > [terry.artlab.ai](https://terry.artlab.ai/ko/surveys)의 연구 서베이 북을 생성·빌드·관리하는 통합 워크스페이스.
 
-이 워크스페이스는 [terry-artlab-homepage](https://github.com/terryum/terry-artlab-homepage) 생태계의 일부입니다. 전체 사이트 문서, 아키텍처, 설정 가이드는 [메인 리포지토리 README](https://github.com/terryum/terry-artlab-homepage#readme)를 참고하세요.
+이 워크스페이스는 [terryum-ai](https://github.com/terryum/terryum-ai) 생태계의 일부입니다. 전체 사이트 문서, 아키텍처, 설정 가이드는 [메인 리포지토리 README](https://github.com/terryum/terryum-ai#readme)를 참고하세요.
 
 ## 하는 일
 

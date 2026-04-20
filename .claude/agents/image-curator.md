@@ -13,7 +13,7 @@ www.terryum.ai 블로그 포스트에서 이미 파싱된 논문 figure를 선�
 
 ## 이미지 소스
 
-- **블로그 포스트**: `/Users/terrytaewoongum/Codes/personal/terry-artlab-homepage/posts/papers/{slug}/`
+- **블로그 포스트**: `/Users/terrytaewoongum/Codes/personal/terryum-ai/posts/papers/{slug}/`
   - `fig-{N}.png`: 논문에서 추출한 figure
   - `meta.json`: `figures[]` 배열에 bilingual caption (`caption`, `caption_ko`)
 
