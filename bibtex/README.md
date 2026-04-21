@@ -88,7 +88,7 @@ python3 bibtex/refs_index.py search "pi0"
 ## 초기 seeding 이력
 
 - 2026-04-17: 팜 연구 8건 (snu-tactile-hand 통합 작업) — `zhao2025ftac`, `zhang2025soft`, `almeida2025roleoftouch`, `sharma2025sparsh`, `liu2024romeo`, `richardson2025isyhand`, `npj2026activepalm`, `pozzi2024actuatedpalms`
-- TODO: 3개 서베이 기존 엔트리의 union·dedupe 1회성 작업 (후속 PR)
+- 2026-04-21: 3서베이 로컬 `.bib` union → 마스터 15 → 244 엔트리 (Phase 1 완료). 도구: `shared/scripts/union_bibtex.py`. 서베이 간 공유 paper 7개는 rht 버전으로 canonical 확정.
 
 ## 충돌·TODO
 
