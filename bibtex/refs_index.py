@@ -225,17 +225,28 @@ def build_index():
             'ref_num': ref['ref_num'],
         })
 
+    # Reverse index: paper ID → list of locations.
+    # Consumers (e.g. build.py --impact) look up a post's arXiv/DOI/Nature
+    # ID here to find every survey+chapter that already cites that paper.
+    reverse_index = {'arxiv': {}, 'doi': {}, 'nature': {}}
+    for title_key, paper in title_map.items():
+        for kind in reverse_index:
+            for ident in paper['ids'].get(kind, []):
+                reverse_index[kind].setdefault(ident, []).extend(paper['locations'])
+
     index = {
-        'version': 1,
+        'version': 2,
         'total_refs': len(all_refs),
         'unique_papers': len(title_map),
         'papers': title_map,
+        'reverse_index': reverse_index,
     }
 
     with open(INDEX_PATH, 'w', encoding='utf-8') as f:
         json.dump(index, f, ensure_ascii=False, indent=2)
 
     print(f"\nIndex built: {len(all_refs)} total refs, {len(title_map)} unique papers")
+    print(f"Reverse index: {sum(len(v) for v in reverse_index.values())} ID entries")
     print(f"Saved to: {INDEX_PATH}")
     return index
 

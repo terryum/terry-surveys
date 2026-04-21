@@ -13,6 +13,7 @@ Usage:
     python build.py --sync-bibtex <name>           # Regenerate local .bib from master
     python build.py --sync-glossary <name>         # Regenerate local glossary from master
     python build.py --staleness [name|--all]       # Chapter staleness report
+    python build.py --impact <post-slug>           # Tier1/Tier2 chapter-match
 """
 
 import sys
@@ -134,6 +135,13 @@ def main():
         from shared.staleness import main as staleness_main
         target = sys.argv[2] if len(sys.argv) >= 3 else '--all'
         staleness_main(target)
+
+    elif arg == '--impact':
+        if len(sys.argv) < 3:
+            print("Usage: python build.py --impact <post-slug>")
+            sys.exit(1)
+        from shared.impact import main as impact_main
+        impact_main(sys.argv[2])
 
     else:
         build_one(arg)

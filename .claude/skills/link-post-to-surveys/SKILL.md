@@ -21,24 +21,25 @@ description: "새 논문 포스팅이 homepage에 추가된 뒤, Tier 1 exact ID
 
 ```bash
 cd /Users/terrytaewoongum/Codes/personal/terry-surveys
-python3 bibtex/refs_index.py build-all
+python3 build.py --index       # refs_index.json (reverse_index 포함)
+python3 bibtex/refs_index.py build-posts  # posts_index.json
 ```
 
-- `build-all`: 서베이 refs 인덱스(`bibtex/refs_index.json`)와 포스트 인덱스(`bibtex/posts_index.json`)를 함께 재빌드
-- 두 인덱스 모두 arXiv ID / DOI / Nature 아티클 ID를 추출하여 저장
-- 초 단위로 완료되므로 매번 재빌드 안전
+- `--index`: 서베이 refs 인덱스 + 역인덱스(arxiv/doi/nature → 위치 매핑) 재빌드
+- `build-posts`: 포스트 meta.json 스캔 후 포스트 인덱스 재빌드
+- 초 단위로 완료 — 매번 재빌드 안전
 
-## Step 2) Tier 1 매칭 조회
+## Step 2) Impact 분석 (Tier 1 + Tier 2)
 
 ```bash
-python3 bibtex/refs_index.py match <post-slug>
+python3 build.py --impact <post-slug>
 ```
 
 출력 구조:
-- **`✅ Tier 1 (exact ID match)`** 섹션 — `arxiv:...`, `doi:...`, `nature:...` 중 적어도 하나가 포스트 `source_url`과 서베이 ref 양쪽에 동일하게 존재. **이 섹션의 모든 항목만 자동 링크 대상**.
-- **`⚠️  Tier 3 (slug-token fuzzy — REQUIRES HUMAN REVIEW)`** 섹션 — 제목·키워드 토큰 overlap 기반 fallback. 자동 링크 **금지**. 이 섹션은 사용자에게 제시하고 "yes"를 받았을 때만 해당 ref를 편집한다.
+- **`## Tier 1 — already citing (exact ID match)`** — arXiv/DOI/Nature ID가 포스트와 서베이 ref에 겹치는 위치. **자동 링크 대상**. 마스터 bibtex를 경유해 DOI↔arXiv cross-reference도 bridge됨 (포스트 arXiv만 알고 RHT ref line은 DOI만 적혀 있어도 매칭).
+- **`## Tier 2 — related chapters (keyword / topic)`** — 포스트 tags/subfields/key_concepts와 챕터 title/summary의 word overlap 점수. **자동 삽입 금지** — 사용자에게 "리프레시 후보"로 제시하고 승인 시에만 챕터 편집 제안.
 
-포스트 meta.json에 arXiv/DOI/Nature 식별자가 없으면 경고가 출력되고 Tier 1이 비활성화된다. 그 경우엔 Tier 3도 자동 삽입 금지 — 수동 확인 필수.
+포스트 meta.json에 arXiv/DOI/Nature 식별자가 없으면 Tier 1 비활성. Tier 2만 참고.
 
 ## Step 3) Tier 1 매칭 위치에 [#NN] 링크 삽입
 
@@ -108,7 +109,7 @@ git push origin main
 `terryum-ai/.claude/skills/post/SKILL.md`의 Step R12.7이 이 스킬을 자동 호출한다. R12.7의 판정 규칙:
 
 - **Tier 1 hit 있음** → 즉시 `/link-post-to-surveys <slug>` 실행 (Step 1~7 모두 자동)
-- **Tier 3만 있음** → 사용자에게 매칭 후보 제시, 확인 후에만 수동 진행
+- **Tier 1 없고 Tier 2만** → Tier 2 리포트를 사용자에게 제시, "이 챕터들을 신규 paper로 업데이트할까요?"로 승인 받은 항목만 편집
 - **아무 매칭 없음** → 조용히 종료
 
 ## 반대 방향: 새 서베이 추가 시 기존 포스트 연결
