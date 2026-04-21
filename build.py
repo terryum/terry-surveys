@@ -12,6 +12,7 @@ Usage:
     python build.py --validate [name|--all]        # Structural validator
     python build.py --sync-bibtex <name>           # Regenerate local .bib from master
     python build.py --sync-glossary <name>         # Regenerate local glossary from master
+    python build.py --staleness [name|--all]       # Chapter staleness report
 """
 
 import sys
@@ -128,6 +129,11 @@ def main():
             sys.exit(1)
         from shared.sync_master import sync_glossary
         sync_glossary(sys.argv[2])
+
+    elif arg == '--staleness':
+        from shared.staleness import main as staleness_main
+        target = sys.argv[2] if len(sys.argv) >= 3 else '--all'
+        staleness_main(target)
 
     else:
         build_one(arg)

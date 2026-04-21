@@ -22,12 +22,21 @@ terry-surveys/
 ## 빌드 명령어
 
 ```bash
-python3 build.py <survey-name>     # 단일 서베이 빌드
-python3 build.py --all             # 전체 빌드
-python3 build.py --new <name>      # 새 서베이 스캐폴딩
-python3 build.py --list            # 서베이 목록
-python3 build.py --index           # BibTeX refs_index.json 재생성
+python3 build.py <survey-name>             # 단일 서베이 빌드
+python3 build.py --all                     # 전체 빌드
+python3 build.py --new <name>              # 새 서베이 스캐폴딩
+python3 build.py --list                    # 서베이 목록
+python3 build.py --index                   # BibTeX refs_index.json 재생성
+python3 build.py --validate [name|--all]   # 스키마·인용·figure·subset 검증
+python3 build.py --sync-bibtex <name>      # 마스터 기준으로 로컬 .bib 재생성
+python3 build.py --sync-glossary <name>    # 마스터 기준으로 로컬 glossary 재생성
+python3 build.py --staleness [name|--all]  # 챕터별 오래된 순위 리포트
 ```
+
+**마스터 한 번 고치면 모든 서베이가 맞춰지는 흐름:**
+1. `bibtex/references.bib` 또는 `glossary/master_{ko,en}.md` 마스터 수정
+2. `python3 build.py --sync-bibtex <each-survey>` / `--sync-glossary <each-survey>` 실행
+3. `python3 build.py --validate --all` 통과 확인 → `--all` 빌드 후 배포
 
 ---
 
@@ -160,14 +169,22 @@ last_updated: "YYYY-MM-DD"
 
 - `id`, `github_repo`: 식별자
 - `title`, `short_title`, `subtitle`, `description`: 양국어 제목/설명
-- `parts[].chapters[]`: 챕터 구조 (번호, 제목, 요약)
+- `parts[].chapters[]`: 챕터 구조 (번호, 제목, 요약, `last_updated` per chapter)
 - `highlights`: TOC 하이라이트 카드
 - `acknowledgment`: 감사의 글
 - `features`: 기능 플래그 — **기본값**
   - `glossary: true` (기본 on, 독자 진입장벽 완화)
   - `pdf: false` (전용 PDF 빌드 스킬 부재 시 off)
   - `paper: false` (IEEE paper 별도 워크플로우로 관리)
-- `dates.first_published`, `dates.last_updated`
+- `dates.first_published`, `dates.last_updated` (서베이 전체)
+
+### 챕터 `last_updated` 업데이트 정책 (에이전트 필수)
+
+각 챕터의 `last_updated`는 두 군데에 유지한다:
+1. `book/{ko,en}/chNN.md` frontmatter — 챕터 본문 수정 시
+2. `surveys/<name>/survey.json` → `parts[].chapters[].last_updated` — 같은 날짜
+
+**에이전트 책임**: `book-writer`와 `fact-checker`가 챕터를 수정한 직후 반드시 두 군데 모두 오늘 날짜로 갱신해야 한다. `build.py --staleness`가 이 필드를 기준으로 "가장 오래된 챕터 × 그 이후 추가된 신규 논문 수" 리포트를 생성한다.
 
 ## 5. 배포
 

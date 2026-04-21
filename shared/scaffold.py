@@ -68,7 +68,8 @@ def _survey_config(name):
                     {
                         "num": 1,
                         "title": {"ko": "첫 번째 챕터", "en": "First Chapter"},
-                        "summary": {"ko": "요약", "en": "Summary"}
+                        "summary": {"ko": "요약", "en": "Summary"},
+                        "last_updated": ""
                     }
                 ]
             }
