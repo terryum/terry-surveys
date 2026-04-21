@@ -99,11 +99,20 @@ Content goes here.
 
 def _glossary_template(lang):
     title = "Glossary" if lang == 'en' else "용어집 (Glossary)"
-    intro = (
-        "A~Z 순으로 정리된 주요 용어. 각 항목 끝 `(Ch N)`은 해당 용어가 처음 도입된 챕터."
-        if lang == 'ko' else
-        "Key terms in A-Z order. `(Ch N)` at the end of each entry marks the chapter where the term is introduced."
-    )
+    if lang == 'ko':
+        intro = (
+            "A~Z 순으로 정리된 주요 용어. 각 항목 끝 `(Ch N)`은 해당 용어가 도입되거나 집중 논의된 챕터.\n"
+            "정의는 모노레포의 공통 마스터(`glossary/master_ko.md`)와 동일하게 유지된다.\n\n"
+            "> **신규 용어 추가 시**: 먼저 `glossary/master_ko.md`를 grep — 있으면 정의를 그대로 복사해 `(Ch N)`만 부기,\n"
+            "> 없으면 마스터에 먼저 추가한 뒤 이 파일에 복사. 자세한 워크플로우는 `glossary/README.md` 참조."
+        )
+    else:
+        intro = (
+            "Key terms in A-Z order. `(Ch N)` marks the chapter where the term is introduced or discussed in depth.\n"
+            "Definitions are kept in sync with the monorepo master at `glossary/master_en.md`.\n\n"
+            "> **Adding a new term**: grep `glossary/master_en.md` first — if present, copy the definition verbatim\n"
+            "> and append `(Ch N)`; if absent, add to master first, then copy here. See `glossary/README.md` for details."
+        )
     return f"""---
 title: "{title}"
 date: ""

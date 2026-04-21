@@ -187,6 +187,21 @@ bash scripts/push.sh "커밋 메시지"
 
 ---
 
+# 통합 Glossary 관리
+
+`glossary/master_ko.md` / `glossary/master_en.md`는 **모든 서베이가 공유하는 용어집 마스터**. 각 서베이의 `book/<lang>/glossary.md`는 이 마스터의 subset으로 유지한다. BibTeX 마스터와 동일한 철학: "같은 용어는 어느 책에서 봐도 동일 정의".
+
+## 워크플로우 (필수)
+
+1. **마스터 grep**: `grep -i "^- \*\*<term>" glossary/master_ko.md`
+2. **있으면 정의 재사용**: 마스터 엔트리 한 줄을 서베이 `book/<lang>/glossary.md`에 복사 → `(Ch N)` 챕터 참조만 뒤에 부기.
+3. **없으면 마스터에 먼저**: `master_ko.md`와 `master_en.md` 양쪽에 canonical 정의를 추가한 후 서베이에 복사.
+4. **자매 서베이 일관성**: 다른 서베이가 이미 쓰는 용어는 반드시 동일 정의(마스터 기준)를 사용.
+
+상세는 `glossary/README.md` 참조.
+
+---
+
 # 통합 BibTeX 관리
 
 `bibtex/references.bib`는 **모든 서베이가 공유하는 단일 source of truth**. 각 서베이의 `surveys/<name>/book/references.bib`는 이 마스터의 subset으로 유지한다 (빌드 스크립트는 로컬 파일만 읽음).
