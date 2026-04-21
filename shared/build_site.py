@@ -566,7 +566,7 @@ def build_sidebar(sections, part_num):
 # Chapter HTML builder
 # ---------------------------------------------------------------------------
 
-def build_chapter_html(ch_num, lang, chapters_meta, book_dir, lang_code, num_chapters):
+def build_chapter_html(ch_num, lang, chapters_meta, book_dir, lang_code, num_chapters, glossary_enabled=False):
     """Build a complete chapter HTML page."""
     md_path = os.path.join(book_dir, f'ch{ch_num:02d}.md')
     if not os.path.exists(md_path):
@@ -589,10 +589,12 @@ def build_chapter_html(ch_num, lang, chapters_meta, book_dir, lang_code, num_cha
         date_label = '집필일'
         updated_label = '최종수정일'
         toc_label = '목록'
+        glossary_label = '용어집'
     else:
         date_label = 'Written'
         updated_label = 'Last updated'
         toc_label = 'Index'
+        glossary_label = 'Glossary'
 
     if ch_num > 1:
         prev_link = f'<a href="ch{ch_num-1:02d}.html" class="prev">&larr; Ch.{ch_num-1}</a>'
@@ -600,6 +602,10 @@ def build_chapter_html(ch_num, lang, chapters_meta, book_dir, lang_code, num_cha
         prev_link = '<span class="placeholder"></span>'
 
     toc_link = f'<a href="./" class="toc-link">{toc_label}</a>'
+    glossary_link = (
+        f'<a href="glossary.html" class="glossary-link">{glossary_label}</a>'
+        if glossary_enabled else ''
+    )
 
     if ch_num < num_chapters:
         next_link = f'<a href="ch{ch_num+1:02d}.html" class="next">Ch.{ch_num+1} &rarr;</a>'
@@ -609,6 +615,7 @@ def build_chapter_html(ch_num, lang, chapters_meta, book_dir, lang_code, num_cha
     chapter_nav_html = f'''      <nav class="chapter-nav">
         {prev_link}
         {toc_link}
+        {glossary_link}
         {next_link}
       </nav>'''
 
@@ -901,6 +908,11 @@ def build_glossary_html(lang_code, book_dir):
 
     content = '\n'.join(content_lines)
 
+    toc_label = '← 목차로' if lang_code == 'ko' else '← Back to contents'
+    back_nav = f'''      <nav class="chapter-nav">
+        <a href="./" class="toc-link">{toc_label}</a>
+      </nav>'''
+
     html = f'''<!DOCTYPE html>
 <html lang="{lang_code}">
 <head>
@@ -921,6 +933,7 @@ def build_glossary_html(lang_code, book_dir):
         <h1>{page_title}</h1>
       </header>
 {content}
+{back_nav}
     </div>
   </main>
 
@@ -1044,14 +1057,27 @@ def build_toc_html(config, lang_code):
 
 '''
 
-    # Appendix: references link
+    # Appendix: references link (+ glossary link if enabled)
     ref_label = '통합 참고문헌 (References)' if lang_code == 'ko' else 'Consolidated References'
     ref_summary = '전체 참고문헌 목록' if lang_code == 'ko' else 'Full bibliography'
     appendix_label = '부록 (Appendices)' if lang_code == 'ko' else 'Appendices'
+
+    glossary_card = ''
+    if config.get('features', {}).get('glossary', False):
+        gl_label = '용어집 (Glossary)' if lang_code == 'ko' else 'Glossary'
+        gl_summary = '핵심 용어 정의' if lang_code == 'ko' else 'Key term definitions'
+        glossary_card = f'''          <a href="glossary.html" class="chapter-card fade-in">
+            <span class="ch-num">G</span>
+            <h3>{gl_label}</h3>
+            <p>{gl_summary}</p>
+            <span class="arrow">&rarr;</span>
+          </a>
+'''
+
     parts_html += f'''      <div class="part-group part-2">
         <h2 class="part-title">{appendix_label}</h2>
         <div class="chapter-grid">
-          <a href="references.html" class="chapter-card fade-in">
+{glossary_card}          <a href="references.html" class="chapter-card fade-in">
             <span class="ch-num">A</span>
             <h3>{ref_label}</h3>
             <p>{ref_summary}</p>
@@ -1167,10 +1193,13 @@ def build_survey(config, survey_dir, shared_dir):
     print("Copying shared assets...")
     copy_shared_assets(config, shared_dir, docs_dir)
 
+    glossary_enabled = config.get('features', {}).get('glossary', False)
+
     # Build KO chapters
     print("Building Korean chapters...")
     for ch in sorted(chapters_ko.keys()):
-        html = build_chapter_html(ch, 'ko', chapters_ko, book_ko, 'ko', num_chapters)
+        html = build_chapter_html(ch, 'ko', chapters_ko, book_ko, 'ko', num_chapters,
+                                  glossary_enabled=glossary_enabled)
         if html:
             out_path = os.path.join(docs_dir, 'ko', f'ch{ch:02d}.html')
             with open(out_path, 'w', encoding='utf-8') as f:
@@ -1180,7 +1209,8 @@ def build_survey(config, survey_dir, shared_dir):
     # Build EN chapters
     print("Building English chapters...")
     for ch in sorted(chapters_en.keys()):
-        html = build_chapter_html(ch, 'en', chapters_en, book_en, 'en', num_chapters)
+        html = build_chapter_html(ch, 'en', chapters_en, book_en, 'en', num_chapters,
+                                  glossary_enabled=glossary_enabled)
         if html:
             out_path = os.path.join(docs_dir, 'en', f'ch{ch:02d}.html')
             with open(out_path, 'w', encoding='utf-8') as f:

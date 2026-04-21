@@ -10,7 +10,7 @@ This workspace is part of the [terryum-ai](https://github.com/terryum/terryum-ai
 
 ## What This Does
 
-This workspace manages **survey book creation** — multi-chapter bilingual (KO/EN) research survey books built from academic papers. Each survey is a standalone static site deployed on Vercel, embedded in the homepage's Surveys gallery.
+This workspace manages **survey book creation** — multi-chapter bilingual (KO/EN) research survey books built from academic papers. Each survey is a standalone static site deployed on Cloudflare Pages, embedded in the homepage's Surveys gallery.
 
 ### Current Surveys
 
@@ -27,7 +27,7 @@ This workspace manages **survey book creation** — multi-chapter bilingual (KO/
 | `python3 build.py <name>` | Build a survey site | `python3 build.py vla-agentic-robotics` |
 | `python3 build.py --all` | Build all surveys | |
 | `python3 build.py --new <name>` | Scaffold a new survey | `python3 build.py --new my-survey` |
-| `/survey` | Register survey in homepage gallery | `/survey https://survey-name.vercel.app` |
+| `/survey` | Register survey in homepage gallery | `/survey https://survey-name.pages.dev` |
 
 ## Architecture
 
@@ -51,8 +51,8 @@ surveys/<name>/
 ├── survey.json            # Metadata (bilingual titles, chapters, etc.)
 ├── book/ko/ + book/en/    # Markdown chapters
 ├── assets/figures/        # Images
-├── docs/                  # Build output (deployed to Vercel)
-└── vercel.json            # Deployment config
+└── docs/                  # Build output (deployed to Cloudflare Pages)
+    └── _redirects         # Cloudflare Pages routing rules
 ```
 
 ## Creating a New Survey
@@ -66,11 +66,11 @@ python3 build.py --new my-new-survey
 # 3. Build
 python3 build.py my-new-survey
 
-# 4. Deploy (commit docs/ → Vercel auto-deploys)
-cd surveys/my-new-survey && git add docs/ && git commit -m "build" && git push
+# 4. Deploy (sync docs/ → Cloudflare Pages auto-deploys)
+cd surveys/my-new-survey && bash scripts/push.sh "build"
 
 # 5. Register in homepage gallery
-/survey https://my-new-survey.vercel.app
+/survey https://my-new-survey.pages.dev
 ```
 
 ## Group-Restricted Surveys
@@ -92,7 +92,7 @@ Surveys can be restricted to specific groups (e.g., SNU collaborators):
 
 ## 하는 일
 
-학술 논문을 바탕으로 다챕터 양국어(한/영) 연구 서베이 북을 제작합니다. 각 서베이는 독립적인 정적 사이트로 Vercel에 배포되며, 홈페이지의 Surveys 갤러리에 임베딩됩니다.
+학술 논문을 바탕으로 다챕터 양국어(한/영) 연구 서베이 북을 제작합니다. 각 서베이는 독립적인 정적 사이트로 Cloudflare Pages에 배포되며, 홈페이지의 Surveys 갤러리에 임베딩됩니다.
 
 ### 주요 명령어
 
@@ -100,7 +100,7 @@ Surveys can be restricted to specific groups (e.g., SNU collaborators):
 |--------|------|------|
 | `python3 build.py <이름>` | 서베이 사이트 빌드 | `python3 build.py vla-agentic-robotics` |
 | `python3 build.py --new <이름>` | 새 서베이 스캐폴드 | `python3 build.py --new my-survey` |
-| `/survey` | 홈페이지 갤러리에 등록 | `/survey https://survey-name.vercel.app` |
+| `/survey` | 홈페이지 갤러리에 등록 | `/survey https://survey-name.pages.dev` |
 
 ## 새 서베이 만들기
 
@@ -113,10 +113,11 @@ python3 build.py --new my-new-survey
 # 3. 빌드
 python3 build.py my-new-survey
 
-# 4. 배포 (docs/ 커밋 → Vercel 자동 배포)
+# 4. 배포 (docs/ 동기화 → Cloudflare Pages 자동 배포)
+cd surveys/my-new-survey && bash scripts/push.sh "build"
 
 # 5. 홈페이지 갤러리 등록
-/survey https://my-new-survey.vercel.app
+/survey https://my-new-survey.pages.dev
 ```
 
 ## License

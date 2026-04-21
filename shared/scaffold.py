@@ -1,29 +1,23 @@
 #!/usr/bin/env python3
-"""Scaffold a new survey project in the monorepo."""
+"""Scaffold a new survey project in the monorepo.
+
+Produces the canonical survey structure defined in the root CLAUDE.md
+under "서베이 생성 표준". All templates default to the standard layout
+so new surveys stay consistent with existing ones.
+"""
 
 import os
 import json
 
 
-def create_survey(name, surveys_dir):
-    """Create a new survey directory with template files."""
-    survey_dir = os.path.join(surveys_dir, name)
-    if os.path.exists(survey_dir):
-        print(f"ERROR: surveys/{name}/ already exists")
-        return
+def _write(path, content):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, 'w', encoding='utf-8') as f:
+        f.write(content)
 
-    print(f"Creating new survey: {name}")
 
-    # Create directories
-    for d in [
-        'book/ko', 'book/en',
-        'assets/figures',
-        'docs',
-    ]:
-        os.makedirs(os.path.join(survey_dir, d), exist_ok=True)
-
-    # survey.json template
-    config = {
+def _survey_config(name):
+    return {
         "id": name,
         "github_repo": f"terryum/{name}",
         "title": {
@@ -47,7 +41,7 @@ def create_survey(name, surveys_dir):
             "last_updated": ""
         },
         "features": {
-            "glossary": False,
+            "glossary": True,
             "pdf": False,
             "paper": False
         },
@@ -81,12 +75,11 @@ def create_survey(name, surveys_dir):
         ]
     }
 
-    with open(os.path.join(survey_dir, 'survey.json'), 'w', encoding='utf-8') as f:
-        json.dump(config, f, ensure_ascii=False, indent=2)
 
-    # Template chapter files
-    for lang, title in [('ko', '첫 번째 챕터'), ('en', 'First Chapter')]:
-        ch_content = f'''---
+def _chapter_template(lang, title):
+    heading = "## 1.1 Introduction" if lang == 'en' else "## 1.1 서론"
+    refs_heading = "## References" if lang == 'en' else "## 참고문헌"
+    return f"""---
 chapter: 1
 title: "{title}"
 part: "Part I"
@@ -94,57 +87,473 @@ date: ""
 last_updated: ""
 ---
 
-## 1.1 Introduction
+{heading}
 
 Content goes here.
 
-## References
+{refs_heading}
 
 1. Author (Year). Title. *Venue*.
-'''
-        with open(os.path.join(survey_dir, 'book', lang, 'ch01.md'), 'w', encoding='utf-8') as f:
-            f.write(ch_content)
+"""
 
-    # Empty references.bib
-    with open(os.path.join(survey_dir, 'book', 'references.bib'), 'w', encoding='utf-8') as f:
-        f.write('% BibTeX references\n')
 
-    # vercel.json
-    vercel = {
-        "outputDirectory": "docs",
-        "buildCommand": None,
-        "installCommand": None,
-        "framework": None,
-        "redirects": [
-            {"source": "/ch:num(\\d+).html", "destination": "/ko/ch:num.html", "statusCode": 302},
-            {"source": "/references.html", "destination": "/ko/references.html", "statusCode": 302}
-        ]
-    }
-    with open(os.path.join(survey_dir, 'vercel.json'), 'w', encoding='utf-8') as f:
-        json.dump(vercel, f, indent=2)
+def _glossary_template(lang):
+    title = "Glossary" if lang == 'en' else "용어집 (Glossary)"
+    intro = (
+        "A~Z 순으로 정리된 주요 용어. 각 항목 끝 `(Ch N)`은 해당 용어가 처음 도입된 챕터."
+        if lang == 'ko' else
+        "Key terms in A-Z order. `(Ch N)` at the end of each entry marks the chapter where the term is introduced."
+    )
+    return f"""---
+title: "{title}"
+date: ""
+last_updated: ""
+---
 
-    # CLAUDE.md template
-    claude_md = f'''# Survey: {name}
+# {title}
+
+{intro}
+
+## A
+
+- **TermA**: Definition (Ch N)
+
+## B
+
+- **TermB**: Definition (Ch N)
+"""
+
+
+def _claude_md(name):
+    return f"""# Survey: {name}
 
 ## Project Purpose
 
-이 서베이의 목적을 설명하세요.
+이 서베이의 목적·대상 독자·범위를 설명하세요.
 
 ## Chapter Structure
 
-survey.json을 참조하세요.
+survey.json의 `parts[].chapters[]`를 따릅니다.
 
-## Work Principles
+## Harness Pipeline
 
-- 수치 기반: 모든 claim에 출처 논문과 구체적 수치를 명시
-- 비판적 시각: 각 접근의 한계와 미해결 문제를 명확히 지적
-- 양국어: 한글(ko) 원고가 주, 영문(en)은 동시 생성
-'''
-    with open(os.path.join(survey_dir, 'CLAUDE.md'), 'w', encoding='utf-8') as f:
-        f.write(claude_md)
+루트 `CLAUDE.md`의 **정규 에이전트 파이프라인**을 따른다:
+`deep-researcher → critical-analyst → book-writer → image-curator → fact-checker → qa-reviewer`
+
+각 단계의 필수 산출물과 포맷은 루트 CLAUDE.md "서베이 생성 표준" 참조.
+
+## Figure Policy
+
+- 논문 원본 figure를 우선으로 한다 (크롭 + 출처 caption).
+- AI 보조 일러스트(Gemini 등)는 **챕터당 2개 이하**.
+- 파일명: `chNN_<sourceSlug>_fig<N>.<ext>` (flat 구조).
+
+## Build & Deploy
+
+```bash
+python3 build.py {name}                          # 로컬 빌드
+cd surveys/{name} && bash scripts/push.sh "msg"  # Cloudflare Pages 외부 repo 동기화
+```
+"""
+
+
+def _readme(name):
+    return f"""# {name}
+
+English | [한국어](#한국어)
+
+> A research survey book in the terry-surveys monorepo.
+
+**Live Website**: (fill in after deploy)
+
+## Overview
+
+Describe the survey purpose, audience, and scope here.
+
+## Structure
+
+- `book/ko/`, `book/en/`: bilingual chapter markdown
+- `book/references.bib`: subset of the monorepo master bibliography
+- `assets/figures/`: figures (flat, `chNN_<slug>_fig<N>.<ext>`)
+- `docs/`: built static site (committed)
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). All contributions are made through GitHub Issues.
+
+## License
+
+This work is licensed under [CC BY-NC-SA 4.0](LICENSE).
+
+---
+
+## 한국어
+
+terry-surveys 모노레포의 연구 서베이 책입니다.
+
+**라이브 사이트**: (배포 후 기입)
+
+### 개요
+
+서베이 목적, 대상 독자, 범위를 작성하세요.
+
+### 구조
+
+- `book/ko/`, `book/en/`: 한/영 챕터 마크다운
+- `book/references.bib`: 모노레포 마스터 참고문헌의 subset
+- `assets/figures/`: figure (flat, `chNN_<slug>_fig<N>.<ext>`)
+- `docs/`: 빌드된 정적 사이트 (커밋)
+
+### 기여
+
+[CONTRIBUTING.md](CONTRIBUTING.md)을 참고하세요. 모든 기여는 GitHub Issues를 통해 이루어집니다.
+
+### 라이선스
+
+[CC BY-NC-SA 4.0](LICENSE) 라이선스로 배포됩니다.
+"""
+
+
+def _license():
+    return """Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International
+
+Copyright (c) 2026 Terry Taewoong Um
+
+This work is licensed under the Creative Commons
+Attribution-NonCommercial-ShareAlike 4.0 International License.
+
+You are free to:
+  - Share: copy and redistribute the material in any medium or format
+  - Adapt: remix, transform, and build upon the material
+
+Under the following terms:
+  - Attribution: You must give appropriate credit, provide a link to
+    the license, and indicate if changes were made.
+  - NonCommercial: You may not use the material for commercial purposes.
+  - ShareAlike: If you remix, transform, or build upon the material,
+    you must distribute your contributions under the same license.
+
+Full license text:
+https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode
+"""
+
+
+def _contributing(name):
+    return f"""English | 한국어 (below)
+
+# Contributing
+
+Thank you for your interest in improving this book! Contributions from the research community are welcome.
+
+## How to Contribute
+
+This project uses an **issue-based contribution workflow**. Rather than submitting pull requests directly, contributors open GitHub Issues with their suggestions, references, or corrections.
+
+### 1. Suggest New Content
+Use the [**Suggest Content**](../../issues/new?template=suggest-content.yml) template to propose new references, figures, or sections.
+
+### 2. Report Errors
+Use the [**Error Report**](../../issues/new?template=error-report.yml) template to report typos, factual errors, or broken links.
+
+### 3. Translation Improvements
+Use the [**Translation Improvement**](../../issues/new?template=translation-fix.yml) template for Korean/English wording fixes.
+
+## Credit Policy
+
+Accepted content suggestions are credited as Contributors in the README. Error reports and translation improvements are credited in individual commit messages.
+
+## License
+
+By submitting, you agree that your contributions may be used under [CC BY-NC-SA 4.0](LICENSE) with attribution.
+
+---
+
+# 기여 가이드 (한국어)
+
+이 책의 개선에 관심을 가져주셔서 감사합니다. 연구 커뮤니티의 기여를 환영합니다.
+
+## 기여 방법
+
+본 프로젝트는 **이슈 기반 기여 방식**을 사용합니다. Pull Request 대신 GitHub Issue로 제안/수정 사항을 공유해 주시면 저자가 검토 후 반영합니다.
+
+### 1. 콘텐츠 제안
+[**Suggest Content**](../../issues/new?template=suggest-content.yml) 템플릿을 사용해 새로운 레퍼런스, figure, 섹션을 제안합니다.
+
+### 2. 오류 신고
+[**Error Report**](../../issues/new?template=error-report.yml) 템플릿을 사용해 오탈자, 사실 오류, 깨진 링크 등을 신고합니다.
+
+### 3. 번역 개선
+[**Translation Improvement**](../../issues/new?template=translation-fix.yml) 템플릿으로 한/영 번역 개선을 제안합니다.
+
+## 크레딧 정책
+
+반영된 콘텐츠 제안은 README의 Contributors 섹션에 기록됩니다. 오류 신고와 번역 개선은 개별 커밋 메시지에 반영됩니다.
+
+## 라이선스
+
+기여 시 본인의 기여가 [CC BY-NC-SA 4.0](LICENSE) 하에 사용됨에 동의합니다.
+"""
+
+
+def _issue_config(name):
+    return f"""blank_issues_enabled: false
+contact_links:
+  - name: General Discussion
+    url: https://github.com/terryum/{name}/discussions
+    about: For general questions and discussions about the book
+"""
+
+
+def _issue_suggest_content():
+    return """name: Suggest Content
+description: Propose new content, references, or materials for the book
+title: "[Content] "
+labels: ["enhancement"]
+assignees: ["terryum"]
+body:
+  - type: dropdown
+    id: type
+    attributes:
+      label: Content type
+      options:
+        - "New section in existing chapter"
+        - "Additional reference / citation"
+        - "New figure / illustration"
+        - "Strengthen existing content"
+    validations:
+      required: true
+  - type: input
+    id: chapter
+    attributes:
+      label: Related chapter (e.g., Ch03, Glossary)
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What content should be added?
+      description: Describe the content you'd like to see. Include key points, references, specs, etc.
+    validations:
+      required: true
+  - type: textarea
+    id: links
+    attributes:
+      label: Reference links
+      placeholder: |
+        - https://arxiv.org/abs/...
+        - https://...
+    validations:
+      required: false
+  - type: textarea
+    id: rationale
+    attributes:
+      label: Why is this important?
+    validations:
+      required: true
+  - type: checkboxes
+    id: license
+    attributes:
+      label: License agreement
+      options:
+        - label: I agree that submitted materials may be used under CC BY-NC-SA 4.0 with attribution.
+          required: true
+"""
+
+
+def _issue_error_report():
+    return """name: Report Error
+description: Found a typo, factual error, or broken link in the book?
+title: "[Error] "
+labels: ["error"]
+assignees: ["terryum"]
+body:
+  - type: input
+    id: chapter
+    attributes:
+      label: Chapter (e.g., Ch03, Glossary)
+    validations:
+      required: true
+  - type: dropdown
+    id: language
+    attributes:
+      label: Language version
+      options:
+        - "Korean (book/ko/)"
+        - "English (book/en/)"
+        - "Both"
+    validations:
+      required: true
+  - type: textarea
+    id: location
+    attributes:
+      label: Location
+      description: Section heading, line number, or quote the problematic text.
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What's wrong?
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested correction (optional)
+    validations:
+      required: false
+"""
+
+
+def _issue_translation_fix():
+    return """name: Translation Improvement
+description: Suggest a better Korean or English translation
+title: "[Translation] "
+labels: ["translation"]
+assignees: ["terryum"]
+body:
+  - type: dropdown
+    id: direction
+    attributes:
+      label: Which version to improve?
+      options:
+        - "Korean version (book/ko/)"
+        - "English version (book/en/)"
+    validations:
+      required: true
+  - type: input
+    id: chapter
+    attributes:
+      label: Chapter (e.g., Ch03, Glossary)
+    validations:
+      required: true
+  - type: textarea
+    id: current
+    attributes:
+      label: Current text
+    validations:
+      required: true
+  - type: textarea
+    id: suggested
+    attributes:
+      label: Suggested translation
+    validations:
+      required: true
+  - type: textarea
+    id: reason
+    attributes:
+      label: Why is this better?
+    validations:
+      required: true
+"""
+
+
+def _push_script(name):
+    return f"""#!/usr/bin/env bash
+# Sync this survey's book/ docs/ assets/ to its standalone GitHub repo
+# (terryum/{name}), which Cloudflare Pages deploys from.
+#
+# Usage:
+#   bash scripts/push.sh "commit message"
+
+set -euo pipefail
+
+REPO_URL="https://github.com/terryum/{name}.git"
+SRC_DIR="$(cd "$(dirname "${{BASH_SOURCE[0]}}")/.." && pwd)"
+TMP_DIR="$(mktemp -d -t survey-push-XXXX)"
+MSG="${{1:-update survey content}}"
+
+echo "=== Clone $REPO_URL ==="
+gh repo clone "${{REPO_URL#https://github.com/}}" "$TMP_DIR" >/dev/null 2>&1 \\
+  || git clone "$REPO_URL" "$TMP_DIR"
+
+echo "=== rsync book/ docs/ assets/ ==="
+rsync -a --delete "$SRC_DIR/book/"   "$TMP_DIR/book/"
+rsync -a --delete "$SRC_DIR/docs/"   "$TMP_DIR/docs/"
+rsync -a          "$SRC_DIR/assets/" "$TMP_DIR/assets/"
+
+cd "$TMP_DIR"
+CHANGES=$(git status --porcelain | wc -l | tr -d ' ')
+echo "=== git status: $CHANGES changed file(s) ==="
+git status --short | head -30
+
+if [ "$CHANGES" = "0" ]; then
+  echo "No changes — nothing to push."
+  rm -rf "$TMP_DIR"
+  exit 0
+fi
+
+git add -A
+git -c user.email=terry.t.um@gmail.com -c user.name=terryum commit -m "$MSG"
+git push origin main
+
+rm -rf "$TMP_DIR"
+echo "Done. Cloudflare Pages will redeploy automatically."
+"""
+
+
+def _gitignore():
+    return """.DS_Store
+.wrangler/
+_workspace/
+revise-source/
+docs/revise-source/
+*.tmp
+"""
+
+
+def create_survey(name, surveys_dir):
+    """Create a new survey directory with template files following the canonical structure."""
+    survey_dir = os.path.join(surveys_dir, name)
+    if os.path.exists(survey_dir):
+        print(f"ERROR: surveys/{name}/ already exists")
+        return
+
+    print(f"Creating new survey: {name}")
+
+    for d in [
+        'book/ko', 'book/en',
+        'assets/figures',
+        'docs',
+        'scripts',
+        '.github/ISSUE_TEMPLATE',
+    ]:
+        os.makedirs(os.path.join(survey_dir, d), exist_ok=True)
+
+    with open(os.path.join(survey_dir, 'survey.json'), 'w', encoding='utf-8') as f:
+        json.dump(_survey_config(name), f, ensure_ascii=False, indent=2)
+
+    for lang, title in [('ko', '첫 번째 챕터'), ('en', 'First Chapter')]:
+        _write(os.path.join(survey_dir, 'book', lang, 'ch01.md'),
+               _chapter_template(lang, title))
+        _write(os.path.join(survey_dir, 'book', lang, 'glossary.md'),
+               _glossary_template(lang))
+
+    _write(os.path.join(survey_dir, 'book', 'references.bib'),
+           '% BibTeX references — subset of bibtex/references.bib (monorepo master)\n')
+
+    _write(os.path.join(survey_dir, 'CLAUDE.md'), _claude_md(name))
+    _write(os.path.join(survey_dir, 'README.md'), _readme(name))
+    _write(os.path.join(survey_dir, 'LICENSE'), _license())
+    _write(os.path.join(survey_dir, 'CONTRIBUTING.md'), _contributing(name))
+    _write(os.path.join(survey_dir, '.gitignore'), _gitignore())
+
+    _write(os.path.join(survey_dir, '.github', 'ISSUE_TEMPLATE', 'config.yml'),
+           _issue_config(name))
+    _write(os.path.join(survey_dir, '.github', 'ISSUE_TEMPLATE', 'suggest-content.yml'),
+           _issue_suggest_content())
+    _write(os.path.join(survey_dir, '.github', 'ISSUE_TEMPLATE', 'error-report.yml'),
+           _issue_error_report())
+    _write(os.path.join(survey_dir, '.github', 'ISSUE_TEMPLATE', 'translation-fix.yml'),
+           _issue_translation_fix())
+
+    push_path = os.path.join(survey_dir, 'scripts', 'push.sh')
+    _write(push_path, _push_script(name))
+    os.chmod(push_path, 0o755)
 
     print(f"\nCreated survey at surveys/{name}/")
     print("Next steps:")
     print(f"  1. Edit surveys/{name}/survey.json with your chapter structure")
     print(f"  2. Write chapters in surveys/{name}/book/ko/ and book/en/")
-    print(f"  3. Run: python build.py {name}")
+    print(f"  3. Fill book/{{ko,en}}/glossary.md with domain terms")
+    print(f"  4. Run: python3 build.py {name}")

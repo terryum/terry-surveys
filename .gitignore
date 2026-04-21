@@ -1,4 +1,4 @@
-.vercel/
+.wrangler/
 _workspace/
 __pycache__/
 *.pyc

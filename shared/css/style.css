@@ -924,7 +924,8 @@ pre code {
   background: var(--bg-card-hover);
 }
 
-.chapter-nav .toc-link {
+.chapter-nav .toc-link,
+.chapter-nav .glossary-link {
   color: var(--text-secondary);
   font-size: 0.8rem;
 }
