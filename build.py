@@ -9,6 +9,9 @@ Usage:
     python build.py --index                # Rebuild refs_index.json
     python build.py --match <post-slug>    # Find survey refs matching a post
     python build.py --search <keyword>     # Search refs by keyword
+    python build.py --validate [name|--all]        # Structural validator
+    python build.py --sync-bibtex <name>           # Regenerate local .bib from master
+    python build.py --sync-glossary <name>         # Regenerate local glossary from master
 """
 
 import sys
@@ -106,6 +109,25 @@ def main():
             sys.exit(1)
         from bibtex.refs_index import search_index
         search_index(sys.argv[2])
+
+    elif arg == '--validate':
+        from shared.validate import main as validate_main
+        target = sys.argv[2] if len(sys.argv) >= 3 else '--all'
+        validate_main(target)
+
+    elif arg == '--sync-bibtex':
+        if len(sys.argv) < 3:
+            print("Usage: python build.py --sync-bibtex <survey-name>")
+            sys.exit(1)
+        from shared.sync_master import sync_bibtex
+        sync_bibtex(sys.argv[2])
+
+    elif arg == '--sync-glossary':
+        if len(sys.argv) < 3:
+            print("Usage: python build.py --sync-glossary <survey-name>")
+            sys.exit(1)
+        from shared.sync_master import sync_glossary
+        sync_glossary(sys.argv[2])
 
     else:
         build_one(arg)
