@@ -459,45 +459,48 @@ body:
 
 def _push_script(name):
     return f"""#!/usr/bin/env bash
-# Sync this survey's book/ docs/ assets/ to its standalone GitHub repo
-# (terryum/{name}), which Cloudflare Pages deploys from.
+# Deploy this survey's docs/ to Cloudflare Pages via wrangler direct upload.
+#
+# Cloudflare Pages project: {name}
+# (configured with Git Provider: No — direct upload only)
 #
 # Usage:
-#   bash scripts/push.sh "commit message"
+#   bash scripts/push.sh [commit message]
+#
+# The survey's docs/ is built by `python3 build.py {name}` from the
+# monorepo root. This script assumes docs/ is already up to date.
+#
+# Never uploads revise-source/ (local-only source material — gitignored
+# and explicitly excluded here to keep the Cloudflare deploy bundle clean).
 
 set -euo pipefail
 
-REPO_URL="https://github.com/terryum/{name}.git"
-SRC_DIR="$(cd "$(dirname "${{BASH_SOURCE[0]}}")/.." && pwd)"
-TMP_DIR="$(mktemp -d -t survey-push-XXXX)"
-MSG="${{1:-update survey content}}"
+PROJECT_NAME="{name}"
+SRC_DIR="$(cd "$(dirname "${{BASH_SOURCE[0]}}")/.." && pwd)/docs"
+MSG="${{1:-update $PROJECT_NAME}}"
 
-echo "=== Clone $REPO_URL ==="
-gh repo clone "${{REPO_URL#https://github.com/}}" "$TMP_DIR" >/dev/null 2>&1 \\
-  || git clone "$REPO_URL" "$TMP_DIR"
-
-echo "=== rsync book/ docs/ assets/ ==="
-rsync -a --delete "$SRC_DIR/book/"   "$TMP_DIR/book/"
-rsync -a --delete "$SRC_DIR/docs/"   "$TMP_DIR/docs/"
-rsync -a          "$SRC_DIR/assets/" "$TMP_DIR/assets/"
-
-cd "$TMP_DIR"
-CHANGES=$(git status --porcelain | wc -l | tr -d ' ')
-echo "=== git status: $CHANGES changed file(s) ==="
-git status --short | head -30
-
-if [ "$CHANGES" = "0" ]; then
-  echo "No changes — nothing to push."
-  rm -rf "$TMP_DIR"
-  exit 0
+if [ ! -d "$SRC_DIR" ]; then
+  echo "ERROR: $SRC_DIR not found. Run 'python3 build.py {name}' first." >&2
+  exit 1
 fi
 
-git add -A
-git -c user.email=terry.t.um@gmail.com -c user.name=terryum commit -m "$MSG"
-git push origin main
+TMP_DIR="$(mktemp -d -t pages-deploy-XXXX)"
+trap "rm -rf '$TMP_DIR'" EXIT
 
-rm -rf "$TMP_DIR"
-echo "Done. Cloudflare Pages will redeploy automatically."
+echo "=== rsync docs/ → $TMP_DIR (excluding revise-source/) ==="
+rsync -a \\
+  --exclude='revise-source' \\
+  --exclude='revise-source/**' \\
+  --exclude='.DS_Store' \\
+  "$SRC_DIR/" "$TMP_DIR/"
+
+echo "=== wrangler pages deploy ==="
+npx wrangler pages deploy "$TMP_DIR" \\
+  --project-name="$PROJECT_NAME" \\
+  --commit-message="$MSG" \\
+  --commit-dirty=true
+
+echo "Done. Live at https://${{PROJECT_NAME}}.pages.dev/"
 """
 
 
@@ -507,6 +510,7 @@ def _gitignore():
 _workspace/
 revise-source/
 docs/revise-source/
+_revise-source/
 *.tmp
 """
 

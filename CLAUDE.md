@@ -171,19 +171,19 @@ last_updated: "YYYY-MM-DD"
 
 ## 5. 배포
 
-Cloudflare Pages로 배포. 기본 경로는 외부 GitHub repo 동기화:
+Cloudflare Pages **direct upload** (wrangler). 외부 GitHub repo 없이 monorepo에서 바로 업로드:
 
 ```bash
 cd surveys/<name>
 bash scripts/push.sh "커밋 메시지"
 ```
 
-`scripts/push.sh`는 `REPO_URL`에 명시된 외부 GitHub repo를 임시 디렉토리에 clone → `book/`, `docs/`, `assets/`를 rsync → 커밋/푸시. Cloudflare Pages가 외부 repo 변경을 감지해 자동 재배포.
+`scripts/push.sh`는 `docs/`를 임시 디렉토리에 rsync(`revise-source/` 제외) → `npx wrangler pages deploy`로 직접 업로드. Cloudflare Pages 프로젝트는 `Git Provider: No`로 설정된 상태(외부 repo 감시 X).
 
-대안: 모노레포에서 직접 `npx wrangler pages deploy docs` 실행.
-
+- 프로젝트명은 survey 디렉토리명과 동일 (예: `survey-robot-hand-tactile-sensor`).
 - 리다이렉트: `docs/_redirects`에 정의 (빌드 스크립트가 덮어쓰지 않음).
 - `.wrangler/`는 로컬 캐시 — `.gitignore` 등록 필수.
+- **Pages 파일 크기 한도 25 MiB**. 대용량 PDF/영상 등 source material은 `docs/` 밖 `_revise-source/`에 두고 gitignore + push.sh에서 제외.
 
 ---
 
