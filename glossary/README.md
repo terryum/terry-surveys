@@ -20,6 +20,25 @@
 3. **없으면 마스터에 먼저 추가**: `master_ko.md`와 `master_en.md` 양쪽에 canonical 정의를 먼저 넣고, 그 후 서베이 subset으로 복사.
 4. **자매 서베이 확인**: 이미 다른 서베이에 해당 용어가 있다면 정의 불일치 여부 점검 — 불일치하면 마스터 기준으로 정렬.
 
+## 자동 동기화: `--sync-glossary`
+
+마스터만 수정하면 나머지는 자동화 가능:
+
+```bash
+# 마스터 1회 수정 후 모든 서베이를 마스터 subset으로 재생성
+python3 build.py --sync-glossary robot-hand-tactile-sensor
+python3 build.py --sync-glossary snu-tactile-hand
+python3 build.py --sync-glossary vla-agentic-robotics
+```
+
+동작:
+- 마스터의 모든 용어에 대해, 서베이 챕터 본문(ko/en 각각)을 스캔해 해당 용어가 ≥1회 등장하는지 확인.
+- 등장한 용어만 서베이 `book/<lang>/glossary.md`에 마스터 정의 그대로 복사 + `(Ch N, Ch M)` 챕터 참조 자동 부기.
+- 서베이 로컬 glossary의 frontmatter와 intro 문장은 그대로 유지, A-Z 섹션만 재생성.
+- 결과적으로 서베이 glossary는 항상 마스터의 일관된 subset.
+
+정의 drift 검증은 `python3 build.py --validate <name>`가 수행 — 서베이 로컬 정의가 마스터와 cosmetic 차이를 넘어 갈라지면 warning.
+
 ## 엔트리 포맷
 
 ```markdown

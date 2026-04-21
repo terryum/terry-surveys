@@ -110,9 +110,13 @@ last_updated: "YYYY-MM-DD"
 
 ### Figure
 
-- **네이밍**: `chNN_<sourceSlug>_fig<N>.<ext>` (flat 폴더). 예: `ch03_gelsight_fig1.png`.
-- **경로**: 챕터 안에서 `../../assets/figures/파일명`.
+- **네이밍 (서베이 로컬)**: `chNN_<sourceSlug>_fig<N>.<ext>` (flat 폴더). 예: `ch03_gelsight_fig1.png`.
+- **경로 (서베이 로컬)**: 챕터 안에서 `../../assets/figures/파일명`.
+- **네이밍 (공유 레지스트리)**: `<sourceSlug>_fig<N>.<ext>` (chapter 접두사 제거). 예: `gelsight_fig1.png`.
+- **경로 (공유 레지스트리)**: 챕터 안에서 `../../../../assets/figures/파일명` — 모노레포 루트 `assets/figures/`에 존재.
 - **정책**: **논문 원본 figure 우선**. image-curator가 원본 PDF·arXiv에서 크롭하여 출처 caption 명기.
+- **공유 승격 규칙**: 2개 이상 서베이가 같은 논문 figure를 인용하면 즉시 루트 `assets/figures/`로 승격(chapter 접두사 제거) + `assets/registry.json`에 등록. 1개 서베이만 쓰는 figure는 서베이 로컬 유지.
+- **빌드**: `shared/build_site.py`가 서베이 로컬을 먼저 `docs/assets/figures/`로 복사한 뒤 루트 공유 figure를 오버레이한다. 같은 파일명 충돌 시 루트가 우선(공유 canonical). 챕터 md의 경로는 자동 재매핑된다.
 - **AI 보조 일러스트**: Gemini 등 ≤ 2/챕터 한도. 도메인별 필요 시 각 서베이 CLAUDE.md에서 축소 조정.
 
 ### References (`book/references.bib`)
@@ -201,6 +205,20 @@ bash scripts/push.sh "커밋 메시지"
 - 리다이렉트: `docs/_redirects`에 정의 (빌드 스크립트가 덮어쓰지 않음).
 - `.wrangler/`는 로컬 캐시 — `.gitignore` 등록 필수.
 - **Pages 파일 크기 한도 25 MiB**. 대용량 PDF/영상 등 source material은 `docs/` 밖 `_revise-source/`에 두고 gitignore + push.sh에서 제외.
+
+---
+
+# Paper 입수 파이프라인 — 홈페이지 → 서베이 업데이트
+
+`terryum-ai`에 새 논문 포스트가 추가되면 다음 흐름으로 서베이에 반영한다:
+
+1. **인덱스 갱신**: `python3 build.py --index` (서베이 refs 역인덱스 재생성)
+2. **Impact 분석**: `python3 build.py --impact <post-slug>`
+   - **Tier 1 (exact ID match)**: 이미 해당 논문을 citing 중인 서베이/챕터 리스트 → `[#NN]` 포스트 링크 자동 삽입 대상. 마스터 bibtex를 경유해 DOI↔arXiv cross-reference가 양방향 bridge된다.
+   - **Tier 2 (keyword match)**: 포스트 tags/subfields/key_concepts와 챕터 summary·title의 word overlap 점수 top-K. 자동 삽입 금지 — "리프레시 후보"로 사용자 승인 받은 뒤에만 챕터 편집.
+3. **Staleness 우선순위화**: `python3 build.py --staleness --all`가 챕터별 `(age × new-paper-count)` 스코어를 내준다. 상위 챕터부터 book-writer / fact-checker 호출.
+4. **Tier 1 자동 링크**: `/link-post-to-surveys <slug>` 스킬이 `--impact` Tier 1 결과만 추려서 각 위치의 ref 라인에 `[#NN](post-url)` 삽입 + 재빌드 + 배포.
+5. **챕터 last_updated 갱신**: 챕터 md frontmatter + `survey.json` 양쪽을 오늘 날짜로 업데이트 (에이전트 필수 책임).
 
 ---
 

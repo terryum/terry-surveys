@@ -332,6 +332,9 @@ def md_to_html_content(md_text, ch_num, lang):
         def inline_img(m):
             alt = m.group(1)
             src = m.group(2)
+            # Survey-local (../../) or shared-registry (../../../../) paths
+            # all land at the same docs/assets/figures/ output root.
+            src = src.replace('../../../../assets/figures/', '../assets/figures/')
             src = src.replace('../../assets/figures/', '../assets/figures/')
             return f'<a href="{src}" target="_blank"><img src="{src}" alt="{alt}" loading="lazy" style="max-height:160px;width:auto;border-radius:8px;cursor:zoom-in"></a>'
         text = re.sub(r'!\[([^\]]*)\]\(([^)]+)\)', inline_img, text)
@@ -462,6 +465,9 @@ def md_to_html_content(md_text, ch_num, lang):
             flush_list()
             caption = img_match.group(1)
             src = img_match.group(2)
+            # Survey-local (../../) or shared-registry (../../../../) paths
+            # all land at the same docs/assets/figures/ output root.
+            src = src.replace('../../../../assets/figures/', '../assets/figures/')
             src = src.replace('../../assets/figures/', '../assets/figures/')
             src_dark = src.replace('_technical.png', '_darkmode.png')
             html_parts.append(f'<figure>')
@@ -1255,7 +1261,13 @@ def build_survey(config, survey_dir, shared_dir):
         f.write(build_toc_html(config, 'en'))
     print("  Created: en/index.html")
 
-    # Copy figures
+    # Copy figures: survey-local first, then overlay shared registry.
+    # Shared figures (<sourceSlug>_figN.<ext>, no chapter prefix) live at
+    # <monorepo-root>/assets/figures/ and are reused by any survey whose
+    # chapters reference them via the relative path
+    # ../../../../assets/figures/<file>. The output path in docs/ stays
+    # the same (docs/assets/figures/<file>) so build chapter links
+    # resolve regardless of source.
     print("Copying figures...")
     src_figures = os.path.join(survey_dir, 'assets', 'figures')
     dst_figures = os.path.join(docs_dir, 'assets', 'figures')
@@ -1263,7 +1275,23 @@ def build_survey(config, survey_dir, shared_dir):
         if os.path.exists(dst_figures):
             shutil.rmtree(dst_figures)
         shutil.copytree(src_figures, dst_figures)
-        print(f"  Copied figures to docs/assets/figures/")
+        print(f"  Copied survey figures to docs/assets/figures/")
+    monorepo_root = os.path.dirname(os.path.dirname(os.path.abspath(survey_dir)))
+    shared_figures = os.path.join(monorepo_root, 'assets', 'figures')
+    if os.path.isdir(shared_figures):
+        os.makedirs(dst_figures, exist_ok=True)
+        copied = 0
+        allowed_ext = ('.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.pdf')
+        for fname in os.listdir(shared_figures):
+            src = os.path.join(shared_figures, fname)
+            if not os.path.isfile(src):
+                continue
+            if not fname.lower().endswith(allowed_ext):
+                continue
+            shutil.copy2(src, os.path.join(dst_figures, fname))
+            copied += 1
+        if copied:
+            print(f"  Overlaid {copied} shared figure(s) from monorepo assets/figures/")
 
     print("\nBuild complete!")
     total = 0
