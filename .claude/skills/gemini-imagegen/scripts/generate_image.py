@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Gemini Image Generation Script for Book Illustrations.
+"""Image generation for survey book illustrations.
+
+Calls BizRouter's `google/gemini-3-pro-image-preview` model via the OpenAI-
+compatible chat completions endpoint. BizRouter proxies to Google's
+Nano Banana Pro backend, so output quality matches Gemini direct.
 
 Usage:
     python3 generate_image.py --prompt "description" --style "technical" --output "path.png"
@@ -7,31 +11,39 @@ Usage:
 """
 
 import argparse
+import base64
+import io
+import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
-# Load API key from .env.local
+BIZROUTER_ENDPOINT = "https://api.bizrouter.ai/v1/chat/completions"
+MODEL = "google/gemini-3-pro-image-preview"
+
+
 def load_api_key():
     env_paths = [
-        Path(__file__).resolve().parents[3] / ".env.local",  # project root
+        Path(__file__).resolve().parents[3] / ".env.local",
         Path.home() / ".env.local",
+        Path.home() / ".config/claude-profiles/terry.env",
     ]
     for env_path in env_paths:
         if env_path.exists():
             with open(env_path) as f:
                 for line in f:
                     line = line.strip()
-                    if line.startswith("GEMINI_API_KEY="):
-                        return line.split("=", 1)[1].strip().strip("'\"")
+                    for prefix in ("BIZROUTER_API_KEY=", "export BIZROUTER_API_KEY="):
+                        if line.startswith(prefix):
+                            return line.split("=", 1)[1].strip().strip("'\"")
 
-    key = os.environ.get("GEMINI_API_KEY")
+    key = os.environ.get("BIZROUTER_API_KEY")
     if key:
         return key
 
-    print("ERROR: GEMINI_API_KEY not found.")
-    print("Set it in .env.local: GEMINI_API_KEY=your_key_here")
-    print("Or get one at: https://aistudio.google.com/")
+    print("ERROR: BIZROUTER_API_KEY not found.")
+    print("Set it in ~/.config/claude-profiles/terry.env or project .env.local")
     sys.exit(1)
 
 
@@ -64,87 +76,117 @@ STYLE_PROMPTS = {
 }
 
 
-def generate_image(prompt: str, style: str, output_path: str, size: str = "1024x1024"):
+def _bizrouter_call(prompt: str, image_size: str = "2K", aspect_ratio: str = "16:9") -> bytes | None:
     api_key = load_api_key()
+    body = json.dumps({
+        "model": MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+        "aspect_ratio": aspect_ratio,
+        "image_size": image_size,
+    })
+
+    # Shell out to curl so corporate MITM CA handling works transparently.
+    result = subprocess.run(
+        [
+            "curl", "-sS", "--fail-with-body", "-X", "POST", BIZROUTER_ENDPOINT,
+            "-H", f"Authorization: Bearer {api_key}",
+            "-H", "Content-Type: application/json",
+            "--data-binary", "@-",
+        ],
+        input=body,
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+    if result.returncode != 0:
+        print(f"  curl failed ({result.returncode}): {result.stderr[:200]}")
+        return None
 
     try:
-        from google import genai
-        from google.genai import types
-    except ImportError:
-        print("Installing google-genai...")
-        os.system(f"{sys.executable} -m pip install -q google-genai Pillow")
-        from google import genai
-        from google.genai import types
+        resp = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        print(f"  Bad JSON response: {result.stdout[:200]}")
+        return None
 
-    client = genai.Client(api_key=api_key)
+    if "error" in resp:
+        print(f"  API error: {resp['error']}")
+        return None
 
-    # Combine style prompt with user prompt
+    content = resp["choices"][0]["message"]["content"]
+    if isinstance(content, str):
+        print(f"  Text-only response (no image): {content[:150]}")
+        return None
+    for part in content:
+        if part.get("type") == "image_url":
+            data_url = part["image_url"]["url"]
+            return base64.b64decode(data_url.split(",", 1)[1])
+    return None
+
+
+def _pick_aspect_ratio(size: str) -> str:
+    try:
+        w, h = map(int, size.split("x"))
+        ratio = w / h
+        if abs(ratio - 16 / 9) < 0.1:
+            return "16:9"
+        if abs(ratio - 9 / 16) < 0.1:
+            return "9:16"
+        if abs(ratio - 4 / 3) < 0.1:
+            return "4:3"
+        if abs(ratio - 3 / 4) < 0.1:
+            return "3:4"
+        return "1:1"
+    except (ValueError, ZeroDivisionError):
+        return "1:1"
+
+
+def generate_image(prompt: str, style: str, output_path: str, size: str = "1024x1024"):
     style_prompt = STYLE_PROMPTS.get(style, STYLE_PROMPTS["technical"])
     full_prompt = f"{style_prompt}\n\nSubject: {prompt}"
+    aspect_ratio = _pick_aspect_ratio(size)
 
-    print(f"Generating image...")
+    print(f"Generating image (BizRouter → {MODEL}, ratio={aspect_ratio})...")
     print(f"  Style: {style}")
     print(f"  Prompt: {prompt[:100]}...")
     print(f"  Output: {output_path}")
 
-    # Use Gemini's image generation
+    output = Path(output_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+
     max_retries = 3
     for attempt in range(max_retries):
-        try:
-            response = client.models.generate_content(
-                model="gemini-3-pro-image-preview",
-                contents=full_prompt,
-                config=types.GenerateContentConfig(
-                    response_modalities=["TEXT", "IMAGE"],
-                ),
-            )
-
-            # Extract and save the image
-            output = Path(output_path)
-            output.parent.mkdir(parents=True, exist_ok=True)
-
-            image_saved = False
-            for part in response.candidates[0].content.parts:
-                if part.inline_data is not None:
-                    from PIL import Image
-                    import io
-
-                    image = Image.open(io.BytesIO(part.inline_data.data))
-
-                    # Resize if needed
-                    if size != "1024x1024":
-                        w, h = map(int, size.split("x"))
-                        image = image.resize((w, h), Image.LANCZOS)
-
-                    image.save(str(output))
-                    image_saved = True
-                    print(f"  Saved: {output_path} ({image.size[0]}x{image.size[1]})")
-                    break
-
-            if image_saved:
+        raw = _bizrouter_call(full_prompt, aspect_ratio=aspect_ratio)
+        if raw is not None:
+            try:
+                from PIL import Image
+                image = Image.open(io.BytesIO(raw))
+                if size != "1024x1024":
+                    w, h = map(int, size.split("x"))
+                    image = image.resize((w, h), Image.LANCZOS)
+                image.save(str(output))
+                print(f"  Saved: {output_path} ({image.size[0]}x{image.size[1]})")
                 return str(output)
-            else:
-                print(f"  Attempt {attempt + 1}: No image in response, retrying...")
+            except ImportError:
+                output.write_bytes(raw)
+                print(f"  Saved (raw, install Pillow for resize): {output_path}")
+                return str(output)
+            except Exception as e:
+                print(f"  Attempt {attempt + 1} post-process failed: {e}")
+        else:
+            print(f"  Attempt {attempt + 1}: empty image, retrying...")
 
-        except Exception as e:
-            print(f"  Attempt {attempt + 1} failed: {e}")
-            if attempt < max_retries - 1:
-                import time
-                time.sleep(5)
-            else:
-                print(f"  ERROR: Failed after {max_retries} attempts")
-                # Create a placeholder
-                create_placeholder(output_path, prompt)
-                return str(output_path)
+        if attempt < max_retries - 1:
+            import time
+            time.sleep(5)
 
+    print(f"  ERROR: Failed after {max_retries} attempts — writing placeholder")
     create_placeholder(output_path, prompt)
     return str(output_path)
 
 
 def create_placeholder(output_path: str, prompt: str):
-    """Create a placeholder image when generation fails."""
     try:
-        from PIL import Image, ImageDraw, ImageFont
+        from PIL import Image, ImageDraw
 
         img = Image.new("RGB", (1024, 1024), color=(30, 30, 40))
         draw = ImageDraw.Draw(img)
@@ -161,7 +203,7 @@ def create_placeholder(output_path: str, prompt: str):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate images using Gemini API")
+    parser = argparse.ArgumentParser(description="Generate images via BizRouter (Gemini 3 Pro Image)")
     parser.add_argument("--prompt", required=True, help="Image description")
     parser.add_argument(
         "--style",

@@ -1,23 +1,17 @@
 ---
 name: gemini-imagegen
-description: "Gemini API를 사용하여 고품질 이미지를 생성하는 스킬. 텍스트 프롬프트로 교육용 인포그래픽, 기술 다이어그램, 개념도 등을 생성한다. 이미지 생성, 삽화, 일러스트, 그림 요청 시 반드시 이 스킬을 사용할 것. <!-- IMAGE: --> 태그를 처리할 때도 이 스킬을 사용."
+description: "BizRouter 경유 Gemini 3 Pro Image 모델로 고품질 이미지를 생성하는 스킬. 텍스트 프롬프트로 교육용 인포그래픽, 기술 다이어그램, 개념도 등을 생성한다. 이미지 생성, 삽화, 일러스트, 그림 요청 시 반드시 이 스킬을 사용할 것. <!-- IMAGE: --> 태그를 처리할 때도 이 스킬을 사용."
 ---
 
-# Gemini Image Generation Skill
+# Gemini Image Generation Skill (via BizRouter)
 
-Google Gemini API의 이미지 생성 기능을 사용하여 고품질 시각 자료를 생성한다.
+`google/gemini-3-pro-image-preview` (Nano Banana Pro)를 BizRouter 프록시로 호출하여 고품질 시각 자료를 생성한다. Gemini 직결 API는 사용하지 않는다.
 
 ## 사전 요구사항
 
-- `.env.local` 파일에 `GEMINI_API_KEY` 설정 필요
-- Python 3.8+ (google-genai 패키지)
-
-## 설치
-
-첫 실행 전 아래 명령어로 의존성을 설치한다:
-```bash
-pip install google-genai Pillow
-```
+- `BIZROUTER_API_KEY` 환경변수 설정 (보통 `~/.config/claude-profiles/terry.env` 에 이미 export 되어 있음)
+- Python 3.8+ · `Pillow` (선택, 해상도 리사이즈 시 필요)
+- 외부 SDK(google-genai 등) 불필요 — `curl` 서브프로세스 기반
 
 ## 사용법
 
@@ -57,7 +51,7 @@ STYLE_PROMPTS = {
 
 ## 프롬프트 작성 원칙
 
-1. **영어로 작성**: Gemini의 이미지 생성은 영어 프롬프트가 가장 정확
+1. **영어로 작성**: 이미지 생성은 영어 프롬프트가 가장 정확
 2. **텍스트 최소화**: AI 생성 이미지에서 텍스트(특히 한국어)는 깨지기 쉬움. 레이블은 후처리로 추가
 3. **구체적 묘사**: "robot hand" 보다 "anthropomorphic 5-fingered robot hand with blue tactile sensors on fingertips, side view"
 4. **구성 지시**: "left side shows X, right side shows Y, arrow connecting them"
@@ -83,12 +77,13 @@ book-writer가 삽입한 IMAGE 태그를 파싱하여 이미지를 생성한다:
 
 ## 에러 핸들링
 
-- API Key 없음: `.env.local` 확인 안내 메시지 출력
+- `BIZROUTER_API_KEY` 미설정: `~/.config/claude-profiles/terry.env` 확인 안내 메시지 출력
 - Rate limit: 30초 대기 후 재시도 (최대 3회)
 - 생성 실패: 프롬프트 단순화 후 재시도
 - 부적절 콘텐츠 필터: 프롬프트에서 문제 부분 제거 후 재시도
 
 ## 출력
 
-- 이미지 파일: PNG 형식, 1024x1024 기본
+- 이미지 파일: PNG 형식, 1024x1024 기본 (스크립트가 내부적으로 BizRouter의 2K 출력을 요청 후 리사이즈)
+- 비용: BizRouter 기준 ~₩208/장 (Google 공식가 $0.134와 동일)
 - 메타데이터: 파일명, 프롬프트, 스타일, 생성 시각을 figure_manifest.json에 기록
