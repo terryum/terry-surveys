@@ -13,8 +13,14 @@ terry-surveys 모노레포에서 서베이 책 한 편의 **전 생애주기**�
 3. 인덱스 + 검증
    │
    ▼
-연구·집필 (에이전트 파이프라인)
-   deep-researcher → critical-analyst → book-writer → image-curator → fact-checker → qa-reviewer
+집필 (멀티에이전트 하네스 팀, 기본) ─── /survey --orchestrate <slug>
+   TeamCreate(survey-<slug>, 6 agents)
+   ├─ deep-researcher ──┐
+   ├─ critical-analyst ─┤ 의존성 그래프 + SendMessage 자체 조율
+   ├─ book-writer ×16 ─ ┤ (챕터별 병렬 집필)
+   ├─ image-curator ────┤ (챕터 완료 이벤트 스트리밍)
+   ├─ fact-checker ─────┤ (챕터 완료 이벤트 스트리밍)
+   └─ qa-reviewer ──────┘ (incremental + 최종 관문)
    │
    ▼
 빌드 + 배포 ─── /survey --deploy <slug>
@@ -26,10 +32,11 @@ terry-surveys 모노레포에서 서베이 책 한 편의 **전 생애주기**�
    │
    ▼
 지속 운영
-   /survey --refresh <slug>        # staleness 체크
-   /survey --factcheck <slug>      # 수치·인용 재검증
-   /survey --link-posts <slug>     # 포스트 Tier 1 링크
-   /survey --sync-agents <slug>    # 템플릿 최신화 전파
+   /survey --orchestrate <slug> --phase=polish  # 팩트체크·QA 재라운드
+   /survey --refresh <slug>                     # staleness 체크
+   /survey --factcheck <slug>                   # 수치·인용 재검증
+   /survey --link-posts <slug>                  # 포스트 Tier 1 링크
+   /survey --sync-agents <slug>                 # 템플릿 최신화 전파
 ```
 
 ## 아키텍처 3-레이어
@@ -63,15 +70,18 @@ $ARGUMENTS 비었거나 --help          → 도움말
 $ARGUMENTS 가 URL (http/https) 형태  → MODE B (등록)
 cwd가 terry-surveys 내부 & 제목 문자열 → MODE A (부트스트랩)
 --bootstrap / --register 명시        → 강제 모드 지정
+--orchestrate <slug>                → 멀티에이전트 팀 집필 (기본 집필 모드)
 ```
 
 - **MODE A 세부**: `bootstrap-playbook.md` 참조.
 - **MODE B 세부**: `registration-playbook.md` 참조.
+- **오케스트레이션 세부**: `orchestration-playbook.md` 참조.
 
 ## 지속 운영 서브커맨드
 
 | 커맨드 | 용도 | 재사용 도구 |
 |---|---|---|
+| `/survey --orchestrate <slug>` | **기본 집필 모드** — 멀티에이전트 팀 자율 병렬 집필 | `TeamCreate` + 6 agent md + `orchestration-playbook.md` |
 | `/survey --sync-agents <slug>` | 템플릿 업데이트를 per-survey에 전파 | `scripts/sync_agents.py` (3-way diff, placeholder 보존) |
 | `/survey --refresh <slug>` | 오래된 챕터 리프레시 우선순위화 | `python3 build.py --staleness <slug>` |
 | `/survey --factcheck <slug>` | 모든 챕터 팩트체커 재실행 | `.claude/skills/fact-check` + fact-checker 에이전트 |
@@ -93,22 +103,51 @@ python3 build.py --staleness --all
 - 상위 챕터부터 `book-writer` / `fact-checker` 호출로 업데이트.
 - `/survey --refresh <slug>`가 이 리포트를 보여주고 다음 행동 제안.
 
-## 에이전트 팀 실행 가이드
+## 에이전트 팀 실행 가이드 — `/survey --orchestrate`가 기본
 
-템플릿 복사본(`surveys/<slug>/.claude/agents/*.md`)을 팀으로 실행할 때:
+서베이 집필의 **기본 진입점은 `/survey --orchestrate <slug>`**다. `/harness` 규약에 따라 6개 에이전트가 자율 팀으로 동작한다.
+
+### 핵심 원칙 (순차 Phase 아님)
+
+- 팀원 간 `SendMessage`로 직접 통신
+- `TaskCreate`로 의존성 그래프 공유 (addBlockedBy)
+- 리더는 `/survey` 스킬 자체 — 모니터링만, 작업 안 함
+- book-writer의 챕터 간 **병렬**, image-curator·fact-checker는 **스트리밍**, qa-reviewer는 **incremental**
+
+### 호출
+
+```bash
+# 전체 팀 기동 (연구·집필·이미지·팩트체크·QA 자율 완주)
+/survey --orchestrate humanoid-revolution
+
+# 연구·분석만
+/survey --orchestrate humanoid-revolution --phase=research
+
+# 집필만 (research 산출물 전제)
+/survey --orchestrate humanoid-revolution --phase=write
+
+# 팩트체크·QA 라운드만
+/survey --orchestrate humanoid-revolution --phase=polish
+
+# 특정 챕터만
+/survey --orchestrate humanoid-revolution --chapters=1-3
+
+# 병렬 상한 조정 (API rate 이슈 시)
+/survey --orchestrate humanoid-revolution --max-parallel=2
+```
+
+### 수동 개별 호출 (일반적이지 않음 — 오케스트레이션이 실패할 때만)
 
 ```
-# Claude Code 내부에서
 Agent(
   subagent_type="general-purpose",
   model="opus",
-  prompt="읽어야 할 에이전트 정의: surveys/<slug>/.claude/agents/deep-researcher.md
-         해당 정의의 역할·원칙·입출력 프로토콜을 따라 작업을 수행하세요.
-         이 서베이는 {{도메인}}이며 현재 챕터 구조는 {{구조}}입니다..."
+  prompt="surveys/<slug>/.claude/agents/deep-researcher.md 의 역할·원칙·입출력 프로토콜을 따라
+         작업을 수행. 도메인: ..., 챕터: ..."
 )
 ```
 
-또는 `/harness`로 자동 팀 구성 (에이전트 정의 파일을 자동 로드).
+세부 팀 구성·의존성 그래프·에러 대응은 `orchestration-playbook.md` 참조.
 
 ## 트러블슈팅
 

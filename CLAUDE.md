@@ -210,17 +210,22 @@ bash scripts/push.sh "커밋 메시지"
 
 새 서베이를 시작할 때는 **`python3 build.py --new <name>`을 직접 부르지 말고 `/survey "<책 제목>"`을 호출한다**. `/survey`는 scaffold + per-survey `.claude/agents/` 템플릿 복사 + placeholder 치환 + 인덱스 등록을 한 번에 수행한다.
 
-### 2-모드 + 5-서브커맨드
+### 2-모드 + 6-서브커맨드
 
 | 호출 | 모드 | 동작 |
 |---|---|---|
 | `/survey "<제목>"` (terry-surveys 내부) | MODE A | 새 책 부트스트랩 |
 | `/survey <cloudflare-url>` | MODE B | 홈페이지 Surveys 갤러리 등록 + `/cite-post` 자동 호출 |
+| **`/survey --orchestrate <slug>`** | **서브 (기본 집필)** | **멀티에이전트 팀(6종) 자율 병렬 집필** — `TeamCreate` + `SendMessage` + `TaskCreate`. 순차 Phase 아님 |
 | `/survey --sync-agents <slug>` | 서브 | 템플릿 → per-survey `.claude/agents/` 동기화 (placeholder 보존) |
 | `/survey --refresh <slug>` | 서브 | `build.py --staleness` 기반 리프레시 우선순위 |
 | `/survey --factcheck <slug>` | 서브 | fact-checker 에이전트 일괄 호출 |
 | `/survey --link-posts <slug>` | 서브 | `/link-post-to-surveys` 프록시 (Tier 1) |
 | `/survey --deploy <slug>` | 서브 | 빌드 + Cloudflare 배포 + MODE B 자동 진입 |
+
+### 집필은 오케스트레이션이 기본
+
+**`/survey --orchestrate <slug>`가 집필의 정규 진입점**이다. 이 스킬이 리더 역할을 하며 `surveys/<slug>/.claude/agents/*.md`에 정의된 6개 에이전트(deep-researcher · critical-analyst · book-writer · image-curator · fact-checker · qa-reviewer)를 `TeamCreate`로 기동하고, 의존성 그래프로 병렬·스트리밍·자체 조율을 수행한다. 단독 에이전트를 순차 호출하는 방식은 **오케스트레이션이 실패할 때의 예외 경로**로만 사용한다. `--phase=research|write|polish`로 단계별 제한 가능. 세부는 `.claude/skills/survey/references/orchestration-playbook.md` 참조.
 
 ### Repo Ownership 원칙
 
