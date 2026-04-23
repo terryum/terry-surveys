@@ -337,7 +337,9 @@ def md_to_html_content(md_text, ch_num, lang):
             src = src.replace('../../../../assets/figures/', '../assets/figures/')
             src = src.replace('../../assets/figures/', '../assets/figures/')
             return f'<a href="{src}" target="_blank"><img src="{src}" alt="{alt}" loading="lazy" style="max-height:160px;width:auto;border-radius:8px;cursor:zoom-in"></a>'
-        text = re.sub(r'!\[([^\]]*)\]\(([^)]+)\)', inline_img, text)
+        # Image alt text may contain `[Author, Year]` citations — allow inner `]`
+        # so long as it is not followed by `(` (which would start the URL group).
+        text = re.sub(r'!\[((?:[^\]]|\](?!\())*)\]\(([^)]+)\)', inline_img, text)
 
         text = re.sub(r'\[(#\d+)\]\(([^)]+)\)', r'<a href="\2" target="_blank" class="post-link">[\1]</a>', text)
         text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2">\1</a>', text)
