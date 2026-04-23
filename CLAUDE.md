@@ -206,6 +206,40 @@ bash scripts/push.sh "커밋 메시지"
 - `.wrangler/`는 로컬 캐시 — `.gitignore` 등록 필수.
 - **Pages 파일 크기 한도 25 MiB**. 대용량 PDF/영상 등 source material은 `docs/` 밖 `_revise-source/`에 두고 gitignore + push.sh에서 제외.
 
+## 6. 하네스 부트스트랩 — `/survey`가 정규 진입점
+
+새 서베이를 시작할 때는 **`python3 build.py --new <name>`을 직접 부르지 말고 `/survey "<책 제목>"`을 호출한다**. `/survey`는 scaffold + per-survey `.claude/agents/` 템플릿 복사 + placeholder 치환 + 인덱스 등록을 한 번에 수행한다.
+
+### 2-모드 + 5-서브커맨드
+
+| 호출 | 모드 | 동작 |
+|---|---|---|
+| `/survey "<제목>"` (terry-surveys 내부) | MODE A | 새 책 부트스트랩 |
+| `/survey <cloudflare-url>` | MODE B | 홈페이지 Surveys 갤러리 등록 + `/cite-post` 자동 호출 |
+| `/survey --sync-agents <slug>` | 서브 | 템플릿 → per-survey `.claude/agents/` 동기화 (placeholder 보존) |
+| `/survey --refresh <slug>` | 서브 | `build.py --staleness` 기반 리프레시 우선순위 |
+| `/survey --factcheck <slug>` | 서브 | fact-checker 에이전트 일괄 호출 |
+| `/survey --link-posts <slug>` | 서브 | `/link-post-to-surveys` 프록시 (Tier 1) |
+| `/survey --deploy <slug>` | 서브 | 빌드 + Cloudflare 배포 + MODE B 자동 진입 |
+
+### Repo Ownership 원칙
+
+- **원본은 주된 작업이 일어나는 repo에 둔다.** `/survey` 원본은 terry-surveys (`.claude/skills/survey/`), terryum-ai 측은 심링크로 허브 성질 유지.
+- 다른 심링크 스킬(`/post`, `/project`, `/share`, `/paper-search`, `/defuddle`)은 현재 구조 유지 (terryum-ai 원본).
+
+### Canonical Agent 템플릿
+
+- 위치: `.claude/skills/survey/references/agent-template/`
+- 6종: `deep-researcher.md`, `critical-analyst.md`, `book-writer.md`, `image-curator.md`, `fact-checker.md`, `qa-reviewer.md`
+- Placeholder: `{{SURVEY_SLUG}}`, `{{DOMAIN}}`, `{{CHAPTERS}}`, `{{TERMS}}`, `{{SURVEY_DIR}}` — `/survey` 부트스트랩 시 per-survey 값으로 치환되고 공통 섹션은 sync로 전파.
+- 템플릿 수정은 한 곳(`agent-template/`)에서만. 새 책은 자동으로 최신을 복사, 기존 책은 `--sync-agents`로 선택적 전파.
+
+### 상세 문서 포인터
+
+- 부트스트랩 세부: `.claude/skills/survey/references/bootstrap-playbook.md`
+- 등록 세부: `.claude/skills/survey/references/registration-playbook.md`
+- 전 생애주기 통합 가이드: `.claude/skills/survey/references/unified-survey-guide.md`
+
 ---
 
 # Paper 입수 파이프라인 — 홈페이지 → 서베이 업데이트

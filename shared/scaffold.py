@@ -531,6 +531,7 @@ def create_survey(name, surveys_dir):
         'docs',
         'scripts',
         '.github/ISSUE_TEMPLATE',
+        '.claude/agents',
     ]:
         os.makedirs(os.path.join(survey_dir, d), exist_ok=True)
 
@@ -568,6 +569,8 @@ def create_survey(name, surveys_dir):
     print(f"\nCreated survey at surveys/{name}/")
     print("Next steps:")
     print(f"  1. Edit surveys/{name}/survey.json with your chapter structure")
-    print(f"  2. Write chapters in surveys/{name}/book/ko/ and book/en/")
-    print(f"  3. Fill book/{{ko,en}}/glossary.md with domain terms")
-    print(f"  4. Run: python3 build.py {name}")
+    print(f"  2. Populate .claude/agents/ via /survey bootstrap flow")
+    print(f"     (scaffold creates the empty dir; agent template is copied by /survey)")
+    print(f"  3. Write chapters in surveys/{name}/book/ko/ and book/en/")
+    print(f"  4. Fill book/{{ko,en}}/glossary.md with domain terms")
+    print(f"  5. Run: python3 build.py {name}")

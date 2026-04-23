@@ -1,0 +1,147 @@
+# MODE B — Registration Playbook
+
+`/survey <URL>` 또는 `/survey --register ...`가 호출됐을 때 실행되는 **기존 배포 서베이를 홈페이지 갤러리에 등록**하는 단계별 세부 가이드. 이 로직은 직전까지 `terryum-ai/.claude/skills/survey/SKILL.md`가 담고 있었고, 이번 리팩터링에서 이 파일로 이동했다. SKILL.md 본문은 이 문서를 요약 포인터로만 가리킨다.
+
+## 입력
+
+```
+/survey <URL> [--featured] [--status=active|archived|wip] [--visibility=group --group=snu]
+/survey --title="..." --embed="..." [기타 메타 수동 옵션]
+```
+
+## 공개 범위 (visibility) 옵션
+
+- `--visibility=group --group=snu` → 그룹 전용 서베이
+  - **surveys.json에 추가하지 않음** — Supabase `private_content` 테이블에 직접 저장.
+  - `content_type: 'surveys'`, `group_slug`, `meta_json` (전체 SurveyMeta 객체).
+  - 커버 이미지 → Supabase Storage `private-covers/{slug}/cover.webp`.
+  - **Git 커밋/푸시 불필요.**
+- 기본값: `visibility: "public"` (surveys.json에 저장, Git 커밋).
+
+## Step 0) 배포 플랫폼 (Cloudflare Pages 전용)
+
+**공개 서베이**: 해당 survey repo를 Cloudflare Pages에 연결
+- Dashboard → Pages → Connect to Git → survey repo 선택 → Production branch: `main` → Build output: `docs/`.
+- 배포 URL: `<project-name>.pages.dev` → 이 URL을 `embed_url`로 사용.
+
+**비공개(그룹) 서베이**: private repo → Cloudflare Pages Direct Upload (`wrangler pages deploy`).
+
+## Step 1) URL / 정보 수집
+
+- Cloudflare Pages URL 또는 embed URL 제공 시 → WebFetch로 사이트 접속하여 목차·소개글 추출.
+- GitHub URL 제공 시 → README에서 목차·설명 추출.
+- `--title`, `--embed`, `--toc` 등 수동 옵션도 허용.
+
+## Step 2) 메타데이터 구성
+
+```json
+{
+  "slug": "book-example",
+  "survey_number": N,
+  "title": { "ko": "...", "en": "..." },
+  "description": { "ko": "...", "en": "..." },
+  "cover_image": "/images/projects/{slug}-cover.webp",
+  "tech_stack": ["Robotics", "Survey"],
+  "toc": ["Chapter 1", "Chapter 2", "..."],
+  "links": [
+    { "type": "demo", "url": "https://...", "label": "Read" },
+    { "type": "github", "url": "https://github.com/..." }
+  ],
+  "embed_url": "https://...",
+  "status": "active",
+  "featured": true,
+  "order": 0,
+  "published_at": "2026-01-01"
+}
+```
+
+### 필드 규약
+- `survey_number`: `surveys.json`의 `next_survey_number`를 사용 후 증가.
+- `toc`: 이중 언어 `{ ko, en }[]` 형식. 사이트/README에서 추출 후 번역.
+  - **한글 목차 제목**: 공백 포함 **12자** 이내 (카드 truncation 방지).
+  - **영문 목차 제목**: 공백 포함 **19자** 이내.
+  - 구분자는 ` — `(em dash) 대신 `: `(colon) 사용 — 폭 절약.
+  - 초과 시 약어나 짧은 표현으로 조정.
+- `description`: 한글/영어 각각 **2–3줄** (카드에서 5–7줄 이내로 보이도록).
+
+## Step 3) 이미지 생성
+
+`/gemini-3-image-generation` 스킬로 두 가지 이미지를 생성한다:
+
+1. **커버 이미지** (정사각형, 1:1): 카드 썸네일용.
+   - `public/images/projects/{slug}-cover.webp` (public) 또는 Supabase Storage (group).
+2. **OG 이미지** (1200×630, 16:9): 소셜 공유용 대표 이미지.
+   - `public/images/projects/{slug}-og.jpg` (public) 또는 Supabase Storage (group).
+   - JPEG 형식 (X/Twitter 호환).
+
+공유 URL: `/surveys/{slug}` (lang 없는 경로) → 자동 리다이렉트 + OG 메타태그 제공.
+
+## Step 4) surveys.json 업데이트
+
+`projects/surveys/surveys.json`의 `surveys` 배열에 엔트리 추가.
+`next_survey_number` 증가.
+
+## Step 5) 빌드 + 검증
+
+```bash
+npx tsc --noEmit
+npm run build
+```
+
+## Step 5.5) 기존 포스트 역참조 — 자동 호출
+
+등록되는 서베이가 terry-surveys 모노레포의 서베이 책을 가리키는 경우 (`github_repo` 또는 `embed_url`이 `terry-surveys/surveys/<name>/` 또는 관련 private repo), **해당 서베이 책의 참고문헌과 www.terryum.ai 기존 포스트를 매칭하여 본문 인용과 ref에 `[#NN]` 링크를 자동 삽입한다**.
+
+```bash
+# 1) 대상 서베이 디렉토리 확인
+SURVEY_DIR=/Users/terrytaewoongum/Codes/personal/terry-surveys/surveys/<survey-slug-or-name>
+[ -d "$SURVEY_DIR" ] || { echo "not a terry-surveys book — skip"; exit 0; }
+
+# 2) terry-surveys로 이동 후 cite-post 스킬 호출
+cd /Users/terrytaewoongum/Codes/personal/terry-surveys
+```
+
+그 다음 **`/cite-post <survey-name>`** 스킬을 호출한다. cite-post는:
+- `terryum-ai/posts/papers/` 전수 스캔 → `meta.json`에서 slug·postNumber·제목·저자 수집.
+- `surveys/<name>/book/{ko,en}/ch*.md`의 `## 참고문헌` / `## References` 파싱.
+- 제목·저자 매칭된 각 ref에 `[#NN](https://www.terryum.ai/{ko|en}/posts/{slug})` 삽입.
+- (선택) 인라인 인용에도 동일 링크 삽입.
+
+완료 후 리빌드 및 (필요 시) private push:
+
+```bash
+# 3) 리빌드
+python3 build.py <survey-name>
+
+# 4) snu-tactile-hand 계열이면 private repo로 push (Cloudflare Pages 자동 재배포)
+if [ "<survey-name>" = "snu-tactile-hand" ]; then
+  bash surveys/snu-tactile-hand/scripts/push-private.sh "link existing posts to snu-tactile-hand refs"
+fi
+```
+
+- terry-surveys 모노레포의 **공개 변경분**(CLAUDE.md, bibtex/, shared/ 등)만 별도 커밋 + push.
+- `surveys/snu-tactile-hand/book/` 및 `docs/`는 `.gitignore`로 공개 repo에서 제외되므로 private 스크립트로만 반영.
+- 서베이 디렉토리가 없거나 cite-post가 실패하면 경고만 출력하고 이 단계 스킵 (비차단).
+
+## Step 6) Git 커밋 + 푸시 (public만)
+
+```bash
+git pull --rebase origin main
+git add projects/surveys/ public/images/projects/
+git commit -m "feat(survey): add {slug}"
+git push
+```
+
+- **`git pull --rebase` 필수**: terry-surveys 등 다른 워크스페이스에서 동시에 push했을 수 있으므로, 커밋 전 최신 상태를 먼저 가져온다.
+- push 실패 시 `git pull --rebase` 후 재시도.
+
+## 검증 체크리스트
+
+- [ ] `surveys.json`에 새 엔트리 추가, `survey_number` 증가 일관성
+- [ ] 커버 이미지 + OG 이미지 두 파일 모두 생성
+- [ ] `description` 길이 (ko 2–3줄, en 2–3줄)
+- [ ] `toc` 길이 (ko ≤12자, en ≤19자 per item)
+- [ ] terry-surveys 연관 시 `/cite-post` 자동 호출 완료
+- [ ] `npx tsc --noEmit` 통과
+- [ ] `npm run build` 성공
+- [ ] Git pull --rebase 후 push 성공 (public only)
