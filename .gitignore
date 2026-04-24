@@ -5,6 +5,7 @@ __pycache__/
 .DS_Store
 node_modules/
 _refs_extracted.json
+.claude/scheduled_tasks.lock
 
 # snu-tactile-hand: group-restricted content (visible to snu/admin only)
 # The survey's existence and metadata (survey.json) are public,

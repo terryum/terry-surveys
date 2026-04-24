@@ -74,7 +74,9 @@ rm surveys/<slug>/.claude/agents/README.md
 
 ### Step 5. survey.json 초벌 채우기
 
-- `title.ko`, `title.en`, `description.ko/en` → 사용자 입력 적용.
+- `title.ko`, `title.en` → 사용자 입력 적용.
+- `description.ko/en` → **KO ≤ 90자, EN ≤ 140자**. "핵심 질문 한 줄 — N Parts, M Chapters" 패턴. 챕터·회사 나열 금지 (Chapter Grid가 그 역할).
+- `cover_image` → `""`로 초기화. MODE B 등록(`/survey <cloudflare-url>`) 시 생성된 `terryum-ai/public/images/projects/survey-<slug>-og.jpg` (16:9)를 `surveys/<slug>/assets/cover.jpg`로 복사한 뒤 `"../assets/cover.jpg"`로 설정. 없을 때만 `/image-gen`으로 새로 생성 (cinematic hero banner, 16:9, 2K). **이미 있는 자산을 새로 생성하지 말 것** (2026-04 humanoid-revolution 사고 예방).
 - `dates.first_published`, `dates.last_updated` → 오늘 날짜.
 - `parts[].chapters[]` → scaffold가 만든 1개 챕터 유지. 사용자가 이후 편집.
 - 하이라이트·acknowledgment 등 나머지 필드 → placeholder 유지, 사용자 편집 안내.

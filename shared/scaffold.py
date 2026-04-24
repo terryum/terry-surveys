@@ -17,6 +17,13 @@ def _write(path, content):
 
 
 def _survey_config(name):
+    # Home hero uses: cover_image → short_title → subtitle → description.
+    # description stays short (KO ≤ 90 chars, EN ≤ 140 chars). The long
+    # chapter list already renders below as the Chapter Grid, so the
+    # description should be a single hook — never a table of contents.
+    # See 2026-04 humanoid-revolution incident: description initially
+    # listed all four catalysts + all five companies + all three stages,
+    # running 243 KO chars / 444 EN chars.
     return {
         "id": name,
         "github_repo": f"terryum/{name}",
@@ -29,13 +36,15 @@ def _survey_config(name):
             "en": "Short Title"
         },
         "subtitle": {
-            "ko": "부제목",
-            "en": "Subtitle"
+            "ko": "부제목 (한 문장)",
+            "en": "Subtitle (one sentence)"
         },
         "description": {
-            "ko": "설명",
-            "en": "Description"
+            # KO ≤ 90자, EN ≤ 140 chars. "핵심 질문 한 줄 — N Parts, M Chapters" 패턴.
+            "ko": "핵심 질문 한 줄. — N Parts, M Chapters",
+            "en": "One-line core question. — N Parts, M Chapters"
         },
+        "cover_image": "",  # e.g. "../assets/cover.jpg" (16:9 hero banner above <h1>). Reuse terryum-ai/public/images/projects/survey-<slug>-og.jpg if present.
         "dates": {
             "first_published": "",
             "last_updated": ""
@@ -100,19 +109,18 @@ Content goes here.
 
 def _glossary_template(lang):
     title = "Glossary" if lang == 'en' else "용어집 (Glossary)"
+    # Reader-facing intro ONLY. Maintainer workflow (how to add new terms,
+    # how to sync with the master) lives in `glossary/README.md` — NEVER
+    # in a published book file. See 2026-04 humanoid-revolution incident:
+    # the scaffold blockquote "> **신규 용어 추가 시**: …" rendered as
+    # visible instruction text on the public site.
     if lang == 'ko':
         intro = (
-            "A~Z 순으로 정리된 주요 용어. 각 항목 끝 `(Ch N)`은 해당 용어가 도입되거나 집중 논의된 챕터.\n"
-            "정의는 모노레포의 공통 마스터(`glossary/master_ko.md`)와 동일하게 유지된다.\n\n"
-            "> **신규 용어 추가 시**: 먼저 `glossary/master_ko.md`를 grep — 있으면 정의를 그대로 복사해 `(Ch N)`만 부기,\n"
-            "> 없으면 마스터에 먼저 추가한 뒤 이 파일에 복사. 자세한 워크플로우는 `glossary/README.md` 참조."
+            "A~Z 순으로 정리된 주요 용어. 각 항목 끝 `(Ch N)`은 해당 용어가 도입되거나 집중 논의된 챕터."
         )
     else:
         intro = (
-            "Key terms in A-Z order. `(Ch N)` marks the chapter where the term is introduced or discussed in depth.\n"
-            "Definitions are kept in sync with the monorepo master at `glossary/master_en.md`.\n\n"
-            "> **Adding a new term**: grep `glossary/master_en.md` first — if present, copy the definition verbatim\n"
-            "> and append `(Ch N)`; if absent, add to master first, then copy here. See `glossary/README.md` for details."
+            "Key terms in A-Z order. `(Ch N)` marks the chapter where the term is introduced or discussed in depth."
         )
     return f"""---
 title: "{title}"

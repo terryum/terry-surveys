@@ -104,7 +104,8 @@ last_updated: "YYYY-MM-DD"
 
 ### 인용
 
-- **인라인**: `[Author et al., Year]` — 괄호 필수 (빌드 스크립트 정규식 매칭용). 빌드 시 `<sup>[N]</sup>`으로 자동 변환.
+- **인라인 (본문 narrative)**: `[Author et al., Year]` — **괄호 필수** (빌드 스크립트 정규식 매칭용). 빌드 시 `<sup>[N]</sup>`으로 자동 변환.
+- **⚠ Figure alt 텍스트 예외 — 대괄호 금지**: `![caption](url)`의 caption 안에서는 `[Author, Year]` 대괄호를 쓰지 말 것. build_site.py citation linkifier가 `<sup><a>[N]</a></sup>` HTML을 주입해 alt 속성의 `"`를 조기에 닫고 `loading="lazy"`, `onerror=`, `style=` 등 img 태그 속성이 figcaption에 visible text로 누출됨 (2026-04 humanoid-revolution 사고). figure 출처는 반드시 `Author et al. Year` 형식(대괄호 없이). 규칙이 본문과 **정반대**이니 주의. `build.py --validate`가 이 패턴을 자동 거부.
 - **교차참조**:
   - **EN 기본**: `(Chapter N)` — 화살표·약어 금지 (예: `→Ch.2` 금지).
   - **KO 허용**: Korean 자연 표현 (`N장`, `N.M절`, "2장에서는 …")도 유효. 약어·화살표 금지 원칙은 동일 (`→2장` 금지). 빌드 validator는 EN·KO 양식 모두 통과.
@@ -116,10 +117,16 @@ last_updated: "YYYY-MM-DD"
 - **경로 (서베이 로컬)**: 챕터 안에서 `../../assets/figures/파일명`.
 - **네이밍 (공유 레지스트리)**: `<sourceSlug>_fig<N>.<ext>` (chapter 접두사 제거). 예: `gelsight_fig1.png`.
 - **경로 (공유 레지스트리)**: 챕터 안에서 `../../../../assets/figures/파일명` — 모노레포 루트 `assets/figures/`에 존재.
-- **정책**: **논문 원본 figure 우선**. image-curator가 원본 PDF·arXiv에서 크롭하여 출처 caption 명기.
+- **정책**: **3-way 소스 병용** — (a) 논문 원본 figure 크롭, (b) 공식 플랫폼/제품 사진 (press kit · GitHub README · 하드웨어 arXiv, fair use for academic review), (c) Gemini 생성 개념도. 챕터 유형에 맞는 티어 쿼터로 균형 배치.
+- **티어 쿼터** (최소 3/chapter):
+  - Theory / Overview / Primer: 3–5 (Gemini 스키마 중심)
+  - Method / Algorithm survey: 3–6 (논문 figure 중심)
+  - Platform / Company / Hardware: 4–8, **실제 제품 사진 ≥ 2 필수**
+  - History / Ecosystem: 3–5 (역사 사진 + Gemini + 논문 figure)
 - **공유 승격 규칙**: 2개 이상 서베이가 같은 논문 figure를 인용하면 즉시 루트 `assets/figures/`로 승격(chapter 접두사 제거) + `assets/registry.json`에 등록. 1개 서베이만 쓰는 figure는 서베이 로컬 유지.
 - **빌드**: `shared/build_site.py`가 서베이 로컬을 먼저 `docs/assets/figures/`로 복사한 뒤 루트 공유 figure를 오버레이한다. 같은 파일명 충돌 시 루트가 우선(공유 canonical). 챕터 md의 경로는 자동 재매핑된다.
-- **AI 보조 일러스트**: Gemini 등 ≤ 2/챕터 한도. 도메인별 필요 시 각 서베이 CLAUDE.md에서 축소 조정.
+- **매니페스트**: `_workspace/04_image_manifest.json` — `source_type` (paper_figure/platform_photo/gemini) + `license_basis` 필수. 플랫폼 사진은 `source_url` · `fetch_date` · `sha256` 추가, Gemini는 `source_prompt` 추가.
+- **Gemini 상한**: 이전의 "≤ 2/chapter" 하드캡은 **폐기** (2026-04 humanoid-revolution 사전사고: theory/strategy 챕터 figure 빈약 야기). 티어 쿼터 내에서 필요한 만큼 생성 허용. 단, 플랫폼/회사 챕터는 Gemini만으로 채우지 말고 실제 사진 ≥ 2 선확보.
 
 ### References (`book/references.bib`)
 
@@ -171,10 +178,16 @@ last_updated: "YYYY-MM-DD"
 ![Figure N.M: caption](../../assets/figures/chNN_<slug>_figN.png)
 ```
 
+### 챕터 페이지 하단 네비게이션
+
+- 챕터 HTML 하단 `<nav class="chapter-nav">`는 **이전 챕터 · 목록 · 다음 챕터** 3요소만 노출한다 (첫/끝 챕터는 해당 placeholder).
+- 용어집·참고문헌·부록 링크를 챕터 네비에 삽입하지 말 것. 이들은 TOC 인덱스의 Appendix 카드로만 진입한다 (2026-04 원칙). `shared/build_site.py`의 `build_chapter_html`이 단일 source of truth.
+
 ## 4. `survey.json` 필드 규약
 
 - `id`, `github_repo`: 식별자
 - `title`, `short_title`, `subtitle`, `description`: 양국어 제목/설명
+- **`cover_image`**: hero 배너 경로. 일반적으로 `"../assets/cover.jpg"`. 파일은 `surveys/<slug>/assets/cover.{jpg,png,webp,svg}`에 저장 (flat `assets/` 루트, `figures/` 아님). 16:9 권장. 새로 생성하기 전에 반드시 `terryum-ai/public/images/projects/survey-<slug>-og.jpg`(등록 시 생성된 자산)를 재사용 여부 확인. build_site.py가 `docs/assets/cover.*`로 복사하고 홈페이지 `<h1>` 위에 배치.
 - `parts[].chapters[]`: 챕터 구조 (번호, 제목, 요약, `last_updated` per chapter)
 - `highlights`: TOC 하이라이트 카드
 - `acknowledgment`: 감사의 글
@@ -183,6 +196,13 @@ last_updated: "YYYY-MM-DD"
   - `pdf: false` (전용 PDF 빌드 스킬 부재 시 off)
   - `paper: false` (IEEE paper 별도 워크플로우로 관리)
 - `dates.first_published`, `dates.last_updated` (서베이 전체)
+
+### `description` 길이 제한
+
+- **KO**: 40–90자, **EN**: 80–140자. 한 줄 hook + `"— N Parts, M Chapters"` 패턴.
+- **챕터나 회사 리스트를 나열하지 말 것** — 하단 Chapter Grid가 이미 그 역할. 2026-04 humanoid-revolution 사고: description에 모든 챕터·기폭제·회사·단계를 나열해 243 KO / 444 EN 자까지 길어짐.
+- ✅ `"에이전틱 루프가 물리 세계에서 작동하려면 무엇이 달라져야 하는가. — 4 Parts, 10 Chapters"`
+- ❌ `"2015-2026 휴머노이드 로보틱스의 대격변 ... 정통파 스택 ... 네 기폭제 ... System 0/1/2 ... Boston Dynamics·Figure·Agility·Unitree·AgiBot ... 제조피지컬AI ..."`
 
 ### 챕터 `last_updated` 업데이트 정책 (에이전트 필수)
 

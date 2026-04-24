@@ -577,7 +577,7 @@ def build_sidebar(sections, part_num):
 # Chapter HTML builder
 # ---------------------------------------------------------------------------
 
-def build_chapter_html(ch_num, lang, chapters_meta, book_dir, lang_code, num_chapters, glossary_enabled=False):
+def build_chapter_html(ch_num, lang, chapters_meta, book_dir, lang_code, num_chapters):
     """Build a complete chapter HTML page."""
     md_path = os.path.join(book_dir, f'ch{ch_num:02d}.md')
     if not os.path.exists(md_path):
@@ -600,12 +600,10 @@ def build_chapter_html(ch_num, lang, chapters_meta, book_dir, lang_code, num_cha
         date_label = '집필일'
         updated_label = '최종수정일'
         toc_label = '목록'
-        glossary_label = '용어집'
     else:
         date_label = 'Written'
         updated_label = 'Last updated'
         toc_label = 'Index'
-        glossary_label = 'Glossary'
 
     if ch_num > 1:
         prev_link = f'<a href="ch{ch_num-1:02d}.html" class="prev">&larr; Ch.{ch_num-1}</a>'
@@ -613,10 +611,6 @@ def build_chapter_html(ch_num, lang, chapters_meta, book_dir, lang_code, num_cha
         prev_link = '<span class="placeholder"></span>'
 
     toc_link = f'<a href="./" class="toc-link">{toc_label}</a>'
-    glossary_link = (
-        f'<a href="glossary.html" class="glossary-link">{glossary_label}</a>'
-        if glossary_enabled else ''
-    )
 
     if ch_num < num_chapters:
         next_link = f'<a href="ch{ch_num+1:02d}.html" class="next">Ch.{ch_num+1} &rarr;</a>'
@@ -626,7 +620,6 @@ def build_chapter_html(ch_num, lang, chapters_meta, book_dir, lang_code, num_cha
     chapter_nav_html = f'''      <nav class="chapter-nav">
         {prev_link}
         {toc_link}
-        {glossary_link}
         {next_link}
       </nav>'''
 
@@ -1027,6 +1020,18 @@ def build_toc_html(config, lang_code):
     first_pub = dates.get('first_published', '')
     last_upd = dates.get('last_updated', '')
 
+    # Optional cover image above the title. Path is relative to docs/{lang}/,
+    # so for a file at surveys/<slug>/assets/cover.jpg we use ../assets/cover.jpg.
+    cover_path = config.get('cover_image', '').strip()
+    cover_html = ''
+    if cover_path:
+        cover_alt = title
+        cover_html = (
+            f'      <div class="hero-cover">\n'
+            f'        <img src="{cover_path}" alt="{cover_alt}" loading="eager">\n'
+            f'      </div>\n'
+        )
+
     start_text = '읽기 시작' if lang_code == 'ko' else 'Start Reading'
 
     # Highlights
@@ -1115,7 +1120,7 @@ def build_toc_html(config, lang_code):
   <main>
     <!-- Hero -->
     <section class="hero">
-      <h1 class="gradient-text">{config['short_title'][lang]}</h1>
+{cover_html}      <h1 class="gradient-text">{config['short_title'][lang]}</h1>
       <p class="subtitle">{subtitle}</p>
       <p class="description">{description}</p>
       <p class="hero-dates" style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.5rem;">
@@ -1209,8 +1214,7 @@ def build_survey(config, survey_dir, shared_dir):
     # Build KO chapters
     print("Building Korean chapters...")
     for ch in sorted(chapters_ko.keys()):
-        html = build_chapter_html(ch, 'ko', chapters_ko, book_ko, 'ko', num_chapters,
-                                  glossary_enabled=glossary_enabled)
+        html = build_chapter_html(ch, 'ko', chapters_ko, book_ko, 'ko', num_chapters)
         if html:
             out_path = os.path.join(docs_dir, 'ko', f'ch{ch:02d}.html')
             with open(out_path, 'w', encoding='utf-8') as f:
@@ -1220,8 +1224,7 @@ def build_survey(config, survey_dir, shared_dir):
     # Build EN chapters
     print("Building English chapters...")
     for ch in sorted(chapters_en.keys()):
-        html = build_chapter_html(ch, 'en', chapters_en, book_en, 'en', num_chapters,
-                                  glossary_enabled=glossary_enabled)
+        html = build_chapter_html(ch, 'en', chapters_en, book_en, 'en', num_chapters)
         if html:
             out_path = os.path.join(docs_dir, 'en', f'ch{ch:02d}.html')
             with open(out_path, 'w', encoding='utf-8') as f:
@@ -1265,6 +1268,23 @@ def build_survey(config, survey_dir, shared_dir):
     with open(os.path.join(docs_dir, 'en', 'index.html'), 'w', encoding='utf-8') as f:
         f.write(build_toc_html(config, 'en'))
     print("  Created: en/index.html")
+
+    # Copy cover image (if present) from assets/cover.* → docs/assets/.
+    # Referenced from index.html as ../assets/cover.<ext>. Skipped silently
+    # when absent so existing surveys without a cover build unaffected.
+    src_assets = os.path.join(survey_dir, 'assets')
+    dst_assets = os.path.join(docs_dir, 'assets')
+    os.makedirs(dst_assets, exist_ok=True)
+    if os.path.isdir(src_assets):
+        for fname in os.listdir(src_assets):
+            if fname.startswith('cover.') and fname.lower().endswith(
+                ('.png', '.jpg', '.jpeg', '.webp', '.svg')
+            ):
+                shutil.copy2(
+                    os.path.join(src_assets, fname),
+                    os.path.join(dst_assets, fname),
+                )
+                print(f"  Copied cover: {fname}")
 
     # Copy figures: survey-local first, then overlay shared registry.
     # Shared figures (<sourceSlug>_figN.<ext>, no chapter prefix) live at

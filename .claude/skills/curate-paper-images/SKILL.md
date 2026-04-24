@@ -12,12 +12,15 @@ description: "논문 figure를 선별하여 책 챕터에 삽입하고, 논문 �
 - 책 챕터(`book/ko/`, `book/en/`)가 이미 완성되어 있어야 한다
 - 세미나 PDF가 `docs/revise-source/`에 존재해야 한다
 
-## 이미지 소스 (우선순위 순)
+## 이미지 소스 (챕터 유형별 우선순위)
 
-1. **세미나 PDF**: `docs/revise-source/(Modular Approach) Literature Review.pdf` — 크롭
-2. **블로그 포스트**: `terryum-ai/posts/papers/{slug}/` — fig-{N}.{ext} + meta.json
-3. **arXiv 논문 PDF**: 직접 다운로드 → figure 크롭
-4. **Gemini 생성**: `/gemini-3-image-generation` 스킬 — 보조 일러스트 (챕터당 최대 2개)
+세 계열을 챕터 유형에 맞게 병용한다. 단일 소스로만 채우지 말 것.
+
+1. **논문 원본 figure**: arXiv PDF / 저널 PDF → 해당 figure 크롭. 메서드·결과 챕터의 **1급 소스**.
+2. **플랫폼 / 제품 공식 사진**: 상용 휴머노이드·쿼드러패드·액추에이터·센서 플랫폼은 회사 press kit, GitHub README, 하드웨어 arXiv 논문에서 가져온다. 학술 리뷰 fair use 범위. **회사·플랫폼 챕터의 1급 소스**.
+3. **세미나 PDF / 블로그 포스트**: `docs/revise-source/*.pdf`, `terryum-ai/posts/papers/{slug}/` — 이미 크롭되어 meta 첨부된 figure.
+4. **Gemini 생성 개념도**: `/image-gen`, `/image-gen` — 이론·전략·생태계 챕터의 overview 스키마, 타임라인, 비교 다이어그램. **티어 쿼터 내에서 다수 생성 허용** (이전의 "챕터당 ≤ 2" 상한 폐기).
+5. **웹 이미지 검색 (최후 수단)**: 위 네 경로에 없을 때만. 반드시 원 출처를 확인하고 라이선스 근거를 `_assets_log.md`에 기록.
 
 ## 7단계 워크플로우
 
@@ -46,7 +49,7 @@ description: "논문 figure를 선별하여 책 챕터에 삽입하고, 논문 �
 
 ### Step 3: Figure 선별
 
-각 주요 논문에 대해:
+**논문별 선택 우선순위:**
 
 | Priority | 대상 | 선택 조건 |
 |----------|------|----------|
@@ -54,8 +57,17 @@ description: "논문 figure를 선별하여 책 챕터에 삽입하고, 논문 �
 | 2 | Architecture/pipeline | 방법론을 상세히 다룰 때 |
 | 3 | Results comparison | 정량 결과를 비교할 때 |
 
-- 논문당 최대 2개 (핵심 논문은 예외적으로 3개)
-- 챕터당 2-4개 총합 (논문 figure + Gemini)
+**챕터 유형별 쿼터** (canonical agent template `image-curator.md` 참조):
+
+| 챕터 유형 | figure 수 | 소스 믹스 |
+|---|---|---|
+| Theory / Overview / Primer | 3–5 | Gemini 스키마 중심 + 논문 figure 1–2개 |
+| Method / Algorithm survey | 3–6 | 논문 figure 중심 + Gemini 타임라인 1개 |
+| Platform / Company / Hardware | 4–8 (**실제 사진 ≥ 2**) | 플랫폼 press + 하드웨어 arXiv + 회사 공개 다이어그램 |
+| History / Ecosystem | 3–5 | 역사 사진 + Gemini 스키마 + 논문 figure |
+
+**하한**: 챕터당 ≥ 3 (예외는 `_assets_log.md`에 사유).
+**논문당**: 핵심 논문 3개, 그 외 2개.
 
 ### Step 4: 이미지 크롭 + 리네이밍
 
@@ -109,50 +121,90 @@ Figure 번호는 챕터 내 순차 번호: Figure 2.1, 2.2, 2.3, ...
 - 캡션이 길면 1-2문장으로 요약
 - Gemini 생성 일러스트는 `출처:` 없이 내용 설명만 기재
 
-### Step 7: Gemini 보조 일러스트 판단 + 생성
+**⚠ 치명적 함정 — alt 텍스트에 `[Author, Year]` 대괄호 인용 금지**
+build_site.py의 citation linkifier가 markdown 이미지 alt 텍스트 안의 `[Author, Year]`도 `<sup><a>[N]</a></sup>` HTML로 바꾸면서 alt 속성의 closing `"`를 조기에 닫는다. 결과: `loading="lazy"`, `onerror=...`, `style="cursor:zoom-in"` 등 이미지 태그의 나머지 HTML 속성이 figcaption에 **visible text로 새어 나옴** (2026-04 humanoid-revolution 사고 — `[Kajita et al., 2003]`이 ch01.html의 figcaption에 `loading="lazy" onerror="..."` 유출).
+- ❌ BAD: `![Figure 1.1: Diagram — source: [Kajita et al., 2003] Fig. 2](...)`
+- ✅ GOOD: `![Figure 1.1: Diagram — source: Kajita et al. 2003 Fig. 2](...)`
 
-Step 6 완료 후, 각 챕터를 재검토하여:
+본문(narrative text)의 `[Author, Year]` 인용은 대괄호 유지 가능 — linkifier가 태그 경계 바깥에서 안전하게 처리한다. 규칙은 **이미지 alt 텍스트에만** 적용.
 
-1. 논문 figure로 커버되지 않는 개념적 설명이 필요한 곳 식별
-   - 복잡한 비교/대비 다이어그램 (예: Agentic Coding vs Robotics 루프)
-   - 시간축 흐름도 (예: LLM Planner → CaP → VLA 진화)
-   - 시스템 통합 개념도 (여러 논문을 아우르는)
-2. `/gemini-3-image-generation` 스킬로 생성
-3. 챕터당 최대 2개
-4. 네이밍: `ch{NN}_illust_{topic}.png`
+### Step 7: Gemini 개념도 · 비교 다이어그램 생성
+
+이론/전략/생태계 챕터는 논문 figure로 커버되지 않는 시각 자료가 챕터 본문을 이해하는 데 핵심이다. Gemini로 다음 유형을 **적극** 생성한다:
+
+**생성 권장 유형:**
+- **Overview schematic**: 3-레이어 아키텍처 · Sim-to-Real 3전략처럼 여러 논문을 아우르는 구조도.
+- **Comparison diagram**: 4-axis differentiation · ZMP vs RL vs Hybrid 컨트롤러 비교.
+- **Timeline**: 학습 알고리즘 계보 · 플랫폼 발표 시계열.
+- **Ecosystem map**: 한국 4-actor · 중국 2-actor · 미국 3-actor 생태계도.
+- **Concept illustration**: LIPM 위상도 · domain randomization 샘플 공간.
+
+티어 쿼터 내에서 필요한 만큼 생성한다 (이전의 "챕터당 ≤ 2개" 상한 **폐기**). 네이밍: `ch{NN}_illust_{topic}.png`.
+
+**단, 플랫폼/회사 챕터 주의**: Gemini 개념도만으로 회사 챕터를 채우지 말 것. 해당 챕터는 **실제 제품 사진 ≥ 2개를 선확보**한 후 Gemini 다이어그램을 추가.
 
 ## 산출물
 
 1. `assets/figures/ch{NN}_*.{ext}` — 논문 figure + Gemini 일러스트
 2. `book/ko/ch*.md` — 이미지 마크다운 + 내용 보강된 한글 챕터
 3. `book/en/ch*.md` — 이미지 마크다운 + 내용 보강된 영문 챕터
-4. `_workspace/04_image_manifest.json` — 매니페스트:
+4. `_workspace/04_image_manifest.json` — 매니페스트 (3-way source 추적):
 
 ```json
 {
-  "total_images": 25,
-  "paper_figures": 20,
-  "gemini_illustrations": 5,
+  "total_images": 75,
+  "paper_figures": 22,
+  "platform_photos": 22,
+  "gemini_illustrations": 22,
+  "existing_kept": 9,
   "chapters": {
-    "ch02": [
+    "ch11": [
       {
-        "figure_id": "Figure 2.1",
-        "source_paper": "SayCan",
-        "source_type": "seminar_pdf",
-        "source_page": 15,
-        "file": "ch02_saycan_fig1.png",
+        "figure_id": "Figure 11.1",
+        "source_type": "platform_photo",
+        "source_url": "https://bostondynamics.com/atlas/press-kit/...",
+        "fetch_date": "2026-04-24",
+        "sha256": "ab12cd34...",
+        "license_basis": "BD press kit; fair use for academic review",
+        "file": "ch11_atlas_electric_hero.jpg",
+        "caption_ko": "...",
+        "caption_en": "..."
+      },
+      {
+        "figure_id": "Figure 11.2",
+        "source_type": "paper_figure",
+        "source_paper": "kuindersma2016optimization",
+        "source_location": "arXiv:1507.02148 Fig. 3",
+        "file": "ch11_kuindersma2016_fig3.png",
+        "license_basis": "academic fair use",
         "caption_ko": "...",
         "caption_en": "...",
         "content_reinforced": true
+      },
+      {
+        "figure_id": "Figure 11.3",
+        "source_type": "gemini",
+        "source_prompt": "Hybrid MPC+RL control stack diagram, 16:9, flat vector",
+        "file": "ch11_illust_hybrid_stack.png",
+        "license_basis": "generated illustration, by author",
+        "caption_ko": "...",
+        "caption_en": "..."
       }
     ]
   }
 }
 ```
 
+Key schema fields:
+- `source_type`: `paper_figure` | `platform_photo` | `gemini` | `seminar_pdf` | `blog`
+- `license_basis` **필수** (모든 항목).
+- 플랫폼 사진은 `source_url` · `fetch_date` · `sha256` 필수.
+- Gemini는 `source_prompt` 필수.
+
 ## 주의사항
 
-- **논문 figure 우선**: Gemini 생성은 논문 figure가 부족할 때의 보조 수단
+- **3-way 소스 병용**: 챕터 유형별 티어 쿼터 (agent-template `image-curator.md` 참조)로 소스 믹스 결정. Gemini는 이론·생태계 챕터의 **1급 소스**.
+- **플랫폼 사진은 회사 챕터의 필수 성분**: Ch급 회사 분석 챕터는 실제 제품 사진 ≥ 2개 없이 Gemini 스키마만으로 채우지 말 것.
 - **경로 규칙**: `../../assets/figures/`로 시작해야 build_site.py가 올바르게 변환
 - **블록 이미지**: 한 줄에 `![...](...)`만 있으면 build_site.py가 `<figure>` 태그로 변환
 - **다크모드**: 논문 figure는 단일 버전 — `onerror` fallback이 원본 표시

@@ -147,6 +147,40 @@ def check_survey_json(survey_dir, iss):
     for k in ('glossary', 'pdf', 'paper'):
         if k in features and not isinstance(features[k], bool):
             iss.err(f'survey.json features.{k} is not bool')
+
+    # Hero description length (KO ≤ 90 chars, EN ≤ 140 chars).
+    # The long chapter list already renders below as Chapter Grid, so the
+    # description should stay a single hook. See 2026-04 humanoid-revolution
+    # incident: the original description listed all four catalysts + all
+    # five companies + three diffusion stages, running 243 KO / 444 EN.
+    desc = cfg.get('description', {}) or {}
+    desc_ko = desc.get('ko', '') if isinstance(desc, dict) else ''
+    desc_en = desc.get('en', '') if isinstance(desc, dict) else ''
+    if len(desc_ko) > 90:
+        iss.warn(
+            f'survey.json description.ko is {len(desc_ko)} chars (> 90) — '
+            f'home hero looks cluttered. Aim for a one-line hook; the '
+            f'Chapter Grid below already lists parts/chapters.'
+        )
+    if len(desc_en) > 140:
+        iss.warn(
+            f'survey.json description.en is {len(desc_en)} chars (> 140) — '
+            f'home hero looks cluttered. Aim for a one-line hook; the '
+            f'Chapter Grid below already lists parts/chapters.'
+        )
+
+    # Cover image (optional but recommended for home hero above <h1>).
+    cover = cfg.get('cover_image', '')
+    if cover:
+        # Resolve "../assets/cover.jpg" relative to book/ko/ perspective —
+        # actual file lives at surveys/<slug>/assets/cover.<ext>.
+        cover_basename = os.path.basename(cover)
+        cover_path = os.path.join(survey_dir, 'assets', cover_basename)
+        if not os.path.isfile(cover_path):
+            iss.warn(
+                f'survey.json cover_image "{cover}" points to '
+                f'{cover_path} which does not exist.'
+            )
     # parts[].chapters[].num/title/summary
     parts = cfg.get('parts', [])
     if not parts:
@@ -212,6 +246,58 @@ def check_one_chapter(path, lang, max_ch, survey_dir, iss):
         abs_fig = os.path.normpath(os.path.join(os.path.dirname(path), rel_fig))
         if not os.path.isfile(abs_fig):
             iss.err(f'{rel}: figure not found: {rel_fig}')
+
+    # Reader-facing content must NOT reference monorepo-internal paths.
+    # Maintainer workflow notes (how to add terms, sync bibtex, etc.) belong
+    # in CLAUDE.md / glossary/README.md / _workspace/, never in book/**.md.
+    # See 2026-04 humanoid-revolution incident: scaffold blockquote
+    # "> **신규 용어 추가 시**: 먼저 `glossary/master_ko.md`를 grep …"
+    # rendered as visible instruction text on the public glossary page.
+    INTERNAL_PATHS = [
+        r'glossary/master_(ko|en)\.md',
+        r'bibtex/references\.bib',
+        r'\.claude/',
+        r'_workspace/',
+        r'shared/(build_site|validate|scaffold)\.py',
+    ]
+    for pat_s in INTERNAL_PATHS:
+        pat = re.compile(pat_s)
+        for line_no, line in enumerate(body.splitlines(), start=1):
+            if pat.search(line):
+                iss.warn(
+                    f'{rel}:{line_no}: reader-facing content references '
+                    f'internal path "{pat_s}" — move maintainer notes to '
+                    f'CLAUDE.md / _workspace/ / glossary/README.md.'
+                )
+                break  # one warning per pattern per file
+
+    # Figure alt-text must NOT contain [Author, Year] citation brackets.
+    # Rationale: build_site.py's citation linkifier converts [Author, Year]
+    # into <sup><a>[N]</a></sup> HTML; if this happens inside a markdown
+    # image's alt attribute, the attribute's closing quote is tripped by
+    # the generated HTML and downstream attributes (loading="lazy",
+    # onerror=..., style=...) leak into the visible figcaption.
+    # See humanoid-revolution 2026-04 incident — Kajita caption leaked
+    # `loading="lazy" onerror="..." style="cursor:zoom-in">` to the page.
+    # Fix is to write figure captions as `Author et al. Year` (no brackets).
+    for line in body.splitlines():
+        if not line.lstrip().startswith('!['):
+            continue
+        # Extract alt text: everything between the first `![` and the
+        # matching `](` that precedes `../../assets/figures/`.
+        close = line.find('](../../assets/figures/')
+        if close == -1:
+            close = line.find('](../../../../assets/figures/')
+        if close == -1:
+            continue
+        alt = line[line.index('![') + 2:close]
+        cm = INLINE_CITE_RE.search(alt)
+        if cm:
+            iss.err(
+                f'{rel}: figure alt text contains citation brackets "[{cm.group(1)}]" — '
+                f'build_site linkifier will corrupt alt attribute and leak HTML into figcaption. '
+                f'Use "Author et al. Year" (no square brackets) in figure captions.'
+            )
 
     # Inline citation resolution
     ref_lines = []

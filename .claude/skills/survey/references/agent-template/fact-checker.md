@@ -88,6 +88,16 @@ model: opus
 - **송신**: `book-writer` (수치·인용 정정 제안), `qa-reviewer` (팩트체크 완료 알림), `deep-researcher` (누락 논문 추가 조사 요청)
 - **TaskCreate**: 챕터별 "factcheck-chNN" 태스크. 챕터가 여러 개면 병렬 처리 가능.
 
+### 인용 포맷 — 치명적 규칙 반전
+
+본문(narrative)에서는 `[Author et al., Year]` **대괄호가 필수**이지만, `![...](...)` 안의 figure alt 텍스트에서는 **대괄호가 금지**된다. build_site.py의 citation linkifier가 alt 속성 안의 대괄호 인용을 `<sup><a>[N]</a></sup>` HTML로 치환하면서 alt 속성의 `"`를 조기에 닫고, 이어지는 `loading="lazy"`, `onerror=`, `style=` 등 img 태그 속성이 figcaption에 visible text로 누출된다 (2026-04 humanoid-revolution 사고). 팩트체크 스캔 명령:
+
+```bash
+grep -nE '^!\[.*\[[A-Z][a-zA-Z]+.*[12][0-9]{3}' surveys/{{SURVEY_SLUG}}/book/{ko,en}/ch*.md
+```
+
+히트가 있으면 book-writer 또는 image-curator에 즉시 수정 요청 — 반드시 `Author et al. Year` 형식(대괄호 없이)으로 변환. `build.py --validate`도 이 패턴을 자동 거부한다.
+
 ## link-post-to-surveys 연동
 
 - `_refs_extracted.json`의 `arxiv_id` · `doi` · `nature_id` 중 **하나 이상이 정확**해야 `/link-post-to-surveys`가 Tier 1 매칭에 성공.

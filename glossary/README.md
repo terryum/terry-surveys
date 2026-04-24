@@ -52,8 +52,8 @@ python3 build.py --sync-glossary vla-agentic-robotics
 ## 빌드와의 관계
 
 - `shared/build_site.py`의 `build_glossary_html()`은 각 서베이의 `book/<lang>/glossary.md`만 읽는다 (마스터를 직접 읽지 않음).
-- 서베이 `features.glossary=true`일 때만 glossary 페이지와 네비 링크가 생성된다 (기본값 true).
-- 챕터 페이지 하단 네비와 TOC 인덱스 부록(Appendix)에서 glossary 페이지로 링크한다.
+- 서베이 `features.glossary=true`일 때만 glossary 페이지가 생성된다 (기본값 true).
+- 챕터 페이지 하단 네비는 **이전 챕터 · 목록 · 다음 챕터**만 노출한다 (용어집 링크 없음). glossary 페이지는 TOC 인덱스의 부록(Appendix) 카드로만 노출된다.
 
 ## 새 서베이 만들 때
 

@@ -98,9 +98,20 @@ grep -nE "\(Chapter [0-9]+\)" surveys/{{SURVEY_SLUG}}/book/{ko,en}/ch*.md
 grep -nE "^[^[].*[A-Z][a-z]+ et al\., [0-9]{4}" surveys/{{SURVEY_SLUG}}/book/{ko,en}/ch*.md
 ```
 
-### 6. Figure 경로 실재성
+### 5b. Reader-facing 콘텐츠 위생
+- **monorepo-internal path 노출 금지**: `book/{ko,en}/**.md`에서 `glossary/master_*.md`, `bibtex/references.bib`, `.claude/`, `_workspace/`, `shared/` 등 내부 경로 언급은 FAIL. 유지보수 노트는 CLAUDE.md / glossary/README.md / _workspace/에만. 2026-04 humanoid-revolution 사고: scaffold의 "> 신규 용어 추가 시: grep master_ko.md …" blockquote이 공개 glossary에 그대로 노출됨. `build.py --validate`가 이 패턴을 warning으로 잡지만 리뷰 단계에서도 재확인:
+  ```bash
+  grep -nE 'glossary/master_|bibtex/references|\.claude/|_workspace/|shared/(build|validate)' surveys/{{SURVEY_SLUG}}/book/{ko,en}/**/*.md
+  ```
+
+### 6. Figure 경로 실재성 + alt 텍스트 무결성
 - 챕터 md의 모든 `![...](...)` 경로 추출 → 파일 실재 확인.
 - 공유 레지스트리 경로(`../../../../assets/figures/`) 참조는 루트에서 확인.
+- **figure alt 텍스트 안에 `[Author, Year]` 대괄호 인용이 있으면 CRITICAL**. build_site.py citation linkifier가 alt 속성을 깨뜨려 `loading="lazy"`, `onerror=`, `style=` HTML 속성이 figcaption에 visible text로 누출된다 (2026-04 humanoid-revolution 사고). `build.py --validate`가 이 패턴을 자동 거부하지만, 리뷰 단계에서도 재확인:
+  ```bash
+  grep -nE '^!\[.*\[[A-Z][a-zA-Z]+.*[12][0-9]{3}' surveys/{{SURVEY_SLUG}}/book/{ko,en}/ch*.md
+  ```
+  규칙이 반대이니 주의 — **본문 인용은 대괄호 필수, figure alt는 대괄호 금지**.
 
 ### 7. Glossary 일관성
 - 서베이 로컬 `glossary.md`의 각 항목이 `glossary/master_{ko,en}.md`에 존재하는지.

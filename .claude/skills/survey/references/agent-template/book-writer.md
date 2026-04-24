@@ -45,6 +45,7 @@ last_updated: "YYYY-MM-DD"
 - 마크다운 경로: `![Figure N.M: caption](../../assets/figures/chNN_<slug>_fig<N>.png)`
 - 공유 레지스트리 figure는 `../../../../assets/figures/<slug>_fig<N>.png`
 - image-curator가 실제 파일을 배치하기 전엔 `<!-- IMAGE: 설명 -->` placeholder로 남겨둔다.
+- **⚠ 치명적 함정 — figure alt 텍스트에는 `[Author, Year]` 대괄호 금지**. 본문(narrative)의 인용은 `[Author et al., Year]` 대괄호가 필수지만, `![...](...)` 안의 alt 텍스트에서는 대괄호를 쓰면 build_site.py의 citation linkifier가 `<sup><a>[N]</a></sup>` HTML을 주입하면서 alt 속성의 `"`를 조기에 닫고 `loading="lazy"`, `onerror=`, `style=` 등이 figcaption에 **visible text로 누출**된다 (2026-04 humanoid-revolution 사고). figure 출처는 반드시 `Author et al. Year` 형식으로 **대괄호 없이** 기입. `build.py --validate`가 이 패턴을 자동 거부한다.
 
 ### 수학
 - 인라인 `$...$`, 블록 `$$...$$`. KaTeX 호환.
@@ -66,6 +67,7 @@ last_updated: "YYYY-MM-DD"
 - `surveys/{{SURVEY_SLUG}}/book/{ko,en}/glossary.md` 업데이트 (새 용어 도입 시)
 - `surveys/{{SURVEY_SLUG}}/book/references.bib` 업데이트 (새 인용 키 추가 시 — 마스터에 먼저!)
 - `surveys/{{SURVEY_SLUG}}/survey.json` 챕터별 `last_updated` + 전체 `dates.last_updated`
+  - **홈 hero 구성**: `cover_image` (예: `"../assets/cover.jpg"`), `short_title`, `subtitle`, `description` 필드를 채울 때 다음 제약 준수 — `description`은 **KO ≤ 90자 · EN ≤ 140자**, "핵심 질문 한 줄 — N Parts, M Chapters" 패턴. 챕터·회사·단계 리스트를 나열하지 말 것 (하단 Chapter Grid가 그 역할). 커버 이미지는 `terryum-ai/public/images/projects/survey-<slug>-og.jpg`를 먼저 찾아 `surveys/<slug>/assets/cover.jpg`로 복사, 없을 때만 새로 생성.
 
 ## 에러 핸들링
 
@@ -83,7 +85,9 @@ last_updated: "YYYY-MM-DD"
 ## 자체 점검 체크리스트
 
 - [ ] KO/EN 두 파일이 동시에 존재하고 섹션 구조가 1:1 대응하는가
-- [ ] 모든 인라인 인용이 `[Author et al., Year]` 괄호 형식인가
+- [ ] 본문(narrative)의 모든 인라인 인용이 `[Author et al., Year]` 괄호 형식인가
+- [ ] **figure alt 텍스트 안에는 `[Author, Year]` 대괄호가 **없는가** (규칙 반대 — alt는 대괄호 없이, 본문은 대괄호 필수)
+- [ ] **book/**.md에 monorepo-internal path 노출 없음** (`glossary/master_*.md`, `bibtex/references.bib`, `.claude/`, `_workspace/`, `shared/` — 유지보수 노트는 CLAUDE.md / README에만)
 - [ ] `## 참고문헌` / `## References` 섹션에 arXiv/DOI/Nature ID 포함
 - [ ] frontmatter의 `last_updated`와 `survey.json`의 해당 챕터 `last_updated`가 동일 날짜
 - [ ] 서사 흐름: 챕터 서두 3문장만 읽어도 "왜 이 챕터를 읽는지"가 명확한가

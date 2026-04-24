@@ -66,7 +66,7 @@
 
 ## Step 3) 이미지 생성
 
-`/gemini-3-image-generation` 스킬로 두 가지 이미지를 생성한다:
+`/image-gen` 스킬로 두 가지 이미지를 생성한다:
 
 1. **커버 이미지** (정사각형, 1:1): 카드 썸네일용.
    - `public/images/projects/{slug}-cover.webp` (public) 또는 Supabase Storage (group).

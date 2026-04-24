@@ -211,6 +211,23 @@ main {
   position: relative;
 }
 
+.hero-cover {
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto 2rem;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+}
+
+.hero-cover img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+
 .gradient-text {
   background: linear-gradient(135deg, #00D4AA, #3498DB, #9B59B6, #E8396B, #FF6B35);
   -webkit-background-clip: text;

@@ -67,6 +67,8 @@ T-write-ch<N>: book-writer         → book/{ko,en}/ch<N>.md (× 16)
 
 T-image-ch<N>: image-curator       → assets/figures/ch<N>_*, 챕터 md의 <!-- IMAGE --> 치환
                  blockedBy: T-write-ch<N> (스트리밍 — placeholder 확정 시점부터)
+                 **티어 쿼터 강제**: theory 3–5 · method 3–6 · platform 4–8 (+실제 사진 ≥ 2) · history 3–5
+                 **alt 텍스트 대괄호 금지**: [Author, Year] → Author et al. Year 형식 (build.py validate가 거부)
 
 T-fact-ch<N>:  fact-checker        → _refs_extracted.json, _factcheck_report.md (챕터별 누적)
                  blockedBy: T-write-ch<N>

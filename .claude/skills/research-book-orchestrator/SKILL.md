@@ -156,7 +156,7 @@ Phase 2 완료 후, image-curator 에이전트 또는 리더가 직접 수행:
 1. **논문 figure 크롭**: 세미나 PDF + 블로그 포스트 + arXiv 논문에서 figure 선별·크롭
 2. **이미지 배치**: `assets/figures/` 에 저장, KO/EN 챕터에 마크다운 삽입
 3. **내용 보강**: 논문 원문과 챕터 내용을 대조하여 누락/부족한 부분 보강
-4. **보조 일러스트**: 논문 figure로 커버되지 않는 개념 설명 → `/gemini-3-image-generation` (챕터당 0-2개)
+4. **보조 일러스트**: 논문 figure로 커버되지 않는 개념 설명 → `/image-gen` (챕터당 0-2개)
 
 **산출물:**
 - `assets/figures/ch{NN}_*.{ext}` — 논문 figure + Gemini 일러스트

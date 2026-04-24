@@ -55,7 +55,7 @@ URL인지 판별은 정규식 `^https?://`로 충분. URL 형태 제목(매우 �
 
 1. URL에서 메타(title, description, toc) 추출 (WebFetch / README).
 2. 메타 객체 구성 (toc는 ko ≤12자 / en ≤19자 per item).
-3. `/gemini-3-image-generation`으로 커버(1:1) + OG(16:9) 이미지 생성.
+3. `/image-gen`으로 커버(1:1) + OG(16:9) 이미지 생성.
 4. `projects/surveys/surveys.json`에 엔트리 추가 + `next_survey_number` 증가.
 5. `npx tsc --noEmit && npm run build`.
 6. terry-surveys 책이면 `/cite-post <slug>` 자동 호출 (역링크).
@@ -131,6 +131,83 @@ python3 build.py <slug>                                 # 빌드
 bash surveys/<slug>/scripts/push.sh "deploy message"    # Cloudflare Pages
 ```
 배포 후 MODE B로 자동 진입해 `surveys.json` 업데이트 (사용자 확인 후).
+
+## Common Pitfalls (과거 사고에서 학습한 강제 규칙)
+
+새 서베이를 만들거나 집필할 때 반드시 지켜야 할 규칙. 각각 `build.py --validate`가 자동 검사한다.
+
+### P1. Figure alt 텍스트에 `[Author, Year]` 대괄호 금지
+
+**규칙**: `![caption](url)`의 caption(=alt) 안에는 대괄호 인용이 없어야 한다. 출처는 `Author et al. Year` 또는 `Author Year` 형식으로 대괄호 없이 기입.
+
+**이유**: build_site.py의 citation linkifier가 `[Kajita et al., 2003]`을 `<sup><a>[1]</a></sup>` HTML로 치환 → alt 속성의 `"`가 linkifier 출력 내부에서 조기에 닫히면서 `loading="lazy"`, `onerror=...`, `style="cursor:zoom-in">` 등 img 태그 속성이 figcaption에 visible text로 누출 (2026-04 humanoid-revolution 사고).
+
+**함정의 반대 규칙**: 본문(narrative) 인용은 `[Author et al., Year]` 대괄호가 **필수**. 즉 위치에 따라 규칙이 정반대.
+
+### P2. Figure 수 하한 = 챕터당 3개 (플랫폼/회사 챕터는 4–8 + 실제 사진 ≥ 2)
+
+**규칙**: 모든 챕터 ≥ 3 figure. 플랫폼/회사/하드웨어 챕터는 4–8, 그중 실제 제품 사진(press kit · GitHub README · 하드웨어 arXiv) ≥ 2개 필수.
+
+**이유**: 이전 "≤ 2 AI 보조/ch" 하드캡이 history/theory/company 챕터에서 figure 빈약을 낳아 0.56/ch까지 떨어짐 (2026-04 humanoid-revolution 사전사고).
+
+**해결**: 티어 쿼터 (theory 3–5, method 3–6, platform 4–8 + ≥2 photos, history/ecosystem 3–5). canonical은 `references/agent-template/image-curator.md` 참조.
+
+### P3. Figure 소스 3-way 병용
+
+**규칙**: 세 계열을 함께 쓴다 — (a) 논문 원본 figure 크롭, (b) 공식 플랫폼/제품 사진 (press kit / GitHub / 하드웨어 arXiv, fair use), (c) Gemini 생성 개념도. 단일 소스로만 채우지 말 것.
+
+**이유**: 단일 소스 정책은 챕터 유형에 따라 비효율 — 논문 figure는 이론/산업 분석 챕터에서 희소하고, 플랫폼 사진은 회사 챕터에서만 합리적, Gemini는 이론/전략 챕터의 1급 소스.
+
+### P4. 매니페스트에 `source_type` + `license_basis` 필수
+
+**규칙**: `_workspace/04_image_manifest.json`의 모든 항목에 `source_type` (paper_figure/platform_photo/gemini/seminar_pdf/blog) + `license_basis` 필수. 플랫폼 사진은 `source_url` · `fetch_date` · `sha256` 추가. Gemini는 `source_prompt` 추가.
+
+**이유**: 저작권·fair use 추적성, 향후 이미지 재활용·교체 시 원본 복원.
+
+### P5. Reader-facing 콘텐츠에 monorepo-internal path 노출 금지
+
+**규칙**: `book/{ko,en}/**.md`에 절대로 다음 경로·워크플로우 안내를 쓰지 말 것:
+- `glossary/master_{ko,en}.md` (maintainer sync 워크플로우)
+- `bibtex/references.bib` (마스터 bibtex 관리)
+- `.claude/`, `_workspace/`, `shared/build_site.py` 등 레포 내부 경로
+- "먼저 X를 grep해서 …" 식의 유지보수자 전용 지시문 (특히 blockquote `>` 형식)
+
+**이유**: 독자는 이런 내부 구조를 몰라야 하고, 알 필요도 없다. 유지보수 노트는 `CLAUDE.md` / `glossary/README.md` / `_workspace/`에 둔다. 2026-04 humanoid-revolution 사고: `scaffold.py`가 glossary 템플릿에 `> **신규 용어 추가 시**: glossary/master_ko.md를 grep …` blockquote을 자동 삽입했고, 이게 공개 사이트에 그대로 렌더링됨. scaffold 수정 + 검증기가 이제 이 패턴을 warning으로 잡는다.
+
+**검증**: `build.py --validate`가 위 경로들을 `book/**.md`에서 발견하면 warning 발생.
+
+## Home Page Standards (index.html의 hero 구성)
+
+각 서베이의 `docs/{ko,en}/index.html`은 `build_site.py`의 `build_toc_html()`이 `survey.json`에서 읽어 생성한다. 홈 hero 섹션의 표준 구성 (순서 고정):
+
+1. **커버 이미지** (`cover_image` 필드) — `<h1>` 위에 배치. 필수.
+2. **제목** (`short_title`) — 그래디언트 텍스트.
+3. **부제** (`subtitle`) — 한 문장.
+4. **부연설명** (`description`) — **짧게** (KO ≤ 90자, EN ≤ 140자 권장).
+5. 날짜 + CTA 버튼.
+
+### 커버 이미지 (`cover_image`)
+
+- **필드**: `survey.json` 최상위 `cover_image` (경로는 `"../assets/cover.<ext>"`).
+- **파일 위치**: `surveys/<slug>/assets/cover.{jpg,png,webp,svg}` (`assets/figures/` 아님 — flat `assets/` 루트).
+- **해상도**: 16:9 landscape 권장 (2752×1536 또는 유사). 1:1 정사각도 허용 (CSS `aspect-ratio: 16/9; object-fit: cover`가 center-crop).
+- **재사용**: MODE B 등록 시 생성된 `terryum-ai/public/images/projects/survey-<slug>-og.jpg` (16:9) 또는 `-cover.webp` (1:1)를 그대로 복사하는 것을 우선. 이미 있는 자산을 **새로 생성하지 말 것** (2026-04 humanoid-revolution 사고: 이미 좋은 OG가 있는데 Gemini로 새로 생성해 ₩210 낭비).
+- **생성 폴백**: og가 없을 때만 `/image-gen` (cinematic hero banner, 16:9, 2K).
+- **빌드 동작**: `build_site.py`가 `surveys/<slug>/assets/cover.*` → `docs/assets/cover.*`로 자동 복사. `index.html`은 `../assets/cover.<ext>`를 참조.
+- **CSS**: `.hero-cover` (max 960px, 라운디드, soft shadow, 16:9 aspect-ratio).
+
+### 부연설명 (`description`) 길이 제한
+
+- **KO**: 약 40–90자 (한 줄 내외)
+- **EN**: 약 80–140자
+- 초과 시 `build.py --validate`가 warning. **챕터 전 목록을 나열하지 말 것** — 목차(`parts[].chapters[]`)가 이미 하단 Chapter Grid에 노출된다.
+- 이상적 형식: "**핵심 질문 또는 범위 한 줄** — N Parts, M Chapters". 예:
+  - ✅ `"에이전틱 루프가 물리 세계에서 작동하려면 무엇이 달라져야 하는가. — 4 Parts, 10 Chapters"` (59자)
+  - ❌ `"2015–2026년 휴머노이드 로보틱스의 대격변을 정리한 서베이. 정통파 LIPM/ZMP/MPC 스택의 한계, QDD 액추에이터·GPU 병렬 시뮬·teacher-student RL·sim-to-real 네 기폭제, System 0/1/2 3-레이어 아키텍처와 VLA 통합, Boston Dynamics·Figure·Agility·Unitree·AgiBot 선두 기업 분석, 그리고 한국 제조피지컬AI 관점에서의 미래 확산 시나리오까지."` (243자 — 2026-04 사고 예시, 모든 챕터를 한 문단에 나열해버림)
+
+### 부제 (`subtitle`)
+
+- 책의 부제 — "XX에서 YY까지" / "XX의 YY" 형식으로 한 문장. 부연설명과 중복되지 않도록.
 
 ## 에러 핸들링 개요
 
