@@ -133,3 +133,61 @@ document.addEventListener('click', function(e) {
     observer.observe(el);
   });
 })();
+
+// --- Embed bridge: sync iframe location to parent URL ---
+// Runs only when embedded. Parent reflects current chapter + scroll in query params
+// so language toggle (which preserves query params) lands on the same spot.
+(function embedBridge() {
+  var inIframe = false;
+  try { inIframe = window.self !== window.top; } catch (e) { inIframe = true; }
+  if (!inIframe) return;
+
+  function currentChapter() {
+    var path = window.location.pathname;
+    var m = path.match(/\/(?:ko|en)\/([^\/]*)$/);
+    if (!m) return '';
+    var file = m[1];
+    if (!file || file === 'index.html') return '';
+    return file;
+  }
+
+  function postLocation() {
+    try {
+      window.parent.postMessage({
+        type: 'survey_location',
+        chapter: currentChapter(),
+        scrollY: Math.round(window.scrollY || window.pageYOffset || 0)
+      }, '*');
+    } catch (e) { /* noop */ }
+  }
+
+  // Initial announcements (covers DOM ready, after images/layout settle)
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', postLocation);
+  } else {
+    postLocation();
+  }
+  window.addEventListener('load', postLocation);
+
+  // Throttled scroll updates
+  var scrollTimer = null;
+  window.addEventListener('scroll', function () {
+    if (scrollTimer) return;
+    scrollTimer = setTimeout(function () {
+      scrollTimer = null;
+      postLocation();
+    }, 150);
+  }, { passive: true });
+
+  // Parent → iframe: restore scroll after language switch
+  window.addEventListener('message', function (e) {
+    if (!e.data || e.data.type !== 'restore_scroll') return;
+    var y = Number(e.data.scrollY) || 0;
+    if (y <= 0) return;
+    // Retry across layout shifts from image loading / GSAP
+    window.scrollTo(0, y);
+    setTimeout(function () { window.scrollTo(0, y); }, 100);
+    setTimeout(function () { window.scrollTo(0, y); }, 500);
+    setTimeout(function () { window.scrollTo(0, y); }, 1200);
+  });
+})();
