@@ -462,7 +462,10 @@ def md_to_html_content(md_text, ch_num, lang):
             html_parts.append(f'<h4>{process_inline(title)}</h4>')
             continue
 
-        img_match = re.match(r'!\[([^\]]*)\]\(([^)]+)\)', stripped)
+        # Block-level image: allow inner `]` not followed by `(` so alt text can
+        # contain `[Author, Year]` citations (inline_img at process_inline uses
+        # the same widened pattern for the paragraph-level case).
+        img_match = re.match(r'!\[((?:[^\]]|\](?!\())*)\]\(([^)]+)\)', stripped)
         if img_match:
             flush_list()
             caption = img_match.group(1)

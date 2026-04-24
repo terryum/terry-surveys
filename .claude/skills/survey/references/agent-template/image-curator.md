@@ -41,6 +41,12 @@ model: opus
 ### AI 보조 상한
 - **챕터당 2개 이하**. 초과 필요 시 book-writer와 협의하여 텍스트 서술로 전환하거나 논문 원본으로 교체.
 
+### Aspect ratio · 크기 가이드 (중요 — rendered 크기에 직접 영향)
+- **기본은 와이드 (16:9)**: 타임라인·파이프라인·taxonomy·3-stage diagram 등 대부분의 개념도는 16:9 또는 4:3으로 생성. 정사각(1:1)은 phase portrait·LIPM 위상도처럼 근본적으로 정사각인 경우에만.
+- **Gemini 호출 시**: `--ratio 16:9` (기본) 또는 `--ratio 4:3`. `--ratio 1:1`은 꼭 필요할 때만. 4K 해상도는 과함 — 기본 2K로 충분.
+- **CSS safety net**: `shared/css/style.css`의 `figure img { max-height: 480px; object-fit: contain; }`이 너무 큰 이미지를 capping. 1:1 2048×2048 이미지도 480px 이하로 축소되어 표시. 생성 자체를 합리적 비율로 하면 crop 없이 깔끔.
+- **페이지 폭 기준**: 독서 column 폭 ~720px. 16:9 이미지는 720×405, 4:3은 720×540, 1:1은 480×480 (높이 상한) — 정사각은 시각적 크기 비대칭으로 어색함 주의.
+
 ## 입력 / 출력 프로토콜
 
 ### 입력
