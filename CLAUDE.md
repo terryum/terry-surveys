@@ -218,7 +218,7 @@ bash scripts/push.sh "커밋 메시지"
 |---|---|---|
 | `/survey "<제목>"` (terry-surveys 내부) | MODE A | 새 책 부트스트랩 |
 | `/survey <cloudflare-url>` | MODE B | 홈페이지 Surveys 갤러리 등록 + `/cite-post` 자동 호출 |
-| **`/survey --orchestrate <slug>`** | **서브 (기본 집필)** | **멀티에이전트 팀(6종) 자율 병렬 집필** — `TeamCreate` + `SendMessage` + `TaskCreate`. 순차 Phase 아님 |
+| **`/survey --orchestrate <slug>`** | **서브 (기본 집필)** | **멀티에이전트 팀(7종) 자율 병렬 집필** — `TeamCreate` + `SendMessage` + `TaskCreate`. 순차 Phase 아님. deep-researcher는 foundations/frontier 2-way 샤드 병렬 + 자동 머지 |
 | `/survey --sync-agents <slug>` | 서브 | 템플릿 → per-survey `.claude/agents/` 동기화 (placeholder 보존) |
 | `/survey --refresh <slug>` | 서브 | `build.py --staleness` 기반 리프레시 우선순위 |
 | `/survey --factcheck <slug>` | 서브 | fact-checker 에이전트 일괄 호출 |
@@ -227,7 +227,7 @@ bash scripts/push.sh "커밋 메시지"
 
 ### 집필은 오케스트레이션이 기본
 
-**`/survey --orchestrate <slug>`가 집필의 정규 진입점**이다. 이 스킬이 리더 역할을 하며 `surveys/<slug>/.claude/agents/*.md`에 정의된 6개 에이전트(deep-researcher · critical-analyst · book-writer · image-curator · fact-checker · qa-reviewer)를 `TeamCreate`로 기동하고, 의존성 그래프로 병렬·스트리밍·자체 조율을 수행한다. 단독 에이전트를 순차 호출하는 방식은 **오케스트레이션이 실패할 때의 예외 경로**로만 사용한다. `--phase=research|write|polish`로 단계별 제한 가능. 세부는 `.claude/skills/survey/references/orchestration-playbook.md` 참조.
+**`/survey --orchestrate <slug>`가 집필의 정규 진입점**이다. 이 스킬이 리더 역할을 하며 `surveys/<slug>/.claude/agents/*.md`에 정의된 7개 에이전트(deep-researcher-foundations · deep-researcher-frontier · critical-analyst · book-writer · image-curator · fact-checker · qa-reviewer)를 `TeamCreate`로 기동하고, 의존성 그래프로 병렬·스트리밍·자체 조율을 수행한다. deep-researcher 2인은 시간대(pre-2024 vs 2024+)로 샤드를 나눠 병렬 조사 후 `merge_research_shards.py`가 canonical papers.json을 생성 — 과거 단일 deep-researcher 병목(~30분)을 절반 수준으로 단축. 단독 에이전트를 순차 호출하는 방식은 **오케스트레이션이 실패할 때의 예외 경로**로만 사용한다. `--phase=research|write|polish`로 단계별 제한 가능. 세부는 `.claude/skills/survey/references/orchestration-playbook.md` 참조.
 
 ### Repo Ownership 원칙
 
@@ -237,8 +237,8 @@ bash scripts/push.sh "커밋 메시지"
 ### Canonical Agent 템플릿
 
 - 위치: `.claude/skills/survey/references/agent-template/`
-- 6종: `deep-researcher.md`, `critical-analyst.md`, `book-writer.md`, `image-curator.md`, `fact-checker.md`, `qa-reviewer.md`
-- Placeholder: `{{SURVEY_SLUG}}`, `{{DOMAIN}}`, `{{CHAPTERS}}`, `{{TERMS}}`, `{{SURVEY_DIR}}` — `/survey` 부트스트랩 시 per-survey 값으로 치환되고 공통 섹션은 sync로 전파.
+- 6개 템플릿 파일 → 7인 per-survey 에이전트: `deep-researcher.md`(→ foundations + frontier 2인으로 expand via `{{RESEARCHER_ROLE}}`), `critical-analyst.md`, `book-writer.md`, `image-curator.md`, `fact-checker.md`, `qa-reviewer.md`
+- Placeholder: `{{SURVEY_SLUG}}`, `{{DOMAIN}}`, `{{CHAPTERS}}`, `{{TERMS}}`, `{{SURVEY_DIR}}`, `{{RESEARCHER_ROLE}}` — `/survey` 부트스트랩 시 per-survey 값으로 치환되고 공통 섹션은 sync로 전파. `{{RESEARCHER_ROLE}}`는 `foundations`/`frontier` 2가지 값으로 deep-researcher 템플릿을 2번 expand.
 - 템플릿 수정은 한 곳(`agent-template/`)에서만. 새 책은 자동으로 최신을 복사, 기존 책은 `--sync-agents`로 선택적 전파.
 
 ### 상세 문서 포인터
@@ -316,11 +316,12 @@ python3 build.py --all
 
 | 에이전트 | 역할 |
 |---------|------|
-| deep-researcher | 논문 심층 서베이, 연구 그룹 매핑 |
+| deep-researcher-foundations | pre-2024 기초·방법론 계보 조사 (샤드: `papers_foundations.json`) |
+| deep-researcher-frontier | 2024–현재 최전선·산업 발표 조사 (샤드: `papers_frontier.json`) |
 | critical-analyst | gap 분석, novelty 평가, 차별화 전략 |
 | book-writer | 양국어 챕터 집필 |
 | image-curator | 논문 figure 선별·배치 (AI 보조 ≤ 2/챕터) |
 | fact-checker | 수치/인용 교차 검증 |
 | qa-reviewer | 전체 품질 리뷰 |
-| researcher | 문헌 1차 조사 |
-| reference-checker | 레퍼런스 포맷 정확성 검증 |
+| researcher | 문헌 1차 조사 (legacy) |
+| reference-checker | 레퍼런스 포맷 정확성 검증 (legacy) |

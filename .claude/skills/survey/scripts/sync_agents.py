@@ -41,15 +41,22 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[4]
 TEMPLATE_DIR = REPO_ROOT / ".claude/skills/survey/references/agent-template"
 SURVEYS_DIR = REPO_ROOT / "surveys"
-AGENT_NAMES = [
-    "deep-researcher",
-    "critical-analyst",
-    "book-writer",
-    "image-curator",
-    "fact-checker",
-    "qa-reviewer",
+# Template -> output-file mapping.
+# deep-researcher.md is expanded twice with RESEARCHER_ROLE = foundations|frontier
+# to produce deep-researcher-foundations.md + deep-researcher-frontier.md.
+AGENT_SPECS = [
+    # (template_filename_without_ext, output_filename_without_ext, extra_values_dict)
+    ("deep-researcher", "deep-researcher-foundations", {"RESEARCHER_ROLE": "foundations"}),
+    ("deep-researcher", "deep-researcher-frontier",    {"RESEARCHER_ROLE": "frontier"}),
+    ("critical-analyst", "critical-analyst", {}),
+    ("book-writer",      "book-writer",      {}),
+    ("image-curator",    "image-curator",    {}),
+    ("fact-checker",     "fact-checker",     {}),
+    ("qa-reviewer",      "qa-reviewer",      {}),
 ]
-PLACEHOLDERS = ["{{SURVEY_SLUG}}", "{{DOMAIN}}", "{{CHAPTERS}}", "{{TERMS}}", "{{SURVEY_DIR}}"]
+# Legacy alias for external callers that imported AGENT_NAMES.
+AGENT_NAMES = [out for (_, out, _) in AGENT_SPECS]
+PLACEHOLDERS = ["{{SURVEY_SLUG}}", "{{DOMAIN}}", "{{CHAPTERS}}", "{{TERMS}}", "{{SURVEY_DIR}}", "{{RESEARCHER_ROLE}}"]
 PLACEHOLDER_RE = re.compile(r"\{\{([A-Z_]+)\}\}")
 
 
@@ -190,9 +197,21 @@ def sync_one(slug: str, apply: bool, retrofit: bool) -> dict:
         results["actions"].append(f"RETROFIT: creating .claude/agents/")
 
     ctx_defaults = derive_domain_context(slug)
-    for name in AGENT_NAMES:
-        tpath = TEMPLATE_DIR / f"{name}.md"
-        spath = agents_dir / f"{name}.md"
+    # Legacy cleanup: older surveys may have a single `deep-researcher.md` from the
+    # pre-split template. Rename to `deep-researcher-foundations.md` so the
+    # foundations role keeps the existing per-survey context rather than regenerating.
+    legacy_single = agents_dir / "deep-researcher.md"
+    legacy_target = agents_dir / "deep-researcher-foundations.md"
+    if legacy_single.exists() and not legacy_target.exists():
+        if apply:
+            legacy_single.rename(legacy_target)
+            results["actions"].append("MIGRATED deep-researcher.md → deep-researcher-foundations.md")
+        else:
+            results["actions"].append("WOULD MIGRATE deep-researcher.md → deep-researcher-foundations.md")
+
+    for template_name, out_name, extra_values in AGENT_SPECS:
+        tpath = TEMPLATE_DIR / f"{template_name}.md"
+        spath = agents_dir / f"{out_name}.md"
         template_text = tpath.read_text(encoding="utf-8")
         parts = build_pattern_from_template(template_text)
 
@@ -200,17 +219,19 @@ def sync_one(slug: str, apply: bool, retrofit: bool) -> dict:
             current_text = spath.read_text(encoding="utf-8")
             extracted = extract_values_from_survey(current_text, parts)
             if extracted is None:
-                # 구조가 달라져 추출 실패 — 기본값으로 폴백
                 values = dict(ctx_defaults)
                 results["actions"].append(
-                    f"WARN {name}: template structure diverged — using ctx defaults"
+                    f"WARN {out_name}: template structure diverged — using ctx defaults"
                 )
             else:
-                # extracted 값 우선, 비어있는 키만 defaults로 보완
                 values = {**ctx_defaults, **{k: v for k, v in extracted.items() if v}}
         else:
             current_text = ""
             values = dict(ctx_defaults)
+
+        # extra_values (e.g. RESEARCHER_ROLE) are source-of-truth from AGENT_SPECS,
+        # never overridden by legacy extracted values.
+        values.update(extra_values)
 
         new_text = render_template(template_text, values)
         if current_text != new_text:
@@ -218,11 +239,11 @@ def sync_one(slug: str, apply: bool, retrofit: bool) -> dict:
             results["diffs"].append(d)
             if apply:
                 spath.write_text(new_text, encoding="utf-8")
-                results["actions"].append(f"WROTE {name}.md")
+                results["actions"].append(f"WROTE {out_name}.md")
             else:
-                results["actions"].append(f"WOULD WRITE {name}.md")
+                results["actions"].append(f"WOULD WRITE {out_name}.md")
         else:
-            results["actions"].append(f"UNCHANGED {name}.md")
+            results["actions"].append(f"UNCHANGED {out_name}.md")
     return results
 
 

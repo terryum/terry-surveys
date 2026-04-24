@@ -9,18 +9,20 @@ terry-surveys 모노레포에서 서베이 책 한 편의 **전 생애주기**�
    │
    ▼
 1. scaffold (build.py --new)
-2. .claude/agents/ × 6 복사 + placeholder 치환
+2. .claude/agents/ × 7 생성 (deep-researcher 템플릿은 foundations/frontier 2개로 expand) + placeholder 치환
 3. 인덱스 + 검증
    │
    ▼
 집필 (멀티에이전트 하네스 팀, 기본) ─── /survey --orchestrate <slug>
-   TeamCreate(survey-<slug>, 6 agents)
-   ├─ deep-researcher ──┐
-   ├─ critical-analyst ─┤ 의존성 그래프 + SendMessage 자체 조율
-   ├─ book-writer ×16 ─ ┤ (챕터별 병렬 집필)
-   ├─ image-curator ────┤ (챕터 완료 이벤트 스트리밍)
-   ├─ fact-checker ─────┤ (챕터 완료 이벤트 스트리밍)
-   └─ qa-reviewer ──────┘ (incremental + 최종 관문)
+   TeamCreate(survey-<slug>, 7 agents)
+   ├─ deep-researcher-foundations ─┐ 샤드 병렬 (pre-2024 기초)
+   ├─ deep-researcher-frontier ────┤ 샤드 병렬 (2024+ 최전선)
+   │   └── merge_research_shards.py → canonical papers.json
+   ├─ critical-analyst ────────────┤ 의존성 그래프 + SendMessage 자체 조율
+   ├─ book-writer ×16 ─────────────┤ (챕터별 병렬 집필)
+   ├─ image-curator ───────────────┤ (챕터 완료 이벤트 스트리밍)
+   ├─ fact-checker ────────────────┤ (챕터 완료 이벤트 스트리밍)
+   └─ qa-reviewer ─────────────────┘ (incremental + 최종 관문)
    │
    ▼
 빌드 + 배포 ─── /survey --deploy <slug>
@@ -44,7 +46,7 @@ terry-surveys 모노레포에서 서베이 책 한 편의 **전 생애주기**�
 | 레이어 | 위치 | 역할 |
 |---|---|---|
 | **공통 스킬** (Layer 1) | `terry-surveys/.claude/skills/` | 모든 서베이가 참조. book-write, deep-literature-research, fact-check, curate-paper-images 등 14개 실파일 + 몇몇 심링크 |
-| **Canonical Agent 템플릿** (Layer 2) | `terry-surveys/.claude/skills/survey/references/agent-template/` | 에이전트 정의 6종의 source of truth. 개선사항을 여기에 반영하면 새 책은 자동으로 최신을 받음 |
+| **Canonical Agent 템플릿** (Layer 2) | `terry-surveys/.claude/skills/survey/references/agent-template/` | 에이전트 정의 6개 템플릿 파일(deep-researcher는 `{{RESEARCHER_ROLE}}` placeholder로 foundations/frontier 2인 생성)의 source of truth. 개선사항을 여기에 반영하면 새 책은 자동으로 최신을 받음 |
 | **per-survey 에이전트** (Layer 3) | `surveys/<slug>/.claude/agents/` | 템플릿 복사본 + 도메인 컨텍스트 주입 (`{{DOMAIN}}`, `{{CHAPTERS}}`, `{{TERMS}}`) |
 
 **원칙**: 에이전트 정의(역할)는 per-survey, 스킬(방법)은 모노레포 공통. 스킬은 **중복 생성하지 않는다.**
@@ -105,13 +107,14 @@ python3 build.py --staleness --all
 
 ## 에이전트 팀 실행 가이드 — `/survey --orchestrate`가 기본
 
-서베이 집필의 **기본 진입점은 `/survey --orchestrate <slug>`**다. `/harness` 규약에 따라 6개 에이전트가 자율 팀으로 동작한다.
+서베이 집필의 **기본 진입점은 `/survey --orchestrate <slug>`**다. `/harness` 규약에 따라 7개 에이전트(deep-researcher 2인 + 5인)가 자율 팀으로 동작한다.
 
 ### 핵심 원칙 (순차 Phase 아님)
 
 - 팀원 간 `SendMessage`로 직접 통신
 - `TaskCreate`로 의존성 그래프 공유 (addBlockedBy)
-- 리더는 `/survey` 스킬 자체 — 모니터링만, 작업 안 함
+- 리더는 `/survey` 스킬 자체 — 모니터링 + T-merge-research 스크립트 실행만
+- **deep-researcher 2인 병렬** (foundations + frontier 시간대 분할, 샤드→머지로 중복 회피)
 - book-writer의 챕터 간 **병렬**, image-curator·fact-checker는 **스트리밍**, qa-reviewer는 **incremental**
 
 ### 호출

@@ -30,26 +30,35 @@
 
 ```
 team_name: "survey-<slug>"
-members (6):
-  - deep-researcher    (model: opus)
-  - critical-analyst   (model: opus)
-  - book-writer        (model: opus)
-  - image-curator      (model: opus)
-  - fact-checker       (model: opus)
-  - qa-reviewer        (model: opus, 타입: general-purpose)
+members (7):
+  - deep-researcher-foundations  (model: opus)  # pre-2024 기초·방법론 계보
+  - deep-researcher-frontier     (model: opus)  # 2024–현재 최전선·산업 발표
+  - critical-analyst             (model: opus)
+  - book-writer                  (model: opus)
+  - image-curator                (model: opus)
+  - fact-checker                 (model: opus)
+  - qa-reviewer                  (model: opus, 타입: general-purpose)
 leader: /survey 스킬 (오케스트레이터) — TaskCreate/TaskUpdate로 진행 추적, 완료 감지, 팀 정리
 ```
+
+**deep-researcher 2인 분할 근거**: 단일 researcher가 전체 파이프라인의 병목. 2024년 발행 논문 수 폭증으로 전체 corpus의 60%가 최근 2년치 → 시간대로 분할하면 병렬화 가능. 자세한 역할 분담·중복 회피 프로토콜은 `agent-template/deep-researcher.md` 참조.
 
 ## 의존성 그래프 (`TaskCreate` with `addBlockedBy`)
 
 ```
-T-research:    deep-researcher     → _research/papers.json, groups.md, timeline.md
-                                      ├─ 완전 종료 전에도 "seed 보강" 체크포인트 후 하위 팀 시작 가능
-                                      └─ 챕터별 scope 조사가 끝나면 해당 챕터 block 해제
+T-research-foundations:  deep-researcher-foundations → _research/papers_foundations.json, groups_foundations.md, timeline_foundations.md
+T-research-frontier:     deep-researcher-frontier    → _research/papers_frontier.json, groups_frontier.md, timeline_frontier.md
+                                      ├─ 두 태스크 병렬. 상호 SendMessage로 경계·중복 조율
+                                      └─ 각자 60% 완료 시 peer에 cross-coverage 요청
+
+T-merge-research:        orchestrator (자동)         → _research/papers.json, groups.md, timeline.md, _merge_report.md
+                           blockedBy: T-research-foundations, T-research-frontier (둘 다 완료)
+                           실행: python3 .claude/skills/survey/scripts/merge_research_shards.py <slug>
+                           샤드 자동 dedup + union (arxiv_id/doi/title 기반)
 
 T-analysis:    critical-analyst    → _analysis/gaps.md, novelty_matrix.md, positioning.md
-                 blockedBy: T-research (부분)
-                 → deep-researcher에게 추가 조사 요청(SendMessage)도 수시 발송
+                 blockedBy: T-merge-research (부분 — 샤드 60% 시점의 중간 머지도 허용)
+                 → deep-researcher-{foundations|frontier}에게 추가 조사 요청(SendMessage) 수시 발송
 
 T-write-ch<N>: book-writer         → book/{ko,en}/ch<N>.md (× 16)
                  blockedBy: T-analysis (해당 Part 관련 부분)
@@ -68,7 +77,8 @@ T-qa:          qa-reviewer         → _qa_report.md, READY FOR RELEASE 플래�
 ```
 
 **핵심 속성**:
-- deep-researcher는 "완료" 없이도 부분 산출물을 지속 공급. 다른 팀원은 해당 부분이 충분해지면 시작.
+- deep-researcher 2인은 "완료" 없이도 부분 산출물을 지속 공급. 샤드 60% 시점에 중간 머지 실행 → critical-analyst가 조기 착수 가능.
+- **중복 회피는 샤드 분리로**: 두 에이전트는 자기 샤드에만 쓰고, 쓰기 전 peer 샤드 grep 필수. 경계 논문은 `SendMessage`로 battery.
 - book-writer의 챕터 간에는 순서 없음. 의존은 **해당 챕터의 Part-level analysis**만 — Part II가 준비되면 Ch4~7이 동시 출발.
 - image-curator·fact-checker는 **스트림 워커**. 각 챕터 완료 이벤트를 받아 처리.
 - qa-reviewer는 **incremental QA** — 끝에 한 번이 아니라 진행 중 지속.
@@ -79,9 +89,12 @@ T-qa:          qa-reviewer         → _qa_report.md, READY FOR RELEASE 플래�
 
 | 발신 → 수신 | 메시지 예 |
 |---|---|
+| deep-researcher-foundations → deep-researcher-frontier | "Noticed 2024 arxiv paper in your territory: He et al. ASAP 2025. Not adding to my shard — please include and link back to Hwangbo 2019 lineage." |
+| deep-researcher-frontier → deep-researcher-foundations | "Your wensing2017 entry: please add chapter_hint [Ch4, Ch11] and tags [industrial-revival]. Figure / Unitree reuse this architecture." |
 | book-writer → image-curator | "Ch 7 sim-to-real 섹션에 ASAP delta action 다이어그램 placeholder 심었음. He et al. 2025 figure 4 크롭 권장" |
 | book-writer → fact-checker | "Ch 5 Radosavovic 2023 success-rate 숫자 86% 기재했는데 Science 논문 원문 Table 2 확인 부탁" |
-| critical-analyst → deep-researcher | "한국 연구실 커버리지 부족 — KAIST HUBO 후속, SNU ME RCV 랩 논문 조사 요청" |
+| critical-analyst → deep-researcher-foundations | "KAIST HUBO 후속 계보 커버리지 부족 — 2023 이전 서울대 ME RCV 랩 논문 조사 요청" |
+| critical-analyst → deep-researcher-frontier | "2025년 Agility Motor Cortex 백서 원문 확보 필요" |
 | fact-checker → book-writer | "Ch 12 Figure Helix 02 파라미터 10M → 원문엔 8M. 수정 권고" |
 | qa-reviewer → all | "Ch 3 교차 참조 깨짐 — (Chapter 7) 언급했지만 Ch 7 제목 변경됨. book-writer 확인" |
 
@@ -89,16 +102,17 @@ T-qa:          qa-reviewer         → _qa_report.md, READY FOR RELEASE 플래�
 
 `/survey --orchestrate` 호출 시 `/survey` 스킬 자체가 리더가 된다:
 
-1. **TeamCreate**: `survey-<slug>` 팀 생성, 6개 에이전트 로드 (`surveys/<slug>/.claude/agents/*.md`).
-2. **TaskCreate**: 위 의존성 그래프를 `addBlockedBy`로 표현.
-3. **컨텍스트 주입**: 각 에이전트에 `_research/seed.md`, `survey.json`, 루트 `CLAUDE.md`를 초기 컨텍스트로 제공.
-4. **모니터링**: TaskList로 진행률 추적. 리더는 **작업하지 않고 조율만** 한다.
+1. **TeamCreate**: `survey-<slug>` 팀 생성, 7개 에이전트 로드 (`surveys/<slug>/.claude/agents/*.md`). deep-researcher는 `deep-researcher-foundations.md`와 `deep-researcher-frontier.md` 두 파일.
+2. **TaskCreate**: 위 의존성 그래프를 `addBlockedBy`로 표현. T-merge-research는 자동 task (에이전트 owner 없음; 리더 본인이 실행).
+3. **컨텍스트 주입**: 각 에이전트에 `_research/seed.md`, `survey.json`, 루트 `CLAUDE.md` + 본인 role 식별(`RESEARCHER_ROLE=foundations` or `frontier`)을 초기 컨텍스트로 제공.
+4. **모니터링**: TaskList로 진행률 추적. 리더는 **작업하지 않고 조율만** 한다. 단 예외: T-merge-research는 리더가 직접 `python3 .claude/skills/survey/scripts/merge_research_shards.py <slug>` 실행.
 5. **에러 대응**:
    - 에이전트 1회 실패 → 재시도 1회
    - 재실패 → 해당 산출물 플래그 후 팀은 진행 (결과 없이 보고서에 누락 명시)
    - 상충 결과(예: deep-researcher와 fact-checker가 동일 논문에 다른 arXiv ID) → 삭제 금지, 두 주장 병기
+   - 머지 스크립트 실패(중복 arxiv_id 충돌) → `_merge_report.md`에 충돌 기록 후 리더가 수동 dedup 결정 또는 qa-reviewer에 에스컬레이션
 6. **종료 감지**: qa-reviewer가 "READY FOR RELEASE" 플래그 + 모든 T-task `completed` → `TeamDelete`로 팀 정리.
-7. **출력 요약**: 사용자에게 완성 요약 (챕터 × 2언어, ref 수, figure 수, 커버리지 %, 남은 이슈).
+7. **출력 요약**: 사용자에게 완성 요약 (챕터 × 2언어, ref 수, figure 수, 커버리지 %, 남은 이슈, 샤드별 기여도).
 
 ## 세션 분할 전략
 
@@ -116,9 +130,13 @@ T-qa:          qa-reviewer         → _qa_report.md, READY FOR RELEASE 플래�
 ### `--phase=research`
 
 ```
-팀원: deep-researcher, critical-analyst
-산출: _research/papers.json · groups.md · timeline.md · _analysis/gaps.md · novelty_matrix.md · positioning.md
-리더 종료 조건: papers.json에 최소 60편 + gaps.md 5개 항목 + positioning.md 완성
+팀원: deep-researcher-foundations, deep-researcher-frontier, critical-analyst
+산출:
+  - _research/papers_foundations.json + papers_frontier.json (샤드)
+  - _research/papers.json (머지 canonical)
+  - groups_{role}.md → groups.md / timeline_{role}.md → timeline.md
+  - _analysis/gaps.md · novelty_matrix.md · positioning.md
+리더 종료 조건: papers.json에 최소 60편 (샤드 합산) + gaps.md 5개 항목 + positioning.md 완성 + _merge_report.md에 dedup 통계
 ```
 
 ### `--phase=write`
@@ -154,7 +172,10 @@ T-qa:          qa-reviewer         → _qa_report.md, READY FOR RELEASE 플래�
 
 | 증상 | 대응 |
 |---|---|
-| deep-researcher가 arXiv API timeout | 해당 논문 `status: incomplete`로 기록, 팀 진행. qa-reviewer가 나중에 재검증 플래그 |
+| deep-researcher-{role}가 arXiv API timeout | 해당 논문 `status: incomplete`로 기록, 팀 진행. qa-reviewer가 나중에 재검증 플래그 |
+| deep-researcher 2인 중 한 쪽만 완료 신호 | 리더가 5분 대기 후 병행 진행. 미완 샤드는 부분 머지 후 flag `partial_merge: true` 기록, qa-reviewer가 커버리지 재감사 |
+| 머지 스크립트가 arxiv_id 충돌 감지 | `_merge_report.md`에 충돌 기록. 양쪽 method_summary 다르면 longer 본 채택 + 다른 본을 `method_summary_alt` 필드에 보존 |
+| 경계년도 논문 중복 진입 (peer grep 실패) | 머지 스크립트가 dedup. owner 필드를 먼저 entry한 쪽으로 정규화 |
 | book-writer가 같은 챕터 두 번 편집 | TaskCreate의 챕터별 단일 owner 원칙으로 방지. 충돌 시 파일 mtime 기반 최신본 채택 + diff 기록 |
 | image-curator가 논문 PDF 접근 불가 | `<!-- IMAGE: 대체 일러스트 요청 -->` 로 변환, Gemini fallback(챕터당 ≤ 2개 상한) |
 | fact-checker가 수치 불일치 발견 | book-writer에 SendMessage로 정정 제안. 10초 무응답 시 보수적으로 "approximately" 완화 표현으로 수정 후 로그 |
