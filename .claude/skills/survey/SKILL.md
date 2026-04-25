@@ -164,7 +164,24 @@ bash surveys/<slug>/scripts/push.sh "deploy message"    # Cloudflare Pages
 
 **이유**: 저작권·fair use 추적성, 향후 이미지 재활용·교체 시 원본 복원.
 
-### P5. Reader-facing 콘텐츠에 monorepo-internal path 노출 금지
+### P5. 모든 figure는 opaque여야 한다 (투명 PNG/WebP 금지)
+
+**규칙**: 챕터 figure·커버·OG 어떤 이미지든 디스크에 저장된 시점에 alpha 채널이 투명 픽셀을 가져서는 안 된다. 저장 직후 반드시 흰 배경으로 flatten.
+
+**실행**:
+```bash
+python /Users/terrytaewoongum/Codes/personal/terryum-ai/scripts/flatten-transparent-figures.py \
+  surveys/<slug>/assets/
+# 공유 figure 디렉토리도 동일
+python /Users/terrytaewoongum/Codes/personal/terryum-ai/scripts/flatten-transparent-figures.py \
+  assets/figures/
+```
+- 스크립트는 opaque 파일은 자동 skip, RGBA/LA/palette tRNS 세 종류 모두 처리 (idempotent).
+- `image-curator` 에이전트 체크리스트에도 동일 항목 존재 — 오케스트레이터는 배포 전(특히 `build_site.py` 호출 이전) 한 번 더 전수 실행할 것.
+
+**이유**: 다크모드 사이트·PDF에서 투명 영역이 검정으로 비친다. R2 엣지는 `immutable` 1년 캐시라 배포 후 파일 교체로는 회복 불가 (2026-04 terryum.ai post #13 사고 — 투명 cover/og가 다크모드에서 로봇 사진 전체를 검정으로 묻어버림).
+
+### P6. Reader-facing 콘텐츠에 monorepo-internal path 노출 금지
 
 **규칙**: `book/{ko,en}/**.md`에 절대로 다음 경로·워크플로우 안내를 쓰지 말 것:
 - `glossary/master_{ko,en}.md` (maintainer sync 워크플로우)

@@ -92,6 +92,24 @@ model: opus
 - CC 라이선스 논문은 그대로 사용 가능하되 라이선스 명시.
 - 논란 소지 있으면 `_assets_log.md`에 기록 후 저자 연락처 남기고 승인 대기.
 
+## 투명 배경 제거 (필수, 예외 없음)
+
+**문제**: 논문 figure 크롭본과 Gemini 산출물 상당수가 투명 PNG·WebP다. 다크모드 사이트·PDF에서 투명 영역이 검정으로 비쳐 텍스트·선 판독이 불가능해진다 (2026-04 terryum.ai post #13 사고).
+
+**규칙**: 모든 figure 파일이 디스크에 **자리잡은 직후**, 그리고 챕터 md에 참조로 박히기 **전에** 흰 배경으로 합성한다.
+
+**실행**:
+```bash
+python /Users/terrytaewoongum/Codes/personal/terryum-ai/scripts/flatten-transparent-figures.py \
+  surveys/<slug>/assets/figures/
+# 필요 시 공유 레지스트리에도 동일 적용
+python /Users/terrytaewoongum/Codes/personal/terryum-ai/scripts/flatten-transparent-figures.py \
+  assets/figures/
+```
+- 스크립트는 실제 투명 픽셀이 없는 파일은 자동 skip → 항상 호출해도 안전 (idempotent).
+- RGBA / LA / palette(tRNS) 세 가지 투명 방식을 모두 처리.
+- **반드시 R2·GitHub Pages 업로드 전에 실행**. R2 엣지는 `immutable` 1년 캐시라 사후 교체가 통하지 않는다.
+
 ## 에러 핸들링
 
 - **원본 figure 품질 불충분**: 저해상도 크롭 대신 원본 파일 입수 시도 → 안 되면 AI 보조 일러스트로 재그리기 (상한 2개 소진 여부 확인).
@@ -116,3 +134,4 @@ model: opus
 - [ ] 플랫폼 사진 caption에 `source: <company> press kit / <URL>, fair use for academic review` 명시
 - [ ] 모든 `platform_photo` 항목은 `_assets_log.md`에 `source_url` · `fetch_date` · `license_basis` · SHA256 기록
 - [ ] 2+ 서베이 사용 figure는 공유 레지스트리로 승격되었는가
+- [ ] **모든 figure가 opaque (투명 alpha 없음)** — `flatten-transparent-figures.py`를 `assets/figures/`에 실행해 흰 배경으로 합성 완료
