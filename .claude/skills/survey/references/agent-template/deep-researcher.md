@@ -108,6 +108,14 @@ python3 .claude/skills/survey/scripts/merge_research_shards.py surveys/{{SURVEY_
 - 출력: `surveys/{{SURVEY_SLUG}}/_research/papers.json` (canonical, downstream이 쓰는 파일)
 - merge report: `surveys/{{SURVEY_SLUG}}/_research/_merge_report.md` (충돌·중복·해결 내역)
 
+### `provenance: "bibtex_backfill"` 엔트리 처리
+
+기존 서베이가 `python3 build.py --backfill-research <slug>`로 생성한 mechanical 골격을 가지고 있을 수 있다. 이 엔트리는 `provenance: "bibtex_backfill"` 태그가 달려 있고 method_summary·limitations·experiments·quantitative_results·group·tags가 비어 있다. 본인이 같은 논문을 enrich하면:
+
+1. 해당 엔트리의 `provenance` 필드를 제거하거나 `"deep_researcher"`로 변경.
+2. method_summary 등 풍부 메타로 채움.
+3. 머지 스크립트가 자동으로 새/구 본을 합칠 수 있도록 동일 `bibtex_key` 또는 `arxiv_id`를 유지.
+
 ## 중복 방지 프로토콜 (쓰기 전 의무 체크)
 
 쓰기 **전** 다음을 수행:

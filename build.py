@@ -14,6 +14,10 @@ Usage:
     python build.py --sync-glossary <name>         # Regenerate local glossary from master
     python build.py --staleness [name|--all]       # Chapter staleness report
     python build.py --impact <post-slug>           # Tier1/Tier2 chapter-match
+    python build.py --refresh-refs <name|--all>    # Refresh _refs_extracted.json from
+                                                   #   chapter markdown + master bibtex
+    python build.py --backfill-research <name|--all>  # Reconstruct _research/papers.json
+                                                       #   for surveys missing it
 """
 
 import sys
@@ -142,6 +146,31 @@ def main():
             sys.exit(1)
         from shared.impact import main as impact_main
         impact_main(sys.argv[2])
+
+    elif arg == '--refresh-refs':
+        if len(sys.argv) < 3:
+            print("Usage: python build.py --refresh-refs <survey-name|--all> [--dry-run]")
+            sys.exit(1)
+        from bibtex.refresh_refs_extracted import refresh_one, list_surveys as _ls
+        from bibtex.refs_index import load_bibtex_master
+        load_bibtex_master()
+        targets = _ls() if sys.argv[2] == '--all' else [sys.argv[2]]
+        dry = '--dry-run' in sys.argv[3:]
+        for s in targets:
+            refresh_one(s, dry_run=dry)
+
+    elif arg == '--backfill-research':
+        if len(sys.argv) < 3:
+            print("Usage: python build.py --backfill-research <survey-name|--all> [--dry-run] [--force]")
+            sys.exit(1)
+        from bibtex.backfill_research_metadata import backfill_one, list_surveys as _ls
+        from bibtex.refs_index import load_bibtex_master
+        load_bibtex_master()
+        targets = _ls() if sys.argv[2] == '--all' else [sys.argv[2]]
+        dry = '--dry-run' in sys.argv[3:]
+        force = '--force' in sys.argv[3:]
+        for s in targets:
+            backfill_one(s, force=force, dry_run=dry)
 
     else:
         build_one(arg)

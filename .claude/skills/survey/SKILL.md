@@ -120,6 +120,26 @@ python3 build.py --staleness <slug>
 
 `surveys/<slug>/.claude/agents/fact-checker.md`를 로드하여 Agent 호출. 모든 챕터에 대해 `_refs_extracted.json` + `_factcheck_report.md` 갱신. `book-write` · `fact-check` 글로벌 스킬과 연동.
 
+**선행 단계 — mechanical baseline:**
+
+fact-checker를 호출하기 전에 `_refs_extracted.json`의 mechanical 필드를 일괄 채워두는 게 표준이다 (idempotent, fact-checker가 만진 verification 필드는 보존).
+
+```bash
+python3 build.py --refresh-refs <slug>
+```
+
+이로써 fact-checker는 ID 채우기 잡일에서 해방되고 `verification_status` / `factcheck_notes` / `scholar_url` enrich와 본문 정정 제안에 집중할 수 있다.
+
+**`_research/papers.json` 부재 시 backfill:**
+
+서베이가 deep-researcher 패스를 거치지 않아 `_research/papers.json`이 없으면, candidate pool / impact 분석 / Tier 1 매칭이 메타 빈 껍데기가 된다. 다음으로 best-effort 골격을 만들어둔다 (bibtex master + 챕터 ref 라인에서 도출, `provenance: "bibtex_backfill"` 태그). 이후 `/survey --orchestrate`의 deep-researcher가 method_summary·limitations·tags 등을 enrich한다.
+
+```bash
+python3 build.py --backfill-research <slug>
+```
+
+`--force`는 기존 `bibtex_backfill` 엔트리만 새로 만들고, deep-researcher가 채운 풍부 엔트리(method_summary 등)는 항상 보존된다.
+
 ### `/survey --link-posts <slug>`
 
 `/link-post-to-surveys <slug>` 프록시. Tier 1(arXiv/DOI/Nature 정확 매칭) 링크만 자동 삽입. Tier 2는 수동 승인 흐름.

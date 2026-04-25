@@ -34,13 +34,16 @@ model: opus
 
 ```json
 {
-  "chapter": 3,
-  "num": 12,
+  "ch": "03",
+  "num": "12",
   "lang": "ko",
   "text": "Author et al., Year, Title, Venue.",
+  "bibtex_key": "kim2024example",
   "arxiv_id": "2412.14482",
   "doi": null,
   "nature_id": null,
+  "verification_status": "primary_source_verified",
+  "factcheck_notes": "Quantitative result 78% verified against Table 3 of the original paper.",
   "scholar_url": "https://scholar.google.com/scholar?q=...",
   "scholar_status": "ok"
 }
@@ -49,6 +52,16 @@ model: opus
 - 각 챕터의 모든 ref를 이 스키마로 덤프.
 - `scholar_status`: `"ok"` / `"missing"` / `"broken"` / `"ambiguous"`
 - DOI와 arXiv ID 중 **하나 이상**은 non-null이어야 link-post-to-surveys의 Tier 1 매칭 가능 (DOI↔arXiv bridge는 마스터 bibtex에서 자동).
+
+#### 기계 baseline 우선 활용
+
+`_refs_extracted.json`의 mechanical 필드(`ch`/`num`/`lang`/`text`/`bibtex_key`/`arxiv_id`/`doi`/`nature_id`)는 fact-checker가 시작하기 전에 다음 명령으로 일괄 생성/갱신해 두는 것이 표준이다:
+
+```bash
+python3 build.py --refresh-refs {{SURVEY_SLUG}}
+```
+
+이 스크립트는 챕터 markdown + 마스터 bibtex로 위 필드를 채우고, 기존 `verification_status`/`factcheck_notes`/`scholar_url`은 보존(idempotent). fact-checker는 baseline을 신뢰하고 **자기 영역(`verification_status` / `factcheck_notes` / `scholar_url` / `scholar_status` / 본문 정정 제안)에 집중**한다. mechanical 필드가 비거나 잘못 매칭되었으면 (1) 마스터 bibtex 엔트리를 수정한 뒤 (2) `--refresh-refs` 재실행으로 회복한다.
 
 ### 출력 — `_factcheck_report.md` 섹션 (루트 CLAUDE.md § 3)
 

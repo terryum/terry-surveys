@@ -31,6 +31,8 @@ python3 build.py --validate [name|--all]   # 스키마·인용·figure·subset �
 python3 build.py --sync-bibtex <name>      # 마스터 기준으로 로컬 .bib 재생성
 python3 build.py --sync-glossary <name>    # 마스터 기준으로 로컬 glossary 재생성
 python3 build.py --staleness [name|--all]  # 챕터별 오래된 순위 리포트
+python3 build.py --refresh-refs <name|--all>      # _refs_extracted.json을 챕터+bibtex master로 재생성
+python3 build.py --backfill-research <name|--all> # _research/papers.json 미존재 서베이에 best-effort 골격 생성
 ```
 
 **마스터 한 번 고치면 모든 서베이가 맞춰지는 흐름:**
@@ -65,7 +67,12 @@ surveys/<name>/
 │   └── push.sh                       # Cloudflare Pages 외부 repo 동기화
 ├── docs/                             # 빌드 산출물 (git 커밋)
 │   └── _redirects                    # Cloudflare Pages 리다이렉트
-├── _refs_extracted.json              # 인용 추출 + scholar 링크 상태
+├── _research/                        # 조사 산출물 (필수 — candidate pool 메타 source)
+│   ├── papers.json                   # canonical 논문 메타 (method_summary·tags·limitations·chapter_hint)
+│   ├── groups.md                     # 연구 그룹 클러스터
+│   └── timeline.md                   # 시간축 흐름
+├── _analysis/gaps.md                 # critical-analyst gap·novelty 문서
+├── _refs_extracted.json              # 인용 추출 + scholar 링크 상태 (rich schema 권장)
 └── _factcheck_report.md              # 팩트체크 감사 리포트
 ```
 
@@ -80,12 +87,67 @@ surveys/<name>/
 
 | 단계 | 에이전트 | 필수 산출물 |
 |---|---|---|
-| 1. 조사 | `deep-researcher` | `_research/<domain>_papers.json`, 연구 그룹·타임라인 매핑 |
+| 1. 조사 | `deep-researcher` | **`_research/papers.json`** (필수 — canonical 논문 메타), groups·timeline |
 | 2. 분석 | `critical-analyst` | gap·novelty 문서 (`_analysis/gaps.md`) |
 | 3. 집필 | `book-writer` | `book/{ko,en}/chNN.md` (KO/EN 동시), `book/{ko,en}/glossary.md` |
 | 4. 그림 | `image-curator` | `assets/figures/chNN_<slug>_fig<N>.<ext>` (논문 원본 크롭 우선) |
-| 5. 팩트 | `fact-checker` | `_refs_extracted.json`, `_factcheck_report.md` |
+| 5. 팩트 | `fact-checker` | **`_refs_extracted.json` 풍부 스키마** (bibtex_key·arxiv_id·doi·verification_status), `_factcheck_report.md` |
 | 6. 리뷰 | `qa-reviewer` | 커버리지·인용 포맷·교차참조 최종 체크 |
+
+### Reference 메타 자산 데이터 흐름
+
+서베이 reference 관리는 본문 인용에서 끝나지 않는다. **다섯 자산이 단계별로 같은 논문 메타를 더 깊게 쌓는다** — 이 자산들이 candidate pool / impact 분석 / Tier 1 포스트 링크의 입력이 된다.
+
+```
+챕터 markdown (본문 + ## 참고문헌)
+   │
+   ├─[1] book-writer가 인라인 [Author et al., Year] 작성, 챕터 하단 ref 라인 정리
+   │
+   ▼
+bibtex/references.bib  (마스터; bibtex_key·arxiv_id·doi·url·venue 핵심 필드)
+   │
+   ├─[2] deep-researcher가 _research/papers.json에 method_summary·limitations·tags·chapter_hint·group 등 풍부 메타 누적
+   │
+   ▼
+surveys/<slug>/_research/papers.json  (필수 산출물 — candidate pool 메타 source)
+   │
+   ├─[3] fact-checker가 _refs_extracted.json에 verification_status·factcheck_notes·scholar_url 채움
+   │
+   ▼
+surveys/<slug>/_refs_extracted.json  (Tier 1 매칭 IDs source)
+   │
+   ├─[4] python3 build.py --index → bibtex/refs_index.json (cross-survey dedup, canonical-ID 머지)
+   │
+   ▼
+bibtex/refs_index.json
+   │
+   ├─[5] terry-papers/scripts/sync-survey-candidates.mjs가 위 4개 자산을 모두 읽어 candidate pool 생성
+```
+
+**기계적으로 채울 수 있는 부분과 사람/에이전트만 채울 수 있는 부분의 분리:**
+
+| 필드 | 출처 | 누가 채우는가 |
+|---|---|---|
+| bibtex_key, arxiv_id, doi, nature_id, venue, url, authors | 마스터 bibtex 매칭 | 기계 (`build.py --refresh-refs`, `--backfill-research`) |
+| chapter_hint | 챕터 ref 라인 위치 | 기계 (위 동일) |
+| method_summary, experiments, quantitative_results, limitations, group, tags | 논문 PDF 정독 | deep-researcher |
+| verification_status, factcheck_notes, primary_verified | 원본 대조 | fact-checker |
+| scholar_url, scholar_status | URL 검증 | fact-checker |
+
+**기계 단계 — 모든 서베이에 강제:**
+- `python3 build.py --refresh-refs <slug>`: 챕터 markdown + 마스터 bibtex로 `_refs_extracted.json`의 mechanical 필드(ch/num/lang/text/bibtex_key/arxiv_id/doi/nature_id) 갱신. 기존 `verification_status`/`factcheck_notes`/`scholar_url`은 보존(idempotent).
+- `python3 build.py --backfill-research <slug>`: `_research/papers.json` 미존재 서베이에 best-effort 골격 생성. `provenance: "bibtex_backfill"` 태그로 표시되어 deep-researcher가 나중에 enrich할 수 있다.
+
+**에이전트 단계 — `/survey --orchestrate`로 호출:**
+- deep-researcher가 `provenance: "bibtex_backfill"` 엔트리를 우선 enrich (method_summary 등 채움 → provenance 제거 또는 `"deep_researcher"`로 변경).
+- fact-checker가 `verification_status`/`factcheck_notes`/`scholar_url` 채움.
+
+**검증:**
+- `python3 build.py --validate <slug>`가 다음을 점검:
+  - `_research/papers.json` 존재 (없으면 warn + 명령 안내)
+  - `_research/papers.json`의 `method_summary` 커버리지 (100% bibtex_backfill이면 deep-researcher 필요 알림)
+  - `_refs_extracted.json`의 bibtex_key 커버리지 ≥ 50% (미달 시 `--refresh-refs` 안내)
+  - `_refs_extracted.json`의 arxiv/doi 커버리지 ≥ 30% (미달 시 fact-checker 안내)
 
 ## 3. 표준 산출물 포맷
 

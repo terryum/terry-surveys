@@ -13,8 +13,10 @@ Runs a set of per-survey checks that the repo-wide invariants hold:
     monorepo master bibtex/references.bib
   - every term in book/<lang>/glossary.md exists in glossary/master_<lang>.md
     with the same definition (chapter suffix `(Ch N)` is tolerated)
-  - _refs_extracted.json has the minimum {ch, num, text} schema
+  - _refs_extracted.json has the minimum {ch, num, text} schema and
+    bibtex_key / arxiv_id / doi coverage targets are met
   - _factcheck_report.md exposes a `## Summary` section
+  - _research/papers.json exists and is non-empty (warn if 100% bibtex_backfill)
 
 Severity levels:
   error   — hard breakage; build.py --validate exits non-zero
@@ -430,8 +432,10 @@ def check_refs_extracted(survey_dir, iss):
         iss.err('_refs_extracted.json is not a list')
         return
     required = ('ch', 'num', 'text')
+    recommended = ('bibtex_key', 'arxiv_id', 'doi', 'verification_status')
     bad = 0
-    for i, entry in enumerate(data):
+    coverage = {k: 0 for k in recommended}
+    for entry in data:
         if not isinstance(entry, dict):
             bad += 1
             continue
@@ -439,8 +443,70 @@ def check_refs_extracted(survey_dir, iss):
             if k not in entry:
                 bad += 1
                 break
+        for k in recommended:
+            if entry.get(k):
+                coverage[k] += 1
     if bad:
         iss.err(f'_refs_extracted.json: {bad} entry(ies) missing required fields {required}')
+
+    total = len(data)
+    if total:
+        # The schema target — set to baseline 50% so deterministic backfill
+        # passes the bar; fact-checker should drive arxiv/doi to ≥ 90% later.
+        # bibtex_key alone is the most stable mechanical signal; if it is
+        # below 50% the survey almost certainly has not been run through
+        # `python3 build.py --refresh-refs <slug>`.
+        bk_pct = round(100 * coverage['bibtex_key'] / total, 1)
+        id_pct = round(100 * (coverage['arxiv_id'] + coverage['doi']) / (2 * total), 1)
+        if bk_pct < 50:
+            iss.warn(
+                f'_refs_extracted.json: bibtex_key coverage {bk_pct}% (<50%) — '
+                f'run `python3 build.py --refresh-refs {os.path.basename(survey_dir)}`'
+            )
+        if id_pct < 30:
+            iss.warn(
+                f'_refs_extracted.json: arxiv/doi coverage {id_pct}% (<30%) — '
+                f'fact-checker should enrich identifiers'
+            )
+
+
+def check_research_papers(survey_dir, iss):
+    path = os.path.join(survey_dir, '_research', 'papers.json')
+    if not os.path.isfile(path):
+        iss.warn(
+            '_research/papers.json missing — run `python3 build.py --backfill-research '
+            f'{os.path.basename(survey_dir)}` (mechanical) or '
+            '`/survey --orchestrate <slug>` (deep-researcher pass)'
+        )
+        return
+    try:
+        data = read_json(path)
+    except json.JSONDecodeError as e:
+        iss.err(f'_research/papers.json invalid JSON: {e}')
+        return
+    if not isinstance(data, list):
+        iss.err('_research/papers.json is not a list')
+        return
+    if not data:
+        iss.warn('_research/papers.json is empty')
+        return
+    backfill_count = sum(
+        1 for e in data if isinstance(e, dict) and e.get('provenance') == 'bibtex_backfill'
+    )
+    rich_count = sum(
+        1 for e in data if isinstance(e, dict) and e.get('method_summary')
+    )
+    rich_pct = round(100 * rich_count / len(data), 1)
+    if rich_pct < 25 and backfill_count == len(data):
+        iss.warn(
+            f'_research/papers.json is 100% bibtex_backfill (no method_summary) — '
+            f'deep-researcher pass needed for ranker quality'
+        )
+    elif rich_pct < 25:
+        iss.warn(
+            f'_research/papers.json: only {rich_pct}% have method_summary — '
+            f'deep-researcher should enrich'
+        )
 
 
 def check_factcheck_report(survey_dir, iss):
@@ -472,6 +538,7 @@ def validate_one(name, verbose=True):
     check_glossary_subset(survey_dir, iss)
     check_refs_extracted(survey_dir, iss)
     check_factcheck_report(survey_dir, iss)
+    check_research_papers(survey_dir, iss)
 
     if verbose:
         print(f"\n[{name}]")

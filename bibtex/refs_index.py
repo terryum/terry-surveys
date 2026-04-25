@@ -27,6 +27,11 @@ import json
 import sys
 from urllib.parse import quote_plus
 
+# Module-level cache for the bibtex master lookup. Populated lazily on first
+# call to load_bibtex_master() so callers that only need search/match (no
+# full rebuild) do not pay the parse cost.
+_BIBTEX_LOOKUP_CACHE = None
+
 # This script lives in bibtex/, the canonical home for every
 # reference-management artifact (master references.bib, generated indices,
 # matching tools). Paths below reflect that placement.
@@ -100,8 +105,300 @@ def extract_paper_ids(text):
     return {k: sorted(v) for k, v in ids.items()}
 
 
+def normalize_title(title):
+    """Lowercase, alphanumeric-only, whitespace-collapsed title for matching."""
+    if not title:
+        return ''
+    t = title.lower()
+    t = re.sub(r'[^a-z0-9 ]', ' ', t)
+    t = re.sub(r'\s+', ' ', t).strip()
+    return t
+
+
+# --------------------------------------------------------------------
+# Bibtex master enrichment — recover IDs when ref text omits them
+# --------------------------------------------------------------------
+# Lightweight bibtex parser. Captures the fields we use for ID enrichment:
+# title, author, year, url, note, doi, journal, booktitle. Sufficient for
+# our purposes; not a full bibtex grammar.
+_BIBTEX_ENTRY_RE = re.compile(r'@(\w+)\s*\{\s*([^,\s]+)\s*,([\s\S]*?)\n\}', re.MULTILINE)
+_BIBTEX_FIELD_RE = re.compile(r'(\w+)\s*=\s*[{"]([\s\S]*?)["}]\s*,?\s*\n', re.MULTILINE)
+
+
+def parse_bibtex_master(bibtex_path):
+    """Parse master references.bib into a list of entry dicts.
+
+    Each entry: {key, type, title, year, author, url, note, doi, journal,
+    booktitle, ...}. Custom fields preserved verbatim for downstream tools.
+    """
+    if not os.path.isfile(bibtex_path):
+        return []
+    with open(bibtex_path, 'r', encoding='utf-8') as f:
+        text = f.read()
+
+    entries = []
+    for m in _BIBTEX_ENTRY_RE.finditer(text):
+        entry_type, key, body = m.group(1), m.group(2), m.group(3) + '\n'
+        fields = {'key': key.strip(), 'type': entry_type.lower()}
+        for fm in _BIBTEX_FIELD_RE.finditer(body):
+            fields[fm.group(1).lower()] = re.sub(r'\s+', ' ', fm.group(2)).strip()
+        entries.append(fields)
+    return entries
+
+
+def _bibtex_first_author_lastname(author_field):
+    """Return lowercase last name of the first author from a bibtex author field.
+
+    Handles both "Last, First and Last2, First2" and "First Last and First2 Last2".
+    """
+    if not author_field:
+        return ''
+    first = author_field.split(' and ')[0].strip()
+    if ',' in first:
+        return first.split(',', 1)[0].strip().lower()
+    parts = first.split()
+    return parts[-1].strip().lower() if parts else ''
+
+
+def _bibtex_extract_ids(entry):
+    """Pull arxiv/doi/nature IDs out of a bibtex entry's url/note/doi fields."""
+    blob_parts = [entry.get('url', ''), entry.get('note', ''), entry.get('doi', ''),
+                  entry.get('eprint', ''), entry.get('archiveprefix', '')]
+    return extract_paper_ids(' '.join(p for p in blob_parts if p))
+
+
+def load_bibtex_master(force_reload=False):
+    """Load + index the master bibtex. Cached after first call.
+
+    Returns dict with:
+      - by_title: normalized_title -> entry
+      - by_author_year: (lastname_lc, year_str) -> [entries]
+      - by_arxiv: arxiv_id -> entry
+      - by_doi: doi -> entry
+      - by_key: bibtex_key -> entry
+    """
+    global _BIBTEX_LOOKUP_CACHE
+    if _BIBTEX_LOOKUP_CACHE is not None and not force_reload:
+        return _BIBTEX_LOOKUP_CACHE
+
+    bibtex_path = os.path.join(BIBTEX_DIR, 'references.bib')
+    entries = parse_bibtex_master(bibtex_path)
+
+    by_title = {}
+    by_author_year = {}
+    by_arxiv = {}
+    by_doi = {}
+    by_key = {}
+
+    # First pass: parse IDs for every entry.
+    for e in entries:
+        e['_ids'] = _bibtex_extract_ids(e)
+        by_key[e['key']] = e
+
+    # Second pass: union IDs across duplicate-titled entries. The master
+    # bibtex sometimes carries two keys for the same paper (e.g.
+    # xu2025dexumi without url + xu2025dexumib with arxiv url). Without
+    # this union, refs that match by title to the lighter entry would
+    # never recover the IDs the heavier sibling holds.
+    title_to_entries = {}
+    for e in entries:
+        nt = normalize_title(e.get('title', ''))
+        if nt:
+            title_to_entries.setdefault(nt, []).append(e)
+
+    for nt, group in title_to_entries.items():
+        # Union all IDs across entries sharing this normalized title and
+        # write the union back onto each member, so any later by_title /
+        # by_author_year hit retrieves the full ID set.
+        union_ids = {'arxiv': set(), 'doi': set(), 'nature': set()}
+        for e in group:
+            for k in union_ids:
+                union_ids[k].update(e['_ids'].get(k, []))
+        union_ids = {k: sorted(v) for k, v in union_ids.items()}
+        for e in group:
+            e['_ids'] = union_ids
+        # Heaviest entry (most ID coverage, then with url) becomes the
+        # by_title canonical so consumers reading entry.url get a usable link.
+        def weight(e):
+            return (
+                len(e['_ids'].get('arxiv', [])) + len(e['_ids'].get('doi', [])),
+                1 if e.get('url') else 0,
+                len(e.get('note', '')),
+            )
+        by_title[nt] = max(group, key=weight)
+
+    # Cross-key fuzzy merge: same first author + year + ≥50% title token
+    # overlap → very likely the same paper under two bibtex keys (the
+    # DexUMI failure mode: xu2025dexumi has no url, xu2025dexumib has the
+    # arxiv url, both for arxiv:2505.21864). Union the IDs across such
+    # clusters so the lighter sibling can heal via the heavier one.
+    BIBTEX_TITLE_STOP = frozenset({
+        'the', 'a', 'an', 'of', 'for', 'in', 'on', 'to', 'and', 'or', 'with',
+        'via', 'from', 'by', 'is', 'as', 'at', 'we', 'our', 'be', 'are', 'can',
+        'this', 'that', 'these', 'those', 'their', 'using', 'use', 'used',
+    })
+
+    def _significant_tokens(nt_str):
+        return {t for t in nt_str.split() if len(t) >= 4 and t not in BIBTEX_TITLE_STOP}
+
+    by_first_author_year = {}
+    for e in entries:
+        last = _bibtex_first_author_lastname(e.get('author', ''))
+        year = e.get('year', '').strip()
+        if last and year:
+            by_first_author_year.setdefault((last, year), []).append(e)
+
+    fuzzy_merges = 0
+    for (last, year), group in by_first_author_year.items():
+        if len(group) < 2:
+            continue
+        # Pairwise Jaccard on significant title tokens, union-find across the group.
+        n = len(group)
+        parent_idx = list(range(n))
+
+        def fp(x):
+            while parent_idx[x] != x:
+                parent_idx[x] = parent_idx[parent_idx[x]]
+                x = parent_idx[x]
+            return x
+
+        token_sets = [_significant_tokens(normalize_title(e.get('title', ''))) for e in group]
+        for i in range(n):
+            for j in range(i + 1, n):
+                a, b = token_sets[i], token_sets[j]
+                if not a or not b:
+                    continue
+                inter = len(a & b)
+                union = len(a | b)
+                if union and inter / union >= 0.5:
+                    ri, rj = fp(i), fp(j)
+                    if ri != rj:
+                        parent_idx[rj] = ri
+
+        clusters = {}
+        for i in range(n):
+            clusters.setdefault(fp(i), []).append(group[i])
+
+        for cluster in clusters.values():
+            if len(cluster) < 2:
+                continue
+            union_ids = {'arxiv': set(), 'doi': set(), 'nature': set()}
+            for e in cluster:
+                for k in union_ids:
+                    union_ids[k].update(e['_ids'].get(k, []))
+            union_ids = {k: sorted(v) for k, v in union_ids.items()}
+            # Only count as a real merge if the union actually adds IDs to
+            # some member that previously had none.
+            added = False
+            for e in cluster:
+                before = sum(len(e['_ids'].get(k, [])) for k in union_ids)
+                e['_ids'] = union_ids
+                if before == 0 and any(union_ids[k] for k in union_ids):
+                    added = True
+            if added:
+                fuzzy_merges += 1
+
+    if fuzzy_merges:
+        print(f"  bibtex fuzzy ID merge: healed {fuzzy_merges} same-paper cluster(s)")
+
+    # Third pass: build the secondary lookups using the unioned IDs.
+    for e in entries:
+        last = _bibtex_first_author_lastname(e.get('author', ''))
+        year = e.get('year', '').strip()
+        if last and year:
+            by_author_year.setdefault((last, year), []).append(e)
+
+        for ax in e['_ids'].get('arxiv', []):
+            by_arxiv.setdefault(ax, e)
+        for doi in e['_ids'].get('doi', []):
+            by_doi.setdefault(doi, e)
+
+    _BIBTEX_LOOKUP_CACHE = {
+        'by_title': by_title,
+        'by_author_year': by_author_year,
+        'by_arxiv': by_arxiv,
+        'by_doi': by_doi,
+        'by_key': by_key,
+    }
+    return _BIBTEX_LOOKUP_CACHE
+
+
+def enrich_ids_via_bibtex(ref_text, title, first_author, year, ids):
+    """Fill in missing arxiv/doi/nature IDs by matching the ref against bibtex master.
+
+    Returns (enriched_ids_dict, matched_bibtex_key_or_None).
+    """
+    has_any = any(ids[k] for k in ('arxiv', 'doi', 'nature'))
+    lookup = load_bibtex_master()
+    candidate_entry = None
+
+    # First — if the ref already extracted an arxiv/doi/nature ID, try to
+    # find the matching bibtex entry directly. This is the strongest signal
+    # and works even when the ref line uses an exotic citation format that
+    # defeats title/author parsing (e.g. IEEE-style "Author, "Title," arXiv:X, YYYY.").
+    if has_any:
+        for ax in ids.get('arxiv', []):
+            if ax in lookup['by_arxiv']:
+                candidate_entry = lookup['by_arxiv'][ax]
+                break
+        if candidate_entry is None:
+            for doi in ids.get('doi', []):
+                if doi in lookup['by_doi']:
+                    candidate_entry = lookup['by_doi'][doi]
+                    break
+
+    nt = normalize_title(title)
+    if candidate_entry is None and nt and nt in lookup['by_title']:
+        candidate_entry = lookup['by_title'][nt]
+
+    if candidate_entry is None and first_author and year:
+        last_lc = first_author.split(',')[0].strip().split()[-1].lower() if first_author else ''
+        if last_lc:
+            cands = lookup['by_author_year'].get((last_lc, year), [])
+            # If unique author+year, accept it. If multiple, require title token overlap.
+            if len(cands) == 1:
+                candidate_entry = cands[0]
+            elif len(cands) > 1 and nt:
+                ref_tokens = set(nt.split())
+                best = None
+                best_overlap = 0
+                for c in cands:
+                    c_tokens = set(normalize_title(c.get('title', '')).split())
+                    overlap = len(ref_tokens & c_tokens)
+                    if overlap > best_overlap:
+                        best_overlap = overlap
+                        best = c
+                if best_overlap >= 3:
+                    candidate_entry = best
+
+    if candidate_entry is None:
+        return ids, None
+
+    matched_key = candidate_entry['key']
+    bib_ids = candidate_entry.get('_ids') or _bibtex_extract_ids(candidate_entry)
+
+    if has_any:
+        # Already have IDs from ref text; just record bibtex_key for downstream.
+        return ids, matched_key
+
+    enriched = {k: list(ids.get(k, [])) for k in ('arxiv', 'doi', 'nature')}
+    for k in enriched:
+        for v in bib_ids.get(k, []):
+            if v not in enriched[k]:
+                enriched[k].append(v)
+        enriched[k].sort()
+    return enriched, matched_key
+
+
 def extract_refs_from_survey(survey_dir, survey_id):
-    """Extract all references from a survey's chapters."""
+    """Extract all references from a survey's chapters.
+
+    For each ref line we now also (a) normalize the title for downstream
+    canonical-ID merging, (b) try to enrich missing arxiv/doi via the
+    master bibtex when the ref text alone is too thin (e.g. lacks an
+    arxiv URL because the author wrote `arXiv` without the ID, or just
+    cites a post backlink).
+    """
     refs = []
     book_ko = os.path.join(survey_dir, 'book', 'ko')
     if not os.path.isdir(book_ko):
@@ -140,8 +437,13 @@ def extract_refs_from_survey(survey_dir, survey_id):
                         # Extract keywords for matching
                         keywords = extract_keywords(ref_text)
 
-                        # Tier 1 identifiers (arxiv / doi / nature)
+                        # Tier 1 identifiers (arxiv / doi / nature) — first
+                        # from the ref text itself, then enriched via the
+                        # master bibtex if still empty.
                         ids = extract_paper_ids(ref_text)
+                        ids, bibtex_key = enrich_ids_via_bibtex(
+                            ref_text, title, first_author, year, ids
+                        )
 
                         refs.append({
                             'survey': survey_id,
@@ -149,10 +451,12 @@ def extract_refs_from_survey(survey_dir, survey_id):
                             'ref_num': m.group(1),
                             'text': ref_text,
                             'title': title,
+                            'title_norm': normalize_title(title),
                             'year': year,
                             'first_author': first_author,
                             'keywords': keywords,
                             'ids': ids,
+                            'bibtex_key': bibtex_key,
                         })
                 break
     return refs
@@ -192,7 +496,9 @@ def build_index():
         all_refs.extend(refs)
         print(f"  {survey_name}: {len(refs)} refs")
 
-    # Deduplicate by title (keep all locations)
+    # Pass 1 — title-keyed dedup. Same title across surveys collapses; title
+    # variants (e.g. "DexUMI: Universal Manipulation Interface" vs "...for
+    # Dexterous Hands") still split here. Pass 2 fixes that.
     title_map = {}
     for ref in all_refs:
         key = ref['title'].lower().strip()
@@ -205,25 +511,107 @@ def build_index():
                 'first_author': ref['first_author'],
                 'keywords': ref['keywords'],
                 'ids': {'arxiv': [], 'doi': [], 'nature': []},
+                'bibtex_keys': [],
                 'locations': [],
             }
         else:
-            # Merge keywords
             existing_kw = set(title_map[key]['keywords'])
             existing_kw.update(ref['keywords'])
             title_map[key]['keywords'] = list(existing_kw)
 
-        # Merge Tier 1 IDs across all ref copies for the same paper
         for kind in ('arxiv', 'doi', 'nature'):
             existing = set(title_map[key]['ids'][kind])
             existing.update(ref['ids'].get(kind, []))
             title_map[key]['ids'][kind] = sorted(existing)
+
+        if ref.get('bibtex_key'):
+            if ref['bibtex_key'] not in title_map[key]['bibtex_keys']:
+                title_map[key]['bibtex_keys'].append(ref['bibtex_key'])
 
         title_map[key]['locations'].append({
             'survey': ref['survey'],
             'chapter': ref['chapter'],
             'ref_num': ref['ref_num'],
         })
+
+    # Pass 2 — canonical-ID merge. Build clusters of title_keys that share an
+    # arxiv_id, doi, or nature ID. Within each cluster, pick the longest
+    # title as the canonical key and absorb the others (locations, keywords,
+    # IDs, bibtex_keys all union'd). This fixes the DexUMI failure mode
+    # where three title variants of the same arxiv:2505.21864 stayed split.
+    parent = {k: k for k in title_map}
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a, b):
+        ra, rb = find(a), find(b)
+        if ra == rb:
+            return
+        # Prefer the title-key with the longer title as the cluster root —
+        # downstream consumers see the more descriptive title.
+        if len(title_map[ra]['title']) >= len(title_map[rb]['title']):
+            parent[rb] = ra
+        else:
+            parent[ra] = rb
+
+    for kind in ('arxiv', 'doi', 'nature'):
+        id_to_keys = {}
+        for k, p in title_map.items():
+            for ident in p['ids'].get(kind, []):
+                id_to_keys.setdefault(ident, []).append(k)
+        for keys_sharing_id in id_to_keys.values():
+            if len(keys_sharing_id) < 2:
+                continue
+            anchor = keys_sharing_id[0]
+            for other in keys_sharing_id[1:]:
+                union(anchor, other)
+
+    merge_count = 0
+    if any(find(k) != k for k in title_map):
+        merged = {}
+        for k, paper in title_map.items():
+            root = find(k)
+            if root not in merged:
+                merged[root] = {
+                    'title': title_map[root]['title'],
+                    'year': title_map[root]['year'],
+                    'first_author': title_map[root]['first_author'],
+                    'keywords': [],
+                    'ids': {'arxiv': set(), 'doi': set(), 'nature': set()},
+                    'bibtex_keys': [],
+                    'locations': [],
+                    'aliases': [],
+                }
+            target = merged[root]
+            for kind in target['ids']:
+                target['ids'][kind].update(paper['ids'].get(kind, []))
+            target['keywords'] = list(set(target['keywords']) | set(paper['keywords']))
+            for bk in paper.get('bibtex_keys', []):
+                if bk not in target['bibtex_keys']:
+                    target['bibtex_keys'].append(bk)
+            target['locations'].extend(paper['locations'])
+            if k != root:
+                target['aliases'].append({
+                    'title': paper['title'],
+                    'year': paper['year'],
+                })
+                merge_count += 1
+            # Prefer the year from any non-empty entry (most variants share year)
+            if not target['year'] and paper['year']:
+                target['year'] = paper['year']
+            if not target['first_author'] and paper['first_author']:
+                target['first_author'] = paper['first_author']
+        for root_paper in merged.values():
+            for kind in root_paper['ids']:
+                root_paper['ids'][kind] = sorted(root_paper['ids'][kind])
+        title_map = merged
+
+    if merge_count:
+        print(f"  canonical-ID merge: collapsed {merge_count} title variant(s)")
 
     # Reverse index: paper ID → list of locations.
     # Consumers (e.g. build.py --impact) look up a post's arXiv/DOI/Nature
@@ -235,7 +623,7 @@ def build_index():
                 reverse_index[kind].setdefault(ident, []).extend(paper['locations'])
 
     index = {
-        'version': 2,
+        'version': 3,
         'total_refs': len(all_refs),
         'unique_papers': len(title_map),
         'papers': title_map,
