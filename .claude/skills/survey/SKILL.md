@@ -129,6 +129,11 @@ python3 build.py --staleness <slug>
 ```bash
 python3 build.py <slug>                                 # 빌드
 bash surveys/<slug>/scripts/push.sh "deploy message"    # Cloudflare Pages
+
+# Surveys candidate pool 재계산 — terry-papers/knowledge-index.json의
+# candidate_index 섹션을 갱신해 /paper-search next 모드 신선도 유지.
+# OPENAI_API_KEY가 환경에 있으면 새 candidate에 임베딩도 함께 생성.
+node /Users/terrytaewoongum/Codes/personal/terryum-ai/scripts/sync-survey-candidates.mjs --with-embeddings
 ```
 배포 후 MODE B로 자동 진입해 `surveys.json` 업데이트 (사용자 확인 후).
 
