@@ -6,6 +6,11 @@ __pycache__/
 node_modules/
 _refs_extracted.json
 .claude/scheduled_tasks.lock
+.env
+.env.*
+.mcp.json
+.mcp.local.json
+*.log
 
 # Private survey content lives in the companion `terry-private` repo and is
 # linked in via scripts/link-private.sh. The symlink itself is ignored so the
