@@ -228,6 +228,15 @@ bash scripts/push.sh "커밋 메시지"
 - `.wrangler/`는 로컬 캐시 — `.gitignore` 등록 필수.
 - **Pages 파일 크기 한도 25 MiB**. 대용량 PDF/영상 등 source material은 `docs/` 밖 `_revise-source/`에 두고 gitignore + push.sh에서 제외.
 
+### 동시 작업 시 충돌 방지
+
+- 다른 워크스페이스(`terryum-ai`, `terry-obsidian`, `terry-papers`, `terry-private`)에서 동시에 작업이 일어날 수 있다. 이 repo와 `terryum-ai`에 push할 때는 반드시 `git pull --rebase origin main` 후 push.
+- `terryum-ai/projects/surveys/surveys.json`을 갱신하는 `/survey --register`처럼 공유 파일을 만지는 경로는 충돌 시 rebase로 해결.
+
+### Supabase / 인증 시스템
+
+이 워크스페이스는 **Supabase 스키마, RLS 정책, ACL/인증 코드를 수정하지 않는다.** 변경이 필요하면 `terryum-ai`에서 처리하고 그 결과를 사용한다.
+
 ## 6. 하네스 부트스트랩 — `/survey`가 정규 진입점
 
 새 서베이를 시작할 때는 **`python3 build.py --new <name>`을 직접 부르지 말고 `/survey "<책 제목>"`을 호출한다**. `/survey`는 scaffold + per-survey `.claude/agents/` 템플릿 복사 + placeholder 치환 + 인덱스 등록을 한 번에 수행한다.
