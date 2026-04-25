@@ -476,7 +476,7 @@ def md_to_html_content(md_text, ch_num, lang):
             src = src.replace('../../assets/figures/', '../assets/figures/')
             src_dark = src.replace('_technical.png', '_darkmode.png')
             html_parts.append(f'<figure>')
-            html_parts.append(f'  <a href="{src}" target="_blank"><img src="{src_dark}" alt="{caption}" loading="lazy" onerror="this.src=\'{src}\'" style="cursor:zoom-in"></a>')
+            html_parts.append(f'  <a href="{src}" target="_blank"><img src="{src_dark}" alt="{caption}" loading="lazy" onerror="this.onerror=null;this.src=\'{src}\'" style="cursor:zoom-in"></a>')
             html_parts.append(f'  <figcaption>{process_inline(caption)}</figcaption>')
             html_parts.append(f'</figure>')
             continue

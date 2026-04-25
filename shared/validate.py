@@ -111,7 +111,8 @@ REQUIRED_CHAPTER_FRONTMATTER = ['chapter', 'title', 'part', 'date', 'last_update
 INLINE_CITE_RE = re.compile(r'\[([A-Z][^\[\]]{0,160}?,\s*(19|20|21)\d{2}[a-z]?)\]')
 CROSSREF_RE = re.compile(r'\(Chapter\s+(\d+)(?:\s*[,&]\s*Chapter\s+\d+)*\)')
 CROSSREF_ALL_RE = re.compile(r'Chapter\s+(\d+)')
-FIGURE_RE = re.compile(r'!\[[^\]]*\]\((\.\./\.\./assets/figures/[^)\s]+)\)')
+FIGURE_RE = re.compile(r'!\[[^\]]*\]\(((?:\.\./)+assets/figures/[^)\s]+)\)')
+SUBFOLDER_FIGURE_RE = re.compile(r'assets/figures/ch\d+/')
 REF_LINE_RE = re.compile(r'^\s*\d+\.\s+(.+)$')
 
 
@@ -246,6 +247,19 @@ def check_one_chapter(path, lang, max_ch, survey_dir, iss):
         abs_fig = os.path.normpath(os.path.join(os.path.dirname(path), rel_fig))
         if not os.path.isfile(abs_fig):
             iss.err(f'{rel}: figure not found: {rel_fig}')
+
+    # Forbid ch{N}/ subfolder paths under assets/figures — flat naming is
+    # canonical (CLAUDE.md "금지 사항"). 2026-04 KAIST IP retry storm:
+    # standalone-era ch10.html referenced /assets/figures/ch10/fig_10_X_*.png
+    # after files were moved to flat (ch10_*.png), generating 404 storms that
+    # an external automated client looped on for 4 days.
+    for line_no, line in enumerate(body.splitlines(), start=1):
+        if SUBFOLDER_FIGURE_RE.search(line):
+            iss.err(
+                f'{rel}:{line_no}: figure path uses forbidden ch{{N}}/ subfolder — '
+                f'flat naming is canonical. Use chNN_<slug>_figN.<ext> directly '
+                f'under assets/figures/.'
+            )
 
     # Reader-facing content must NOT reference monorepo-internal paths.
     # Maintainer workflow notes (how to add terms, sync bibtex, etc.) belong
