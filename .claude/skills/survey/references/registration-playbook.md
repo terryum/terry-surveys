@@ -120,6 +120,21 @@ mockup, no frame, no shadow."
 ... --style darkmode --ratio 16:9 -o public/images/projects/{slug}-og.jpg
 ```
 
+**OG 파일 크기 한계 — Bluesky 1MB**: Bluesky external thumb는 1MB 한계. Gemini 2K 출력은 2–3MB로 나오므로 **OG 생성 후 즉시 압축**해야 `/share` 시 Bluesky 실패가 안 난다:
+
+```bash
+cd /Users/terrytaewoongum/Codes/personal/terryum-ai && node -e "
+import('sharp').then(async ({default:s})=>{
+  const fs=await import('fs');
+  const p='public/images/projects/{slug}-og.jpg';
+  const buf=await s(p).jpeg({quality:80,mozjpeg:true}).toBuffer();
+  fs.writeFileSync(p, buf);
+  console.log('Compressed:', fs.statSync(p).size, 'bytes');
+})"
+```
+
+기존 surveys의 OG는 0.14–0.47MB. 2026-04-28 사고: 미압축 og.jpg (2.26MB)로 첫 `/share` 시 Bluesky만 `blob too big` 에러. 압축 후 재발행으로 복구.
+
 규칙 위반 시 사후 수정 비용: ₩200 × 2 cover 재생성 × N 라운드 (V1 사고 한 번 + V2 unfortunate fix 한 번 = ₩800+) + GHA 한 번 + cache 회복 대기 = 처음에 다섯 규칙 다 지키는 게 훨씬 싸다.
 
 1. **커버 이미지** (정사각형, 1:1): 서베이 상세 페이지 hero, 갤러리 카드 fallback.
