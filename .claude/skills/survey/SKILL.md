@@ -55,14 +55,16 @@ URL인지 판별은 정규식 `^https?://`로 충분. URL 형태 제목(매우 �
 
 1. URL에서 메타(title, description, toc) 추출 (WebFetch / README).
 2. 메타 객체 구성 (toc는 ko ≤12자 / en ≤19자 per item).
-3. `/image-gen`으로 커버(1:1) + OG(16:9) 이미지 생성 + **sharp로 cover.webp에서 thumb.webp(288×288) 파생**. 세 자산 모두 필수 — thumb은 홈페이지 Featured 카드 전용(누락 시 broken image). **Prompt 5규칙 (registration-playbook Step 3 상세)**:
-   1. `--style darkmode` preset 필수
-   2. subject 구성요소를 구체적 이름·색상으로 명시 (추상화하면 디테일 빠짐)
-   3. `"Edge-to-edge composition, no book mockup, no frame, no shadow."` (negatives 3개만)
-   4. 금지어 — "book cover/mockup/square book", "title overlay" (책 mockup trigger)
-   5. specific gradient (e.g. "midnight blue to purple") — "dark background" 같은 generic 표현 금지
-
-   2026-04-28 사고 3건 (V1 책 mockup, V2 풀블리드지만 디자인 약함, V3 정착) 후 정립.
+3. **이미지 — Gemini cover 1장 + utility 자동 파생**:
+   ```bash
+   # Gemini로 1:1 cover만 생성 (v3 prompt 5규칙 적용 — registration-playbook Step 3)
+   python3 ~/.claude/skills/image-gen/scripts/generate-image.py "<prompt>" \
+     --style darkmode --ratio 1:1 \
+     -o terryum-ai/public/images/projects/{slug}-cover.webp
+   # utility가 표준 spec으로 압축 + og.png + thumb.webp 자동 파생 (post와 동일 표준)
+   cd terryum-ai && node scripts/process-content-images.mjs --type=survey --slug={slug} --force
+   ```
+   결과: cover.webp ≤500 KB / og.png 1200×630 ≤500 KB / thumb.webp 288×288 ≤20 KB. 모두 다크모드 안전(white flatten). 2026-04-28 사고 가족(무압축 cover, og 1MB 한계, thumb 누락, book mockup) 모두 utility가 자동 방지. v3 prompt 5규칙 (--style darkmode + concrete subjects + minimal negatives + no book trigger words + specific gradient)은 registration-playbook 참조.
 4. `projects/surveys/surveys.json`에 엔트리 추가 + `next_survey_number` 증가.
 5. `npx tsc --noEmit && npm run build`.
 6. terry-surveys 책이면 `/cite-post <slug>` 자동 호출 (역링크).

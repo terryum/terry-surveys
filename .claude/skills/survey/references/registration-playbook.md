@@ -64,9 +64,40 @@
   - 초과 시 약어나 짧은 표현으로 조정.
 - `description`: 한글/영어 각각 **2–3줄** (카드에서 5–7줄 이내로 보이도록).
 
-## Step 3) 이미지 생성 — 3개 (cover + og + thumb)
+## Step 3) 이미지 생성 — Gemini cover 1장 + utility로 og/thumb 자동 derive
 
-`/image-gen` 스킬로 두 이미지를 생성한 뒤, **third asset (thumb.webp)을 sharp로 직접 derive**한다. 세 자산은 각자 다른 페이지/소비처에서 쓰인다 — 누락 시 화면 깨짐:
+**핵심 원칙**: 사람은 cover 1장만 정성껏 생성한다. og.png + thumb.webp는 `process-content-images.mjs` utility가 자동 파생. 이렇게 해야 4-asset spec이 항상 동일하게 강제됨.
+
+### 4-Asset 표준 spec (post / survey / project 공통)
+
+| 자산 | 해상도 | 포맷 | quality | 목표 크기 | 용도 |
+|---|---|---|---|---|---|
+| **cover** | 1200×1200 (survey/project, 1:1 정사각) / 1200×variable (post) | WebP | q90 | ≤500 KB | 상세 페이지 hero |
+| **og** | 1200×630 | PNG | q90, comp 8 | ≤500 KB (Bluesky 1MB 안전) | 소셜 공유 |
+| **thumb** | 288×288 cover-centre | WebP | q80 | ≤20 KB | 홈페이지 카드 |
+
+모든 자산은 **flatten white background** 적용 (다크모드 안전, alpha 채널 없음).
+
+### 단계
+
+```bash
+# 1) Gemini로 cover 1장만 1:1로 생성 (raw 2K, ~2MB)
+python3 ~/.claude/skills/image-gen/scripts/generate-image.py \
+  "<v3 prompt — 아래 가이드>" \
+  --style darkmode --ratio 1:1 \
+  -o /Users/terrytaewoongum/Codes/personal/terryum-ai/public/images/projects/{slug}-cover.webp
+
+# 2) utility가 cover를 표준 spec으로 압축 + og.png + thumb.webp 자동 파생
+cd /Users/terrytaewoongum/Codes/personal/terryum-ai
+node scripts/process-content-images.mjs --type=survey --slug={slug} --force
+```
+
+`process-content-images.mjs` 동작:
+- cover.webp가 raw Gemini 출력이면 1200×1200 WebP q90으로 재처리 → ~140 KB
+- cover.webp에서 og.png 1200×630 자동 파생 → ~300 KB
+- cover.webp에서 thumb.webp 288×288 자동 파생 → ~13 KB
+- 이미 표준 spec이면 skip (idempotent)
+- `--force`: 기존 자산이 spec 충족이어도 재처리
 
 ### Prompt 가이드 — 풀블리드 + 디테일 동시 달성 (2026-04-28 사고 후 v3 patterns)
 
@@ -114,47 +145,14 @@ mockup, no frame, no shadow."
 --style darkmode --ratio 1:1
 ```
 
-**OG 이미지(16:9)도 동일 규칙**, ratio만 변경:
+**OG는 별도 Gemini call 필요 없음** — `process-content-images.mjs`가 cover.webp에서 1200×630 PNG로 자동 파생 (~300 KB). 별도 16:9 prompt 짤 필요 없음. 비용 ₩200/등록 절감.
 
-```bash
-... --style darkmode --ratio 16:9 -o public/images/projects/{slug}-og.jpg
-```
+**왜 utility 한 곳에서 다 처리하는가** (2026-04-28 사고 가족):
+- 사고 가족: 무압축 cover (2.4 MB) → Bluesky 1MB blob 실패; thumb 누락 → 홈 카드 broken image; og 1200×630 아님 → Facebook scraper reject. 전부 사람이 압축/derive 단계를 빼먹어서 발생.
+- utility가 spec을 강제하면 위 사고 모두 사라짐.
+- 동일 utility를 `/post` (terry-obsidian)도 호출 — post + survey 자산 표준 100% 동일.
 
-**OG 파일 크기 한계 — Bluesky 1MB**: Bluesky external thumb는 1MB 한계. Gemini 2K 출력은 2–3MB로 나오므로 **OG 생성 후 즉시 압축**해야 `/share` 시 Bluesky 실패가 안 난다:
-
-```bash
-cd /Users/terrytaewoongum/Codes/personal/terryum-ai && node -e "
-import('sharp').then(async ({default:s})=>{
-  const fs=await import('fs');
-  const p='public/images/projects/{slug}-og.jpg';
-  const buf=await s(p).jpeg({quality:80,mozjpeg:true}).toBuffer();
-  fs.writeFileSync(p, buf);
-  console.log('Compressed:', fs.statSync(p).size, 'bytes');
-})"
-```
-
-기존 surveys의 OG는 0.14–0.47MB. 2026-04-28 사고: 미압축 og.jpg (2.26MB)로 첫 `/share` 시 Bluesky만 `blob too big` 에러. 압축 후 재발행으로 복구.
-
-규칙 위반 시 사후 수정 비용: ₩200 × 2 cover 재생성 × N 라운드 (V1 사고 한 번 + V2 unfortunate fix 한 번 = ₩800+) + GHA 한 번 + cache 회복 대기 = 처음에 다섯 규칙 다 지키는 게 훨씬 싸다.
-
-1. **커버 이미지** (정사각형, 1:1): 서베이 상세 페이지 hero, 갤러리 카드 fallback.
-   - `public/images/projects/{slug}-cover.webp` (public) 또는 Supabase Storage (group).
-2. **OG 이미지** (1200×630, 16:9): 소셜 공유용 대표 이미지.
-   - `public/images/projects/{slug}-og.jpg` (public) 또는 Supabase Storage (group).
-   - JPEG 형식 (X/Twitter 호환).
-3. **썸네일** (288×288, 2x retina for 144px display): **홈페이지 Featured Surveys 카드의 실제 표시 이미지**.
-   - `public/images/projects/{slug}-thumb.webp` (public).
-   - cover.webp에서 sharp로 resize-cover-centre crop:
-     ```bash
-     cd /Users/terrytaewoongum/Codes/personal/terryum-ai && node -e "
-     import('sharp').then(async ({default:s})=>{await s('public/images/projects/{slug}-cover.webp')
-       .resize(288,288,{fit:'cover',position:'centre'}).webp({quality:85})
-       .toFile('public/images/projects/{slug}-thumb.webp')})"
-     ```
-
-**왜 thumb.webp가 별도로 필요한가**: `src/app/[lang]/page.tsx` Featured Surveys 컴포넌트가 `cover_image.replace('-cover.webp','-thumb.webp')`로 thumb URL을 강제 사용한다 (string replacement, not file-existence fallback). thumb.webp 누락 시 카드가 broken image. 2026-04-28 사고 — survey-claude-to-codex 등록 시 cover/og만 생성하고 thumb 누락. 다른 4개 서베이는 모두 thumb.webp가 존재했다.
-
-공유 URL: `/surveys/{slug}` (lang 없는 경로) → 자동 리다이렉트 + OG 메타태그 제공.
+공유 URL: `/surveys/{slug}` (lang 없는 경로) → 자동 리다이렉트 + OG 메타태그 제공 (og.png 사용).
 
 ## Step 4) surveys.json 업데이트
 
