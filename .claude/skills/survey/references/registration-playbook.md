@@ -135,6 +135,53 @@ git push
 - **`git pull --rebase` 필수**: terry-surveys 등 다른 워크스페이스에서 동시에 push했을 수 있으므로, 커밋 전 최신 상태를 먼저 가져온다.
 - push 실패 시 `git pull --rebase` 후 재시도.
 
+## Step 7) GHA 배포 검증 (필수 — skip 금지)
+
+`git push`는 GitHub Actions의 `Deploy to Cloudflare Workers` workflow를 트리거하지만, **CI 빌드는 로컬과 환경이 달라 실패할 수 있다**. 로컬 `npm run build` 통과만으로는 라이브 배포 성공을 보장하지 않는다.
+
+```bash
+# 1) Push 후 30초 대기, 트리거된 run 식별
+sleep 30
+RUN_ID=$(gh run list --limit 1 -R terryum/terryum-ai --workflow=deploy.yml --json databaseId -q '.[0].databaseId')
+
+# 2) 완료까지 watch (실패 시 non-zero 반환)
+gh run watch "$RUN_ID" -R terryum/terryum-ai --exit-status
+```
+
+성공 시 다음 단계로 진행. **실패 시 진단 → 수정 → 재push → 다시 Step 7**:
+
+```bash
+# 실패 로그 확인
+gh run view "$RUN_ID" -R terryum/terryum-ai --log-failed | tail -100
+
+# 흔한 실패 후보:
+# (a) 로컬은 통과한 빌드가 CI 캐시 stale로 실패 — 가장 흔함
+#     → `gh workflow run deploy.yml -R terryum/terryum-ai` 로 workflow_dispatch 재트리거.
+#        2026-04-28 사고: surveys.json 변경 push가 transient CI 캐시 문제로 실패,
+#        workflow_dispatch 재실행으로 즉시 복구.
+# (b) surveys.json 새 entry의 어떤 필드가 빌드 시 undefined.length 트리거
+#     → 기존 entry와 schema 비교 후 누락 필드 채우거나 surveys.ts loader에 ?. guard 추가.
+# (c) 환경 변수(시크릿) 누락 — 워크플로우 env 섹션 점검.
+```
+
+**핵심 규칙**: 사용자에게 "완료" 보고하기 전에 **반드시 GHA success를 확인**한다. push 자체가 곧 deploy 성공을 의미하지 않는다.
+
+## Step 8) 라이브 노출 확인 (필수)
+
+GHA success 직후, 새 슬러그가 실제 사이트에 노출되는지 검증:
+
+```bash
+SLUG="survey-{slug}"
+curl -s https://www.terryum.ai/en/surveys | grep -q "$SLUG" && echo "EN surveys OK" || echo "EN MISS"
+curl -s https://www.terryum.ai/ko/surveys | grep -q "$SLUG" && echo "KO surveys OK" || echo "KO MISS"
+curl -sI "https://www.terryum.ai/en/surveys/$SLUG" | head -1  # 200 OK 기대
+```
+
+여전히 MISS면:
+1. **5–10분 대기** (Cloudflare R2 ISR cache TTL 만료)
+2. **manual purge**: Cloudflare Dashboard → Cache → Purge Cache (특정 URL 또는 Everything)
+3. 재확인. 그래도 안 되면 R2 incremental cache의 stale buildId 추적 (deploy.yml의 `r2-cache-gc.mjs` 동작 점검)
+
 ## 검증 체크리스트
 
 - [ ] `surveys.json`에 새 엔트리 추가, `survey_number` 증가 일관성
@@ -143,5 +190,7 @@ git push
 - [ ] `toc` 길이 (ko ≤12자, en ≤19자 per item)
 - [ ] terry-surveys 연관 시 `/cite-post` 자동 호출 완료
 - [ ] `npx tsc --noEmit` 통과
-- [ ] `npm run build` 성공
+- [ ] `npm run build` 성공 (로컬)
 - [ ] Git pull --rebase 후 push 성공 (public only)
+- [ ] **GHA `Deploy to Cloudflare Workers` run success** (Step 7)
+- [ ] **라이브 사이트(www.terryum.ai)에 새 slug 노출** (Step 8 — KO/EN/상세페이지 셋 다)

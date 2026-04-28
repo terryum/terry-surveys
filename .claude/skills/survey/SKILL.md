@@ -60,6 +60,10 @@ URL인지 판별은 정규식 `^https?://`로 충분. URL 형태 제목(매우 �
 5. `npx tsc --noEmit && npm run build`.
 6. terry-surveys 책이면 `/cite-post <slug>` 자동 호출 (역링크).
 7. `git pull --rebase` 후 커밋·푸시.
+8. **GHA `Deploy to Cloudflare Workers` 검증** — `gh run watch <id> --exit-status`. 실패 시 진단·수정·재push 또는 `gh workflow run deploy.yml`로 재트리거.
+9. **라이브 노출 확인** — `curl -s https://www.terryum.ai/{en,ko}/surveys | grep <slug>`. 안 보이면 5–10분 대기 또는 Cloudflare Cache Purge.
+
+**완료 보고 직전 필수**: Step 8+9는 skip 금지. push 자체가 deploy 성공을 의미하지 않는다 (2026-04-28 사고: surveys.json push가 CI 캐시 stale로 실패, 재트리거로 복구).
 
 그룹 비공개 서베이는 `--visibility=group --group=<slug>`로 surveys.json 대신 Supabase `private_content`에 저장 (Git 커밋 없음).
 
@@ -148,14 +152,14 @@ python3 build.py --backfill-research <slug>
 
 ```bash
 python3 build.py <slug>                                 # 빌드
-bash surveys/<slug>/scripts/push.sh "deploy message"    # Cloudflare Pages
+bash surveys/<slug>/scripts/push.sh "deploy message"    # Cloudflare Pages (책 사이트)
 
 # Surveys candidate pool 재계산 — terry-papers/knowledge-index.json의
 # candidate_index 섹션을 갱신해 /paper-search next 모드 신선도 유지.
 # OPENAI_API_KEY가 환경에 있으면 새 candidate에 임베딩도 함께 생성.
 node /Users/terrytaewoongum/Codes/personal/terryum-ai/scripts/sync-survey-candidates.mjs --with-embeddings
 ```
-배포 후 MODE B로 자동 진입해 `surveys.json` 업데이트 (사용자 확인 후).
+배포 후 MODE B로 자동 진입해 `surveys.json` 업데이트 (사용자 확인 후). MODE B는 Step 8+9에서 GHA 검증 + 라이브 노출 확인을 **반드시** 수행한다 — 책 사이트 배포 성공만으로는 홈페이지 갤러리 노출을 보장하지 않는다.
 
 ## Common Pitfalls (과거 사고에서 학습한 강제 규칙)
 
