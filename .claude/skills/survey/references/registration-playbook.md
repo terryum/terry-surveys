@@ -68,6 +68,24 @@
 
 `/image-gen` 스킬로 두 이미지를 생성한 뒤, **third asset (thumb.webp)을 sharp로 직접 derive**한다. 세 자산은 각자 다른 페이지/소비처에서 쓰인다 — 누락 시 화면 깨짐:
 
+### Prompt 가이드 — 책 mockup 절대 금지 (2026-04-28 사고)
+
+`/image-gen` 호출 시 prompt에 **"book cover", "book mockup", "square book"** 같은 표현을 **쓰지 말 것**. Gemini가 받으면 책 표지 illustration을 회색/흰 배경 위에 그림자와 함께 렌더링해 버리고, 결과적으로 홈페이지 Featured Surveys 카드에 가운데 작은 책 + 큰 여백 + 그림자가 보인다. S1–S3 서베이는 풀블리드 일러스트인데 S4 (humanoid-revolution) · S5 (claude-to-codex)는 책 mockup으로 등록되어 카드 정렬이 깨진 사고가 있었다.
+
+**Anti-mockup directives — prompt 끝에 항상 명시**:
+
+```
+Cinematic full-bleed concept art, edge-to-edge composition filling entire square canvas.
+[main subject description]
+Pure conceptual illustration. No book mockup, no book cover, no frame, no border,
+no shadow, no isometric book, no surrounding background. Subject must touch all
+four edges of the canvas.
+```
+
+**`--style darkmode`만으로는 부족**: darkmode preset은 다크 톤은 잡아주지만 책 mockup을 막지 않는다. anti-mockup 문구를 prompt 본문에 명시.
+
+규칙 위반 시 사후 수정 비용: ₩200 × 2 (cover 재생성) + ₩0 (thumb 재파생) + GHA 한 번 + Cloudflare cache 회복 대기 = 사고 한 번이 ~₩500 + 시간. prompt 한 줄 추가가 훨씬 싸다.
+
 1. **커버 이미지** (정사각형, 1:1): 서베이 상세 페이지 hero, 갤러리 카드 fallback.
    - `public/images/projects/{slug}-cover.webp` (public) 또는 Supabase Storage (group).
 2. **OG 이미지** (1200×630, 16:9): 소셜 공유용 대표 이미지.

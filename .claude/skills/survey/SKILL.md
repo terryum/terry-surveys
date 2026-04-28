@@ -55,7 +55,7 @@ URL인지 판별은 정규식 `^https?://`로 충분. URL 형태 제목(매우 �
 
 1. URL에서 메타(title, description, toc) 추출 (WebFetch / README).
 2. 메타 객체 구성 (toc는 ko ≤12자 / en ≤19자 per item).
-3. `/image-gen`으로 커버(1:1) + OG(16:9) 이미지 생성 + **sharp로 cover.webp에서 thumb.webp(288×288) 파생**. 세 자산 모두 필수 — thumb은 홈페이지 Featured 카드 전용(누락 시 broken image, 2026-04-28 사고).
+3. `/image-gen`으로 커버(1:1) + OG(16:9) 이미지 생성 + **sharp로 cover.webp에서 thumb.webp(288×288) 파생**. 세 자산 모두 필수 — thumb은 홈페이지 Featured 카드 전용(누락 시 broken image). **Prompt 금지어**: "book cover/mockup/square book" — Gemini가 회색 배경 + 그림자 위에 책 illustration을 그려 카드가 풀블리드가 안 됨. 대신 "full-bleed, edge-to-edge, no book mockup, no frame, no shadow" 명시 (2026-04-28 사고 두 건 — registration-playbook Step 3 참조).
 4. `projects/surveys/surveys.json`에 엔트리 추가 + `next_survey_number` 증가.
 5. `npx tsc --noEmit && npm run build`.
 6. terry-surveys 책이면 `/cite-post <slug>` 자동 호출 (역링크).
