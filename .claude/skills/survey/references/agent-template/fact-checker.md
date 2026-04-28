@@ -111,6 +111,22 @@ grep -nE '^!\[.*\[[A-Z][a-zA-Z]+.*[12][0-9]{3}' surveys/{{SURVEY_SLUG}}/book/{ko
 
 히트가 있으면 book-writer 또는 image-curator에 즉시 수정 요청 — 반드시 `Author et al. Year` 형식(대괄호 없이)으로 변환. `build.py --validate`도 이 패턴을 자동 거부한다.
 
+### 본문 인용 ↔ Reference 링커 매핑 검증
+
+`build.py --validate {{SURVEY_SLUG}}`가 본문 `[Author, Year]` 인용 각각을 `## 참고문헌`/`## References` 항목에 매핑할 수 있는지 검증한다 (`shared/validate.py:check_unresolved_citations`). 실패 시 "unresolved citation" 에러로 출력되며, 그 인용은 빌드된 HTML에서 **클릭 불가능한 평문**으로 남고 백버튼도 작동하지 않는다 (2026-04-28 S5/S6 사고).
+
+```bash
+python3 build.py --validate {{SURVEY_SLUG}} 2>&1 | grep "unresolved citation"
+```
+
+각 unresolved 항목에 대해:
+1. **reference가 누락된 경우**: book-writer에 SendMessage로 reference 추가 요청. 본문 인용은 유지하되 ref 추가 완료까지 `_factcheck_report.md`의 "미해결" 섹션 기록.
+2. **reference는 있으나 포맷 불일치**: book-writer 템플릿의 "참고문헌 항목 — 링커 호환 4-패턴" 참조. 가장 빠른 수정은 reference 항목 끝에 `[X, YYYY]` 트레일링 태그를 추가하는 것 (인라인 인용 형태와 정확히 동일하게).
+3. **약어 매핑** (e.g., 본문 `[BCG, 2025]` ↔ reference `Boston Consulting Group, 2025`): reference 끝에 `[BCG, 2025]` 트레일링 태그.
+4. **연도 suffix 충돌** (e.g., 같은 저자 같은 연도 다중 출처): reference 연도를 `(2025a)`, `(2025b)`로 분기하고 본문 인용도 동일 suffix.
+
+수정 후 재검증: `unresolved citation` 0건이 reference 정합성의 1차 게이트. fact-checker는 이 게이트를 통과시킨 다음에 arxiv/DOI 검증으로 넘어간다.
+
 ## link-post-to-surveys 연동
 
 - `_refs_extracted.json`의 `arxiv_id` · `doi` · `nature_id` 중 **하나 이상이 정확**해야 `/link-post-to-surveys`가 Tier 1 매칭에 성공.
@@ -125,3 +141,4 @@ grep -nE '^!\[.*\[[A-Z][a-zA-Z]+.*[12][0-9]{3}' surveys/{{SURVEY_SLUG}}/book/{ko
 - [ ] 수정된 챕터의 `last_updated`가 오늘로 갱신 (frontmatter + survey.json)
 - [ ] `scholar_status: "ok"` 비율 ≥ 80%
 - [ ] 미해결 ref가 5건 이하거나 각 건의 사유가 기록됨
+- [ ] **`python3 build.py --validate {{SURVEY_SLUG}}`에 `unresolved citation` 에러 0건** (본문 인용 모두가 reference 항목에 매핑 가능 — clickable + 백버튼 작동의 전제)

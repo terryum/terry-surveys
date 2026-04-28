@@ -315,40 +315,70 @@ def check_one_chapter(path, lang, max_ch, survey_dir, iss):
                 f'Use "Author et al. Year" (no square brackets) in figure captions.'
             )
 
-    # Inline citation resolution
-    ref_lines = []
-    for line in refs_text.splitlines():
-        m = REF_LINE_RE.match(line)
-        if m:
-            ref_lines.append(m.group(1))
-    # Build a quick lookup: lowercase concatenation for substring matches.
-    refs_blob = ' || '.join(ref_lines).lower()
+    # Inline citation resolution — strict cite_map check.
+    # The build_site.py linkifier silently drops un-mappable citations,
+    # leaving them as plain `[Author, Year]` text in the rendered HTML
+    # (no clickable superscript, no scroll-to-ref, no back-button).
+    # Replay build_citation_map() and require every body-text citation
+    # to resolve. See the 2026-04-28 sweep that fixed S5 (claude-to-codex)
+    # and S6 (physical-ai-manufacturing); plan in
+    # ~/.claude/plans/s5-stateless-lollipop.md.
+    check_unresolved_citations(path, body, main_body, rel, iss)
 
-    unresolved = set()
-    for cm in INLINE_CITE_RE.finditer(main_body):
-        cite = cm.group(1)
-        if not ref_lines:
-            # No references section → already warned; skip further.
-            break
-        # Extract year and primary surname(s) from the citation.
-        year_m = re.search(r'(19|20|21)\d{2}', cite)
-        if not year_m:
-            continue
-        year = year_m.group(0)
-        # Primary surname: first capitalised token before ',' or 'et al.'
-        surname_m = re.match(
-            r"\s*([A-Z][\w\-']+)", cite.replace('&', ',').split(',')[0].strip()
-        )
-        if not surname_m:
-            continue
-        surname = surname_m.group(1).lower()
-        if year not in refs_blob or surname not in refs_blob:
-            unresolved.add(cite)
-    if unresolved:
-        sample = sorted(unresolved)[:5]
-        iss.warn(
-            f'{rel}: {len(unresolved)} inline citation(s) not resolved '
-            f'in references section (sample: {sample})'
+
+def check_unresolved_citations(path, body, main_body, rel, iss):
+    """Error on any inline [Author, Year] that build_site.py would NOT
+    convert into a <sup><a class="cite-link"> superscript.
+
+    Mirrors the lookup logic of build_site.replace_citations_with_links
+    so we surface the exact same set of failures the build will produce
+    (no false positives: if the build will linkify it, we accept it).
+    """
+    # Local import — keeps validate.py importable even if build_site.py
+    # later grows reverse-imports from validate.
+    from shared.build_site import build_citation_map
+
+    cite_map, refs = build_citation_map(body)
+    if not refs:
+        # No references section — already warned upstream; skip.
+        return
+
+    unresolved = []
+    for line_no, line in enumerate(main_body.splitlines(), start=1):
+        for cm in INLINE_CITE_RE.finditer(line):
+            inner = cm.group(1).strip()
+            if inner in cite_map:
+                continue
+            # Mirror replace_citations_with_links's fuzzy fallback:
+            # match by year-substring + author-substring.
+            yr_m = re.search(r'\d{4}[a-z]?', inner)
+            if not yr_m:
+                continue
+            yr = yr_m.group()
+            inner_lower = inner.lower()
+            inner_author = inner_lower.replace(yr, '').strip(' ,[]()')
+            matched = False
+            for key in cite_map:
+                key_yr_m = re.search(r'\d{4}[a-z]?', key)
+                if not key_yr_m or key_yr_m.group() != yr:
+                    continue
+                key_author = key.lower().replace(yr, '').strip(' ,[]()')
+                if not key_author:
+                    continue
+                if key_author in inner_lower or (inner_author and inner_author in key_author):
+                    matched = True
+                    break
+            if matched:
+                continue
+            unresolved.append((line_no, inner))
+
+    for line_no, cite in unresolved:
+        iss.err(
+            f'{rel}:{line_no}: inline citation [{cite}] does not resolve to '
+            f'any reference — linkifier will leave it as plain text. Add the '
+            f'cite to the chapter\'s ## References section, or fix the year '
+            f'format so build_site._extract_year_info can parse it: '
+            f'(YYYY) | (YYYYa) | YYYY-MM-DD | trailing [Author, YYYY] tag.'
         )
 
 

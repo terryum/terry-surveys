@@ -67,6 +67,48 @@ def parse_frontmatter(md):
     return meta, body
 
 
+def _extract_year_info(ref_text):
+    """Return (year, suffix, author_span) from a reference entry, or
+    (None, None, None) if no year-like pattern is found.
+
+    Priority ladder (deterministic — first hit wins):
+      1. (YYYY) or (YYYYa) — parenthesized year with optional letter suffix
+      2. YYYY-MM-DD — ISO date (handles non-academic posts)
+      3. Trailing [Author, YYYY] / [Author, YYYYa] tag at end of ref
+      4. Bare 4-digit year — last resort
+    """
+    m = re.search(r'\((\d{4})([a-z])?\)', ref_text)
+    if m:
+        return m.group(1), m.group(2) or '', m.start()
+    m_iso = re.search(r'\b(\d{4})-\d{2}-\d{2}\b', ref_text)
+    if m_iso:
+        return m_iso.group(1), '', m_iso.start()
+    m_tag = re.search(r'\[([^\[\]]+?),\s*(\d{4})([a-z])?\]\s*\.?\s*$', ref_text)
+    if m_tag:
+        return m_tag.group(2), m_tag.group(3) or '', m_tag.start()
+    # Bare year — take the RIGHTMOST 4-digit match (with optional letter
+    # suffix `2025a`). Reasoning: academic refs commonly carry an arXiv ID
+    # like `arXiv:2307.15818, 2023.` where 2307 is an arXiv-month encoding,
+    # not a publication year. The publication year is reliably the trailing
+    # token. Range 1900–2099 to skip stray 4-digit numbers (page counts,
+    # dataset sizes, etc.). Suffix capture handles industry refs that use
+    # `Cosmax, 2025a.` style for same-author same-year disambiguation.
+    bare_matches = [m for m in re.finditer(r'\b(\d{4})([a-z])?\b', ref_text)
+                    if 1900 <= int(m.group(1)) <= 2099]
+    if bare_matches:
+        last = bare_matches[-1]
+        return last.group(1), last.group(2) or '', last.start()
+    return None, None, None
+
+
+def _extract_trailing_tag(ref_text):
+    """Return (author, year, suffix) from a trailing [Author, YYYY] tag, or None."""
+    m = re.search(r'\[([^\[\]]+?),\s*(\d{4})([a-z])?\]\s*\.?\s*$', ref_text)
+    if m:
+        return m.group(1).strip(), m.group(2), m.group(3) or ''
+    return None
+
+
 def build_citation_map(md_text):
     """Build a mapping from Author-Year citations to sequential numbers."""
     ref_section = None
@@ -89,35 +131,64 @@ def build_citation_map(md_text):
 
     cite_map = {}
     for i, ref_text in enumerate(refs, 1):
-        year_match = re.search(r'\((\d{4})\)', ref_text)
-        if not year_match:
+        # Trailing [Author, YYYY] tag is the canonical inline-citation form
+        # for non-academic refs (blog posts, GitHub READMEs). Register it
+        # directly so e.g. `[Um, 2026]` resolves even when the ref's only
+        # year-like pattern is an ISO date earlier in the line.
+        tag = _extract_trailing_tag(ref_text)
+        if tag:
+            tag_author, tag_year, tag_suffix = tag
+            cite_map[f'{tag_author}, {tag_year}{tag_suffix}'] = i
+            cite_map[f'{tag_author} ({tag_year}{tag_suffix})'] = i
+
+        year, suffix, span = _extract_year_info(ref_text)
+        if year is None:
             continue
-        year = year_match.group(1)
 
-        author_part = ref_text[:ref_text.find(f'({year})')].strip().rstrip(',').strip()
+        author_part = ref_text[:span].strip().rstrip(',').rstrip('.').strip()
         first_author = author_part.split(',')[0].strip()
+        yrkey = f'{year}{suffix}'
 
-        cite_map[f'{first_author}, {year}'] = i
-        cite_map[f'{first_author} ({year})'] = i
-        cite_map[f'{first_author} et al., {year}'] = i
-        cite_map[f'{first_author} et al. ({year})'] = i
+        cite_map[f'{first_author}, {yrkey}'] = i
+        cite_map[f'{first_author} ({yrkey})'] = i
+        cite_map[f'{first_author} et al., {yrkey}'] = i
+        cite_map[f'{first_author} et al. ({yrkey})'] = i
+        # When the ref carries a letter suffix (2025a, 2025b, …), also
+        # register an unsuffixed alias so a body citation like `[Org, 2025]`
+        # (omitting the suffix) still resolves. setdefault → first
+        # suffix-bearing ref wins the ambiguous lookup.
+        if suffix:
+            cite_map.setdefault(f'{first_author}, {year}', i)
+            cite_map.setdefault(f'{first_author} ({year})', i)
+            cite_map.setdefault(f'{first_author} et al., {year}', i)
+            cite_map.setdefault(f'{first_author} et al. ({year})', i)
 
         authors_list = [a.strip() for a in author_part.split(',')]
         last_names = [a for a in authors_list if len(a) > 2 and not re.match(r'^[A-Z]\.\s*$', a.strip())]
         if len(last_names) == 2:
-            cite_map[f'{last_names[0]} & {last_names[1]}, {year}'] = i
-            cite_map[f'{last_names[0]} and {last_names[1]}, {year}'] = i
+            cite_map[f'{last_names[0]} & {last_names[1]}, {yrkey}'] = i
+            cite_map[f'{last_names[0]} and {last_names[1]}, {yrkey}'] = i
+            if suffix:
+                cite_map.setdefault(f'{last_names[0]} & {last_names[1]}, {year}', i)
+                cite_map.setdefault(f'{last_names[0]} and {last_names[1]}, {year}', i)
 
         first_author_clean = first_author.replace('**', '').strip()
         if first_author_clean != first_author:
-            cite_map[f'{first_author_clean}, {year}'] = i
-            cite_map[f'{first_author_clean} et al., {year}'] = i
+            cite_map[f'{first_author_clean}, {yrkey}'] = i
+            cite_map[f'{first_author_clean} et al., {yrkey}'] = i
+            if suffix:
+                cite_map.setdefault(f'{first_author_clean}, {year}', i)
+                cite_map.setdefault(f'{first_author_clean} et al., {year}', i)
 
         org_part = author_part.replace('**', '').strip().rstrip('.')
         if org_part:
-            cite_map[f'{org_part}, {year}'] = i
-            cite_map[f'{org_part} ({year})'] = i
-            cite_map[f'{org_part} [{year}]'] = i
+            cite_map[f'{org_part}, {yrkey}'] = i
+            cite_map[f'{org_part} ({yrkey})'] = i
+            cite_map[f'{org_part} [{yrkey}]'] = i
+            if suffix:
+                cite_map.setdefault(f'{org_part}, {year}', i)
+                cite_map.setdefault(f'{org_part} ({year})', i)
+                cite_map.setdefault(f'{org_part} [{year}]', i)
 
         # Keyword-based matching for known project/paper names
         for keyword in re.findall(
@@ -134,22 +205,27 @@ def build_citation_map(md_text):
             ref_text, re.IGNORECASE
         ):
             kw_lower = keyword.lower()
-            cite_map[f'{keyword} [{year}]'] = i
-            cite_map[f'{keyword}, {year}'] = i
-            cite_map[f'{keyword} ({year})'] = i
-            cite_map[f'_kw_{kw_lower}_{year}'] = i
+            cite_map[f'{keyword} [{yrkey}]'] = i
+            cite_map[f'{keyword}, {yrkey}'] = i
+            cite_map[f'{keyword} ({yrkey})'] = i
+            cite_map[f'_kw_{kw_lower}_{yrkey}'] = i
+            if suffix:
+                cite_map.setdefault(f'{keyword} [{year}]', i)
+                cite_map.setdefault(f'{keyword}, {year}', i)
+                cite_map.setdefault(f'{keyword} ({year})', i)
+                cite_map.setdefault(f'_kw_{kw_lower}_{year}', i)
 
-    # Unique year mapping
+    # Unique year+suffix mapping (suffix-aware)
     year_count = {}
     for ref_text in refs:
-        ym = re.search(r'\((\d{4})\)', ref_text)
-        if ym:
-            yr = ym.group(1)
+        y, s, _ = _extract_year_info(ref_text)
+        if y:
+            yr = f'{y}{s}'
             year_count[yr] = year_count.get(yr, 0) + 1
     for i, ref_text in enumerate(refs, 1):
-        ym = re.search(r'\((\d{4})\)', ref_text)
-        if ym:
-            yr = ym.group(1)
+        y, s, _ = _extract_year_info(ref_text)
+        if y:
+            yr = f'{y}{s}'
             if year_count[yr] == 1 and yr not in cite_map:
                 cite_map[yr] = i
 
@@ -165,7 +241,7 @@ def replace_citations_with_links(html_text, cite_map, ch_num, ref_list=None):
 
     year_refs = {}
     for key, num in cite_map.items():
-        year_match = re.search(r'\d{4}', key)
+        year_match = re.search(r'\d{4}[a-z]?', key)
         if year_match:
             yr = year_match.group()
             author = key.replace(yr, '').strip(' ,[]()').lower()
@@ -184,7 +260,7 @@ def replace_citations_with_links(html_text, cite_map, ch_num, ref_list=None):
         if end_pos < len(html_text) and html_text[end_pos] == '(':
             return full_match
 
-        if not re.search(r'\d{4}', inner):
+        if not re.search(r'\d{4}[a-z]?', inner):
             return full_match
 
         inner_clean = inner.strip()
@@ -192,13 +268,13 @@ def replace_citations_with_links(html_text, cite_map, ch_num, ref_list=None):
         if inner_clean in cite_map:
             return make_link(cite_map[inner_clean], inner_clean)
 
-        inner_year = re.search(r'\d{4}', inner_clean)
+        inner_year = re.search(r'\d{4}[a-z]?', inner_clean)
         if inner_year:
             yr = inner_year.group()
             inner_lower = inner_clean.lower()
 
             for key, num in cite_map.items():
-                key_year = re.search(r'\d{4}', key)
+                key_year = re.search(r'\d{4}[a-z]?', key)
                 if key_year and key_year.group() == yr:
                     key_author = key.replace(yr, '').strip(' ,[]()').lower()
                     if key_author and key_author in inner_lower:
@@ -234,7 +310,7 @@ def replace_citations_with_links(html_text, cite_map, ch_num, ref_list=None):
         for key, num in cite_map.items():
             if key.startswith('_kw_'):
                 continue
-            key_year = re.search(r'\d{4}', key)
+            key_year = re.search(r'\d{4}[a-z]?', key)
             if key_year and key_year.group() == year:
                 key_lower = key.lower()
                 if prefix_lower and len(prefix_lower) > 2 and prefix_lower in key_lower:

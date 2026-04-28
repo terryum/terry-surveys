@@ -92,11 +92,17 @@ grep -nE "\(Chapter [0-9]+\)" surveys/{{SURVEY_SLUG}}/book/{ko,en}/ch*.md
 - `survey.json`의 해당 `chapters[].last_updated`와 비교.
 - 불일치 발견 시 최신 날짜로 양쪽 통일 권고 (단순 타이포 수정만 자동, 1일 이상 차이는 수동 확인).
 
-### 5. 인용 포맷
+### 5. 인용 포맷 + 링커 매핑
+
 ```bash
-# 괄호 없이 '저자, 연도' 패턴 (위반 가능성)
+# 5a. 괄호 없이 '저자, 연도' 패턴 (위반 가능성)
 grep -nE "^[^[].*[A-Z][a-z]+ et al\., [0-9]{4}" surveys/{{SURVEY_SLUG}}/book/{ko,en}/ch*.md
+
+# 5b. unresolved citation — 빌드 HTML에서 평문으로 남는 본문 인용
+python3 build.py --validate {{SURVEY_SLUG}} 2>&1 | grep "unresolved citation"
 ```
+
+**5b는 CRITICAL**. unresolved citation은 빌드된 챕터 HTML에서 클릭 불가능한 평문 `[Author, Year]`으로 남고, citation 클릭 → reference 스크롤 → 백버튼 흐름이 통째로 깨진다 (2026-04-28 S5/S6 사고). 0건이 출시 전제. 해결 방법은 fact-checker.md의 "본문 인용 ↔ Reference 링커 매핑 검증" 섹션 참조 — 4가지 시나리오(reference 누락 / 포맷 불일치 / 약어 매핑 / 연도 suffix 충돌)별 처방이 정의되어 있다. fact-checker가 1차 처리, 미해결분만 qa-reviewer가 book-writer에 에스컬레이트.
 
 ### 5b. Reader-facing 콘텐츠 위생
 - **monorepo-internal path 노출 금지**: `book/{ko,en}/**.md`에서 `glossary/master_*.md`, `bibtex/references.bib`, `.claude/`, `_workspace/`, `shared/` 등 내부 경로 언급은 FAIL. 유지보수 노트는 CLAUDE.md / glossary/README.md / _workspace/에만. 2026-04 humanoid-revolution 사고: scaffold의 "> 신규 용어 추가 시: grep master_ko.md …" blockquote이 공개 glossary에 그대로 노출됨. `build.py --validate`가 이 패턴을 warning으로 잡지만 리뷰 단계에서도 재확인:
@@ -140,6 +146,7 @@ grep -nE "^[^[].*[A-Z][a-z]+ et al\., [0-9]{4}" surveys/{{SURVEY_SLUG}}/book/{ko
 ## 체크리스트 (출시 가능 조건)
 
 - [ ] `python3 build.py --validate {{SURVEY_SLUG}}` PASS
+- [ ] **`unresolved citation` 에러 0건** (본문 인용 ↔ reference 링커 매핑 100%; clickable + 백버튼 작동의 전제)
 - [ ] 커버리지: papers.json 대비 80%+ 집필 반영
 - [ ] 모든 챕터의 frontmatter `last_updated` ↔ survey.json 일치
 - [ ] `(Chapter N)` 교차 참조 깨짐 0건
