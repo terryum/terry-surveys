@@ -68,23 +68,59 @@
 
 `/image-gen` 스킬로 두 이미지를 생성한 뒤, **third asset (thumb.webp)을 sharp로 직접 derive**한다. 세 자산은 각자 다른 페이지/소비처에서 쓰인다 — 누락 시 화면 깨짐:
 
-### Prompt 가이드 — 책 mockup 절대 금지 (2026-04-28 사고)
+### Prompt 가이드 — 풀블리드 + 디테일 동시 달성 (2026-04-28 사고 후 v3 patterns)
 
-`/image-gen` 호출 시 prompt에 **"book cover", "book mockup", "square book"** 같은 표현을 **쓰지 말 것**. Gemini가 받으면 책 표지 illustration을 회색/흰 배경 위에 그림자와 함께 렌더링해 버리고, 결과적으로 홈페이지 Featured Surveys 카드에 가운데 작은 책 + 큰 여백 + 그림자가 보인다. S1–S3 서베이는 풀블리드 일러스트인데 S4 (humanoid-revolution) · S5 (claude-to-codex)는 책 mockup으로 등록되어 카드 정렬이 깨진 사고가 있었다.
+cover.webp 생성 시 **다섯 규칙**을 모두 지킨다 — 한 가지라도 빠지면 풀블리드가 무너지거나 디테일이 사라진다:
 
-**Anti-mockup directives — prompt 끝에 항상 명시**:
+**규칙 1: `--style darkmode` preset 필수**
+> darkmode preset은 prompt 앞에 "deep dark background, glowing accent colors, dark UI aesthetic"을 prepend해서 톤 일관성을 잡아준다. 빠지면 generic하고 평면적인 결과.
+
+**규칙 2: subject 구성요소를 이름으로 명시 (추상화 금지)**
+> ✅ `CLAUDE.md and subagent configuration in cyan glow, AGENTS.md and Codex CLI in orange glow, an LLM Wiki knowledge-brain structure`
+> ❌ "two AI coding terminal windows", "abstract neural dependency graph"
+> Gemini는 구체적 명사를 받으면 디테일을 거기에 쏟는다. 추상화될수록 디테일이 빠진다 (V2 사고 — 풀블리드 만들었지만 디자인이 약해진 원인).
+
+**규칙 3: edge-to-edge composition 한 줄로 명시 (긴 명령 금지)**
+> ✅ `"Edge-to-edge composition, no book mockup, no frame, no shadow."` (3 negatives)
+> ❌ `"Cinematic full-bleed... no book mockup, no book cover, no frame, no border, no shadow, no isometric book, no surrounding background. Subject must touch all four edges of the canvas."` (7+ negatives + layout constraint)
+> Negative prompt 7개+ 면 모델이 negative 처리에 budget을 써서 positive composition quality가 깎인다.
+
+**규칙 4: 금지어 절대 안 씀**
+> "book cover", "book mockup", "square book", "Clean upper area for title overlay" → Gemini가 책 표지 + 회색 배경 + 그림자를 그림. "title overlay" 힌트가 책 위쪽 비우기 효과를 만들어 책-mockup 레이아웃을 유도하는 trigger.
+
+**규칙 5: 끝에 "deep dark background"가 아니라 specific gradient 명시**
+> ✅ `"Deep midnight blue to purple gradient"` 또는 `"Deep navy blue background"`
+> ❌ "dark background" (너무 generic하면 이미지 내 contrast 약해짐)
+
+**Canonical 템플릿** (cover.webp 1:1):
 
 ```
-Cinematic full-bleed concept art, edge-to-edge composition filling entire square canvas.
-[main subject description]
-Pure conceptual illustration. No book mockup, no book cover, no frame, no border,
-no shadow, no isometric book, no surrounding background. Subject must touch all
-four edges of the canvas.
+"<Subject 1 with concrete name and color>, <Subject 2 with concrete name
+and color>, <connecting/background concrete element>. <Specific gradient>.
+Edge-to-edge composition, no book mockup, no frame, no shadow."
+--style darkmode --ratio 1:1
 ```
 
-**`--style darkmode`만으로는 부족**: darkmode preset은 다크 톤은 잡아주지만 책 mockup을 막지 않는다. anti-mockup 문구를 prompt 본문에 명시.
+**실증 예 (S5 claude-to-codex v3, 결과 검증됨)**:
 
-규칙 위반 시 사후 수정 비용: ₩200 × 2 (cover 재생성) + ₩0 (thumb 재파생) + GHA 한 번 + Cloudflare cache 회복 대기 = 사고 한 번이 ~₩500 + 시간. prompt 한 줄 추가가 훨씬 싸다.
+```
+"Two AI coding terminal windows filling the canvas side by side — the
+left one displays CLAUDE.md and subagent configuration in cyan glow, the
+right one displays AGENTS.md and Codex CLI in orange glow. An agent
+dependency graph with glowing cyan connection arrows weaves between
+them. An LLM Wiki knowledge-brain structure glows in the background.
+Deep midnight blue to purple gradient. Edge-to-edge composition, no book
+mockup, no frame, no shadow."
+--style darkmode --ratio 1:1
+```
+
+**OG 이미지(16:9)도 동일 규칙**, ratio만 변경:
+
+```bash
+... --style darkmode --ratio 16:9 -o public/images/projects/{slug}-og.jpg
+```
+
+규칙 위반 시 사후 수정 비용: ₩200 × 2 cover 재생성 × N 라운드 (V1 사고 한 번 + V2 unfortunate fix 한 번 = ₩800+) + GHA 한 번 + cache 회복 대기 = 처음에 다섯 규칙 다 지키는 게 훨씬 싸다.
 
 1. **커버 이미지** (정사각형, 1:1): 서베이 상세 페이지 hero, 갤러리 카드 fallback.
    - `public/images/projects/{slug}-cover.webp` (public) 또는 Supabase Storage (group).
