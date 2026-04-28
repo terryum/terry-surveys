@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
-"""Merge deep-researcher-{foundations,frontier} shards into canonical papers.json.
+"""Merge deep-researcher shard files into canonical papers.json.
+
+Supports N shards (2-way foundations/frontier OR 3-way foundations/frontier/video,
+or any other combination). Shard files are auto-discovered as papers_*.json in
+_research/. The old hardcoded 2-shard interface is preserved as a fallback.
 
 Usage:
   python3 merge_research_shards.py <survey-slug>
 
-Reads:
+Reads (auto-discovered):
   surveys/<slug>/_research/papers_foundations.json
   surveys/<slug>/_research/papers_frontier.json
+  surveys/<slug>/_research/papers_video.json        (if present — 3-way)
+  … any other papers_*.json files
 
 Writes:
   surveys/<slug>/_research/papers.json          (canonical — deduped + merged)
@@ -26,7 +32,7 @@ On collision:
   - first encountered owner wins for `owner` field (tie-break: alphabetical)
   - quantitative_results: longer wins; alt stored as quantitative_results_alt
 
-Exit non-zero if either shard is missing or JSON-invalid.
+Exit non-zero if all shards are missing or JSON-invalid.
 """
 
 import json
@@ -136,8 +142,9 @@ def merge_entries(existing, incoming, conflicts):
             conflicts.append({
                 "bibtex_key": bibtex,
                 "field": field,
-                "foundations_value": ev if existing.get("owner") == "foundations" else iv,
-                "frontier_value": iv if existing.get("owner") == "foundations" else ev,
+                "existing_owner": existing.get("owner", "?"),
+                "existing_value": ev,
+                "incoming_value": iv,
             })
 
     # Fill any blank fields from incoming (non-destructive)
@@ -158,11 +165,13 @@ def load_shard(path):
         sys.exit(2)
 
 
-def concat_md(shard_a, shard_b, heading, output):
+def concat_md(shard_names, research_dir, md_prefix, heading, output):
+    """Concatenate per-shard markdown files (groups_*.md or timeline_*.md)."""
     lines = [f"# {heading}\n"]
-    for label, path in (("foundations (pre-2024)", shard_a), ("frontier (2024+)", shard_b)):
+    for name in shard_names:
+        path = research_dir / f"{md_prefix}_{name}.md"
         if path.exists():
-            lines.append(f"\n## {label}\n")
+            lines.append(f"\n## {name}\n")
             lines.append(path.read_text())
     output.write_text("\n".join(lines))
 
@@ -178,25 +187,28 @@ def main():
         print(f"ERROR: {research_dir} not found", file=sys.stderr)
         sys.exit(1)
 
-    f_path = research_dir / "papers_foundations.json"
-    r_path = research_dir / "papers_frontier.json"
-
-    foundations = load_shard(f_path) or []
-    frontier = load_shard(r_path) or []
-
-    if not foundations and not frontier:
-        print(f"ERROR: both shards missing or empty at {research_dir}", file=sys.stderr)
+    # Auto-discover all shard files: papers_*.json (sorted for determinism)
+    shard_paths = sorted(research_dir.glob("papers_*.json"))
+    if not shard_paths:
+        print(f"ERROR: no papers_*.json shards found at {research_dir}", file=sys.stderr)
         sys.exit(1)
 
+    shard_names = [p.stem[len("papers_"):] for p in shard_paths]  # e.g. ["foundations","frontier","video"]
+
     canonical = {}  # dedup_key → merged entry
-    key_origin = {}  # dedup_key → ("foundations" | "frontier")
+    key_origin = {}  # dedup_key → shard_name
     conflicts = []
     dedup_stats = {"shard_entries": 0, "duplicates": 0, "unique_entries": 0}
+    per_shard_counts = {}
 
-    for shard_label, shard in (("foundations", foundations), ("frontier", frontier)):
+    all_empty = True
+    for shard_label, shard_path in zip(shard_names, shard_paths):
+        shard = load_shard(shard_path) or []
+        if shard:
+            all_empty = False
+        per_shard_counts[shard_label] = 0
         for entry in shard:
             dedup_stats["shard_entries"] += 1
-            # Stamp owner if missing
             entry.setdefault("owner", shard_label)
             key = dedup_key(entry)
             if key in canonical:
@@ -205,6 +217,11 @@ def main():
             else:
                 canonical[key] = dict(entry)
                 key_origin[key] = shard_label
+                per_shard_counts[shard_label] = per_shard_counts.get(shard_label, 0) + 1
+
+    if all_empty:
+        print(f"ERROR: all shards are empty at {research_dir}", file=sys.stderr)
+        sys.exit(1)
 
     dedup_stats["unique_entries"] = len(canonical)
 
@@ -218,27 +235,29 @@ def main():
     out_path = research_dir / "papers.json"
     out_path.write_text(json.dumps(merged_list, indent=2, ensure_ascii=False))
 
-    # Concatenate groups + timeline markdown
-    concat_md(research_dir / "groups_foundations.md", research_dir / "groups_frontier.md",
+    # Concatenate groups + timeline markdown (N-way)
+    concat_md(shard_names, research_dir, "groups",
               f"Research Groups — {slug}", research_dir / "groups.md")
-    concat_md(research_dir / "timeline_foundations.md", research_dir / "timeline_frontier.md",
+    concat_md(shard_names, research_dir, "timeline",
               f"Timeline — {slug}", research_dir / "timeline.md")
 
     # Merge report
     report = [f"# Merge Report — {slug}\n"]
+    report.append(f"- Shards merged:       {len(shard_names)} ({', '.join(shard_names)})")
     report.append(f"- Shard entries (sum): {dedup_stats['shard_entries']}")
     report.append(f"- Duplicates merged:   {dedup_stats['duplicates']}")
     report.append(f"- Unique canonical:    {dedup_stats['unique_entries']}")
-    report.append(f"- foundations entries: {sum(1 for k, v in key_origin.items() if v == 'foundations')}")
-    report.append(f"- frontier entries:    {sum(1 for k, v in key_origin.items() if v == 'frontier')}")
+    for name in shard_names:
+        count = sum(1 for v in key_origin.values() if v == name)
+        report.append(f"- {name} entries:    {count}")
     report.append("")
 
     if conflicts:
         report.append(f"## Conflicts detected ({len(conflicts)})\n")
-        report.append("| bibtex_key | field | foundations | frontier |")
+        report.append("| bibtex_key | field | existing (owner) | incoming value |")
         report.append("|---|---|---|---|")
         for c in conflicts:
-            report.append(f"| {c['bibtex_key']} | {c['field']} | {c['foundations_value']} | {c['frontier_value']} |")
+            report.append(f"| {c['bibtex_key']} | {c['field']} | {c['existing_value']} ({c['existing_owner']}) | {c['incoming_value']} |")
         report.append("")
         report.append("**Action**: qa-reviewer should verify conflicting entries against primary sources.")
     else:
