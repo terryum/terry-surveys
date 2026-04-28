@@ -64,15 +64,26 @@
   - 초과 시 약어나 짧은 표현으로 조정.
 - `description`: 한글/영어 각각 **2–3줄** (카드에서 5–7줄 이내로 보이도록).
 
-## Step 3) 이미지 생성
+## Step 3) 이미지 생성 — 3개 (cover + og + thumb)
 
-`/image-gen` 스킬로 두 가지 이미지를 생성한다:
+`/image-gen` 스킬로 두 이미지를 생성한 뒤, **third asset (thumb.webp)을 sharp로 직접 derive**한다. 세 자산은 각자 다른 페이지/소비처에서 쓰인다 — 누락 시 화면 깨짐:
 
-1. **커버 이미지** (정사각형, 1:1): 카드 썸네일용.
+1. **커버 이미지** (정사각형, 1:1): 서베이 상세 페이지 hero, 갤러리 카드 fallback.
    - `public/images/projects/{slug}-cover.webp` (public) 또는 Supabase Storage (group).
 2. **OG 이미지** (1200×630, 16:9): 소셜 공유용 대표 이미지.
    - `public/images/projects/{slug}-og.jpg` (public) 또는 Supabase Storage (group).
    - JPEG 형식 (X/Twitter 호환).
+3. **썸네일** (288×288, 2x retina for 144px display): **홈페이지 Featured Surveys 카드의 실제 표시 이미지**.
+   - `public/images/projects/{slug}-thumb.webp` (public).
+   - cover.webp에서 sharp로 resize-cover-centre crop:
+     ```bash
+     cd /Users/terrytaewoongum/Codes/personal/terryum-ai && node -e "
+     import('sharp').then(async ({default:s})=>{await s('public/images/projects/{slug}-cover.webp')
+       .resize(288,288,{fit:'cover',position:'centre'}).webp({quality:85})
+       .toFile('public/images/projects/{slug}-thumb.webp')})"
+     ```
+
+**왜 thumb.webp가 별도로 필요한가**: `src/app/[lang]/page.tsx` Featured Surveys 컴포넌트가 `cover_image.replace('-cover.webp','-thumb.webp')`로 thumb URL을 강제 사용한다 (string replacement, not file-existence fallback). thumb.webp 누락 시 카드가 broken image. 2026-04-28 사고 — survey-claude-to-codex 등록 시 cover/og만 생성하고 thumb 누락. 다른 4개 서베이는 모두 thumb.webp가 존재했다.
 
 공유 URL: `/surveys/{slug}` (lang 없는 경로) → 자동 리다이렉트 + OG 메타태그 제공.
 
@@ -185,7 +196,7 @@ curl -sI "https://www.terryum.ai/en/surveys/$SLUG" | head -1  # 200 OK 기대
 ## 검증 체크리스트
 
 - [ ] `surveys.json`에 새 엔트리 추가, `survey_number` 증가 일관성
-- [ ] 커버 이미지 + OG 이미지 두 파일 모두 생성
+- [ ] **세 이미지 자산 모두 생성**: `{slug}-cover.webp` (1:1) + `{slug}-og.jpg` (16:9) + **`{slug}-thumb.webp` (288×288, homepage Featured 카드용 — 누락 시 broken image)**
 - [ ] `description` 길이 (ko 2–3줄, en 2–3줄)
 - [ ] `toc` 길이 (ko ≤12자, en ≤19자 per item)
 - [ ] terry-surveys 연관 시 `/cite-post` 자동 호출 완료
