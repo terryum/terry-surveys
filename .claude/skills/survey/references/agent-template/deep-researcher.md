@@ -152,6 +152,9 @@ python3 .claude/skills/survey/scripts/merge_research_shards.py surveys/{{SURVEY_
 ## 체크리스트 (자체 점검)
 
 ### 공통
+- [ ] **출력 3종 모두 작성됐는가** — 다음 명령으로 직접 확인:
+      `ls surveys/{{SURVEY_SLUG}}/_research/papers_{{RESEARCHER_ROLE}}.json surveys/{{SURVEY_SLUG}}/_research/groups_{{RESEARCHER_ROLE}}.md surveys/{{SURVEY_SLUG}}/_research/timeline_{{RESEARCHER_ROLE}}.md`
+      (3개 모두 존재해야 완료. 머지 스크립트는 누락된 md를 silent skip하므로 본인이 직접 확인할 책임. 2026-04-29 사고)
 - [ ] `papers_{{RESEARCHER_ROLE}}.json`에 각 엔트리의 `method_summary`가 3문장 이상, 숫자 포함
 - [ ] 같은 그룹의 연속 논문이 `groups_{{RESEARCHER_ROLE}}.md`에서 하나의 cluster로 묶였는가
 - [ ] BibTeX 키가 마스터와 충돌하지 않고 규약을 따르는가

@@ -13,6 +13,9 @@ Reads (auto-discovered):
   surveys/<slug>/_research/papers_frontier.json
   surveys/<slug>/_research/papers_video.json        (if present — 3-way)
   … any other papers_*.json files
+  EXCLUDED: papers_ch<N>.json (chapter-view artifacts produced downstream by
+  book-writer / chapter-extractor — these are per-chapter subsets of the
+  canonical corpus, not researcher shards, and merging them would double-count.)
 
 Writes:
   surveys/<slug>/_research/papers.json          (canonical — deduped + merged)
@@ -166,14 +169,22 @@ def load_shard(path):
 
 
 def concat_md(shard_names, research_dir, md_prefix, heading, output):
-    """Concatenate per-shard markdown files (groups_*.md or timeline_*.md)."""
+    """Concatenate per-shard markdown files (groups_*.md or timeline_*.md).
+
+    Returns list of missing shard filenames so the caller can surface them in the merge report.
+    """
     lines = [f"# {heading}\n"]
+    missing = []
     for name in shard_names:
         path = research_dir / f"{md_prefix}_{name}.md"
         if path.exists():
             lines.append(f"\n## {name}\n")
             lines.append(path.read_text())
+        else:
+            missing.append(path.name)
+            print(f"WARN: missing {path.name} — concat will skip this shard", file=sys.stderr)
     output.write_text("\n".join(lines))
+    return missing
 
 
 def main():
@@ -187,8 +198,11 @@ def main():
         print(f"ERROR: {research_dir} not found", file=sys.stderr)
         sys.exit(1)
 
-    # Auto-discover all shard files: papers_*.json (sorted for determinism)
-    shard_paths = sorted(research_dir.glob("papers_*.json"))
+    # Auto-discover all shard files: papers_*.json (sorted for determinism).
+    # Exclude chapter-view artifacts (papers_ch<N>.json) — those are per-chapter
+    # subsets produced downstream (book-writer / chapter-extractor), not researcher shards.
+    chapter_view_pat = re.compile(r"^papers_ch\d+\.json$")
+    shard_paths = sorted(p for p in research_dir.glob("papers_*.json") if not chapter_view_pat.match(p.name))
     if not shard_paths:
         print(f"ERROR: no papers_*.json shards found at {research_dir}", file=sys.stderr)
         sys.exit(1)
@@ -236,10 +250,11 @@ def main():
     out_path.write_text(json.dumps(merged_list, indent=2, ensure_ascii=False))
 
     # Concatenate groups + timeline markdown (N-way)
-    concat_md(shard_names, research_dir, "groups",
+    missing_groups = concat_md(shard_names, research_dir, "groups",
               f"Research Groups — {slug}", research_dir / "groups.md")
-    concat_md(shard_names, research_dir, "timeline",
+    missing_timeline = concat_md(shard_names, research_dir, "timeline",
               f"Timeline — {slug}", research_dir / "timeline.md")
+    missing_md = missing_groups + missing_timeline
 
     # Merge report
     report = [f"# Merge Report — {slug}\n"]
@@ -263,6 +278,14 @@ def main():
     else:
         report.append("## Conflicts\n\nNone detected.")
 
+    if missing_md:
+        report.append("")
+        report.append(f"## Missing Shard Artifacts ({len(missing_md)})\n")
+        for fname in missing_md:
+            report.append(f"- `{fname}` not found — concat skipped this shard")
+        report.append("")
+        report.append("**Action**: the responsible deep-researcher agent must produce these files; rerun merge afterwards.")
+
     (research_dir / "_merge_report.md").write_text("\n".join(report))
 
     # Stdout summary
@@ -272,6 +295,8 @@ def main():
     print(f"Merge report: {research_dir / '_merge_report.md'}")
     if conflicts:
         print(f"WARNING: {len(conflicts)} conflicts — see merge report", file=sys.stderr)
+    if missing_md:
+        print(f"WARNING: {len(missing_md)} missing shard md files — see merge report", file=sys.stderr)
 
 
 if __name__ == "__main__":

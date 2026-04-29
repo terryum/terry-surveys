@@ -53,6 +53,13 @@ T-research-frontier:     deep-researcher-frontier    → _research/papers_fronti
 
 T-merge-research:        orchestrator (자동)         → _research/papers.json, groups.md, timeline.md, _merge_report.md
                            blockedBy: T-research-foundations, T-research-frontier (둘 다 완료)
+                           **선행 검증 (필수, 머지 직전)**: 각 role(foundations, frontier)에 대해
+                             papers_{role}.json + groups_{role}.md + timeline_{role}.md
+                           3종 모두 존재 확인. 누락 발견 시 즉시 해당 researcher에게
+                           SendMessage("missing <file> 작성 요청") 후 1회 재시도. 재실패 시 사용자 에스컬레이션.
+                           **silent skip 금지**: 머지 스크립트의 missing-shard WARN을 stderr/stdout에서 캐치하여
+                           T-task fail로 처리 (2026-04-29 사고 — frontier가 timeline_frontier.md를 생략했고
+                           머지가 silent skip하면서 timeline.md가 foundations-only로 굳어짐).
                            실행: python3 .claude/skills/survey/scripts/merge_research_shards.py <slug>
                            샤드 자동 dedup + union (arxiv_id/doi/title 기반)
 
@@ -107,7 +114,7 @@ T-qa:          qa-reviewer         → _qa_report.md, READY FOR RELEASE 플래�
 1. **TeamCreate**: `survey-<slug>` 팀 생성, 7개 에이전트 로드 (`surveys/<slug>/.claude/agents/*.md`). deep-researcher는 `deep-researcher-foundations.md`와 `deep-researcher-frontier.md` 두 파일.
 2. **TaskCreate**: 위 의존성 그래프를 `addBlockedBy`로 표현. T-merge-research는 자동 task (에이전트 owner 없음; 리더 본인이 실행).
 3. **컨텍스트 주입**: 각 에이전트에 `_research/seed.md`, `survey.json`, 루트 `CLAUDE.md` + 본인 role 식별(`RESEARCHER_ROLE=foundations` or `frontier`)을 초기 컨텍스트로 제공.
-4. **모니터링**: TaskList로 진행률 추적. 리더는 **작업하지 않고 조율만** 한다. 단 예외: T-merge-research는 리더가 직접 `python3 .claude/skills/survey/scripts/merge_research_shards.py <slug>` 실행.
+4. **모니터링**: TaskList로 진행률 추적. 리더는 **작업하지 않고 조율만** 한다. 단 예외: T-merge-research는 리더가 직접 실행하며, **머지 직전에 6종 출력 존재 검증** (각 role의 papers/groups/timeline.md). 누락 발견 시 머지 진행 금지 — 해당 researcher에 재작업 요청. 머지 후 stderr에 `WARN: missing` 또는 stdout에 `WARNING: N missing shard md files`가 있으면 동일하게 fail로 처리.
 5. **에러 대응**:
    - 에이전트 1회 실패 → 재시도 1회
    - 재실패 → 해당 산출물 플래그 후 팀은 진행 (결과 없이 보고서에 누락 명시)

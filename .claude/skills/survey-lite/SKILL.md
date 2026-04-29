@@ -83,8 +83,20 @@ foundations(Opus)와 frontier(Sonnet)을 **병렬** 기동. 각 에이전트는 
             해당 서베이의 frontier 조사를 수행하라. slug: <slug>"
   )
 
-둘 완료 후 merge:
+둘 완료 후 검증 + merge:
+  # ⚠ 필수 검증 — 머지 직전. 각 deep-researcher가 약속한 3종 출력이 모두 존재하는지 확인.
+  # Sonnet 다운그레이드된 frontier가 timeline_*.md 같은 보조 출력을 누락할 가능성 있음.
+  # 누락 시 머지 스크립트가 silent skip 후 timeline.md/groups.md가 한쪽 샤드만 반영된 상태로 굳어짐 (2026-04-29 사고).
+  for role in (foundations, frontier):
+      assert exists(f"surveys/<slug>/_research/papers_{role}.json")
+      assert exists(f"surveys/<slug>/_research/groups_{role}.md")
+      assert exists(f"surveys/<slug>/_research/timeline_{role}.md")
+  # 누락 발견 시: 해당 researcher 에이전트에 SendMessage("missing <file> — 작성 요청") 후 1회 재시도.
+  # 재시도 후에도 누락이면 사용자에 에스컬레이션. 절대 그냥 머지로 넘어가지 말 것.
+
   Bash("python3 .claude/skills/survey/scripts/merge_research_shards.py <slug>")
+  # 머지 스크립트 stderr에 "WARN: missing ..." 또는 stdout에 "WARNING: N missing shard md files"
+  # 출력이 있으면 위 검증이 누락한 것 — 즉시 중단하고 사용자에 보고.
 ```
 
 > **참고**: `subagent_type`이 per-survey 에이전트 파일을 찾지 못하면, `general-purpose` 타입을 쓰되 prompt 앞부분에 해당 에이전트 파일의 전체 내용을 인용(Read 후 임베드)한다.
@@ -105,13 +117,18 @@ Agent(
 각 챕터 N에 대해 순차 또는 최대 `max_parallel`개 병렬:
 
 **Step 3a. Chapter-scoped papers 생성** (챕터별, 기동 직전):
+
+⚠ **출력 위치 주의**: `_research/`가 아니라 `_workspace/`에 쓴다. `_research/papers_*.json`은 deep-researcher 샤드 컨벤션이고 merge 스크립트의 auto-discovery 대상이다. 챕터 뷰를 거기 두면 다음 머지 실행 시 샤드로 오인되어 dedup 통계가 망가진다 (2026-04-29 사고).
+
 ```bash
+mkdir -p surveys/<slug>/_workspace
 python3 -c "
-import json, sys
+import json, sys, os
 slug, n = sys.argv[1], sys.argv[2]
 papers = json.load(open(f'surveys/{slug}/_research/papers.json'))
 ch = [p for p in papers if n in str(p.get('chapter_hint', ''))]
-out = f'surveys/{slug}/_research/papers_ch{n}.json'
+out = f'surveys/{slug}/_workspace/papers_ch{n}.json'
+os.makedirs(os.path.dirname(out), exist_ok=True)
 json.dump(ch, open(out,'w'), ensure_ascii=False, indent=2)
 print(f'Ch{n}: {len(ch)} papers → {out}')
 " <slug> <N>
@@ -126,7 +143,7 @@ Agent(
 surveys/<slug>/.claude/agents/book-writer.md의 역할과 포맷 규칙을 따라 챕터 N을 집필하라.
 
 입력 파일 (이것만 읽을 것 — 다른 챕터 파일·전체 papers.json 로드 금지):
-  - surveys/<slug>/_research/papers_ch<N>.json   ← 해당 챕터 논문만
+  - surveys/<slug>/_workspace/papers_ch<N>.json   ← 해당 챕터 논문만
   - surveys/<slug>/_analysis/gaps.md의 "Chapter N" 관련 섹션만
   - surveys/<slug>/survey.json의 parts[].chapters[N] outline
 
@@ -144,7 +161,7 @@ Agent(
   subagent_type="image-curator",
   model="sonnet",    ← lite: sonnet
   prompt="챕터 <N> figure 큐레이션.
-          입력: surveys/<slug>/book/ko/ch<NN>.md + papers_ch<N>.json
+          입력: surveys/<slug>/book/ko/ch<NN>.md + surveys/<slug>/_workspace/papers_ch<N>.json
           surveys/<slug>/.claude/agents/image-curator.md 규칙 준수"
 )
 ```
@@ -162,7 +179,7 @@ Agent(
   subagent_type="fact-checker",
   model="sonnet",    ← lite: sonnet
   prompt="챕터 <N> fact-check.
-          입력: surveys/<slug>/book/ko/ch<NN>.md + papers_ch<N>.json + bibtex/references.bib
+          입력: surveys/<slug>/book/ko/ch<NN>.md + surveys/<slug>/_workspace/papers_ch<N>.json + bibtex/references.bib
           출력: _refs_extracted.json 해당 챕터 엔트리 갱신 + _factcheck_report.md 섹션 추가
           surveys/<slug>/.claude/agents/fact-checker.md 역할 참조"
 )
@@ -208,8 +225,11 @@ Agent(
 ## 완료 체크리스트
 
 - [ ] survey.json + .claude/agents/ 존재 확인
+- [ ] **Phase 1 종료 시 6종 출력 검증**: `papers_{foundations,frontier}.json` + `groups_{foundations,frontier}.md` + `timeline_{foundations,frontier}.md` 모두 존재 (Sonnet downgrade로 보조 출력 누락 위험 — 2026-04-29 사고)
+- [ ] **머지 스크립트 stderr/stdout에 WARN 없음** (있으면 누락 샤드 — 즉시 중단)
+- [ ] `_merge_report.md`의 `foundations entries / frontier entries` 둘 다 0이 아님
 - [ ] `_research/papers.json` 존재 (없으면 Phase 1부터)
-- [ ] 각 챕터 기동 전 `papers_ch<N>.json` 생성 확인
+- [ ] 각 챕터 기동 전 `_workspace/papers_ch<N>.json` 생성 확인 (← `_research/`가 아님)
 - [ ] frontier sub-agent: `model="sonnet"` 명시
 - [ ] fact-checker sub-agent: `model="sonnet"` 명시
 - [ ] image-curator sub-agent: `model="sonnet"` 명시
