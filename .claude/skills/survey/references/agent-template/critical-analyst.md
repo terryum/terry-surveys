@@ -66,6 +66,9 @@ model: opus
 
 ## 체크리스트
 
+- [ ] **출력 3종 모두 작성됐는가** — 다음 명령으로 직접 확인:
+      `ls surveys/{{SURVEY_SLUG}}/_analysis/gaps.md surveys/{{SURVEY_SLUG}}/_analysis/novelty_matrix.md surveys/{{SURVEY_SLUG}}/_analysis/positioning.md`
+      (3개 모두 존재해야 완료. 누락 시 어떤 skill·script도 catch하지 못하므로 본인이 직접 확인할 책임. deep-researcher의 timeline_frontier.md 누락과 동일 패턴 — 2026-04-29 사고)
 - [ ] 최소 5개 이상의 구체적 Gap이 증거와 함께 기록되었는가
 - [ ] 각 Gap에 "short/medium/long-term" 태그가 붙었는가
 - [ ] Novelty matrix가 모든 주요 논문을 커버하는가 (papers.json 대비 90%+)

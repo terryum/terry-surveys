@@ -66,6 +66,10 @@ T-merge-research:        orchestrator (자동)         → _research/papers.json
 T-analysis:    critical-analyst    → _analysis/gaps.md, novelty_matrix.md, positioning.md
                  blockedBy: T-merge-research (부분 — 샤드 60% 시점의 중간 머지도 허용)
                  → deep-researcher-{foundations|frontier}에게 추가 조사 요청(SendMessage) 수시 발송
+                 **완료 검증 (필수, T-write 차단 해제 직전)**: `ls _analysis/{gaps,novelty_matrix,positioning}.md`
+                 3종 모두 존재 확인. 빠진 파일이 있으면 critical-analyst에 SendMessage("missing <file>") + 1회 재시도.
+                 재실패 시 사용자 에스컬레이션 — 부분 완료로 다음 단계 넘기지 말 것.
+                 (2026-04-29 사고: physical-ai-manufacturing의 _analysis/가 빈 채로 책 출판까지 흘러감)
 
 T-write-ch<N>: book-writer         → book/{ko,en}/ch<N>.md (× 16)
                  blockedBy: T-analysis (해당 Part 관련 부분)
