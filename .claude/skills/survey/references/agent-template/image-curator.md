@@ -124,6 +124,10 @@ python /Users/terrytaewoongum/Codes/personal/terryum-ai/scripts/flatten-transpar
 
 ## 체크리스트
 
+- [ ] **출력 산출물 모두 작성됐는가** — 다음 명령으로 직접 확인:
+      `ls surveys/{{SURVEY_SLUG}}/_assets_log.md && ls surveys/{{SURVEY_SLUG}}/assets/figures/ | head`
+      그리고 `grep -rn '<!-- IMAGE:' surveys/{{SURVEY_SLUG}}/book/` 결과가 0줄이어야 한다 (placeholder 잔존 0).
+      어느 skill·script도 누락을 catch하지 못하므로 본인이 직접 확인할 책임. (deep-researcher의 timeline_frontier.md 누락과 동일 패턴 — 2026-04-29 사고)
 - [ ] 모든 `<!-- IMAGE: -->` placeholder가 실제 figure로 치환되었는가
 - [ ] flat 네이밍 규약 위반 없음 (서브폴더 금지)
 - [ ] **챕터 유형별 티어 쿼터 충족** (theory 3–5 · method 3–6 · platform 4–8 · history/ecosystem 3–5)

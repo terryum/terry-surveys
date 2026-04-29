@@ -145,6 +145,7 @@ python3 build.py --validate {{SURVEY_SLUG}} 2>&1 | grep "unresolved citation"
 
 ## 체크리스트 (출시 가능 조건)
 
+- [ ] **출력 산출물 자체 작성됐는가** — `ls surveys/{{SURVEY_SLUG}}/_qa_report.md` 존재 + 마지막 줄에 "READY FOR RELEASE" 또는 "BLOCKED" 결정 명시. 본인 출력은 본인이 가장 마지막에 검증할 책임 (2026-04-29 사고 패턴: agent가 mandated output을 silent skip해도 어떤 게이트도 catch하지 못함).
 - [ ] `python3 build.py --validate {{SURVEY_SLUG}}` PASS
 - [ ] **`unresolved citation` 에러 0건** (본문 인용 ↔ reference 링커 매핑 100%; clickable + 백버튼 작동의 전제)
 - [ ] 커버리지: papers.json 대비 80%+ 집필 반영

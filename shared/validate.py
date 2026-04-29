@@ -549,6 +549,50 @@ def check_factcheck_report(survey_dir, iss):
         iss.warn('_factcheck_report.md missing "## Summary" section')
 
 
+def check_research_shards(survey_dir, iss):
+    """For each researcher role (foundations, frontier): if any of the 3 mandated
+    outputs exists, ALL 3 must exist. Catches the 2026-04-29 silent-failure pattern
+    where deep-researcher-frontier produced papers/groups but skipped timeline."""
+    research = os.path.join(survey_dir, '_research')
+    if not os.path.isdir(research):
+        return
+    for role in ('foundations', 'frontier'):
+        artifacts = {
+            'papers': os.path.join(research, f'papers_{role}.json'),
+            'groups': os.path.join(research, f'groups_{role}.md'),
+            'timeline': os.path.join(research, f'timeline_{role}.md'),
+        }
+        present = {k: os.path.isfile(p) for k, p in artifacts.items()}
+        if not any(present.values()):
+            continue  # role didn't run — that's fine
+        missing = [k for k, ok in present.items() if not ok]
+        if missing:
+            iss.err(
+                f'_research/ {role} shard partial output: missing '
+                + ', '.join(f'{k}_{role}.{"json" if k == "papers" else "md"}' for k in missing)
+                + f' (deep-researcher-{role} silent-failure pattern — see 2026-04-29)'
+            )
+
+
+def check_analysis_outputs(survey_dir, iss):
+    """critical-analyst mandates 3 outputs in _analysis/. If the directory exists OR
+    any output exists, all 3 must exist. Same silent-failure class as check_research_shards."""
+    analysis = os.path.join(survey_dir, '_analysis')
+    required = ['gaps.md', 'novelty_matrix.md', 'positioning.md']
+    present = {f: os.path.isfile(os.path.join(analysis, f)) for f in required}
+    has_dir = os.path.isdir(analysis)
+    has_any_file = any(present.values())
+    if not has_dir and not has_any_file:
+        iss.warn('_analysis/ missing entirely — critical-analyst phase has not run')
+        return
+    missing = [f for f, ok in present.items() if not ok]
+    if missing:
+        iss.err(
+            '_analysis/ partial output: missing ' + ', '.join(missing)
+            + ' (critical-analyst silent-failure pattern — see 2026-04-29)'
+        )
+
+
 # ------------------------------------------------------------------
 # Orchestration
 # ------------------------------------------------------------------
@@ -569,6 +613,8 @@ def validate_one(name, verbose=True):
     check_refs_extracted(survey_dir, iss)
     check_factcheck_report(survey_dir, iss)
     check_research_papers(survey_dir, iss)
+    check_research_shards(survey_dir, iss)
+    check_analysis_outputs(survey_dir, iss)
 
     if verbose:
         print(f"\n[{name}]")

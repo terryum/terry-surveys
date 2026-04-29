@@ -80,13 +80,18 @@ T-image-ch<N>: image-curator       → assets/figures/ch<N>_*, 챕터 md의 <!--
                  blockedBy: T-write-ch<N> (스트리밍 — placeholder 확정 시점부터)
                  **티어 쿼터 강제**: theory 3–5 · method 3–6 · platform 4–8 (+실제 사진 ≥ 2) · history 3–5
                  **alt 텍스트 대괄호 금지**: [Author, Year] → Author et al. Year 형식 (build.py validate가 거부)
+                 **완료 검증 (필수)**: `_assets_log.md` 존재 + `grep -rn '<!-- IMAGE:' book/` 결과 0줄 +
+                 챕터 N의 `assets/figures/chNN_*` 파일 ≥ 티어 quota 하한. 미충족 시 1회 재시도.
 
 T-fact-ch<N>:  fact-checker        → _refs_extracted.json, _factcheck_report.md (챕터별 누적)
                  blockedBy: T-write-ch<N>
+                 **완료 검증 (필수)**: 두 파일 모두 존재 + 해당 챕터 엔트리가 _refs_extracted.json에 누적됨.
 
 T-qa:          qa-reviewer         → _qa_report.md, READY FOR RELEASE 플래그
                  blockedBy: 모든 T-write-*, T-fact-*, T-image-*
                  중간 감사(incremental QA)도 수행 — 챕터 3개 완료 시마다 스팟 체크
+                 **완료 검증 (필수)**: `_qa_report.md` 존재 + 마지막 줄 "READY FOR RELEASE" 또는 "BLOCKED: <이유>".
+                 부재 시 절대 배포 단계로 넘어가지 말 것 (2026-04-29 사고 패턴 — silent skip이 6 agent 모두에서 가능).
 ```
 
 **핵심 속성**:
