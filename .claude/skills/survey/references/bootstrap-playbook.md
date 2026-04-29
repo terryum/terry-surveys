@@ -60,7 +60,13 @@ cp .claude/skills/survey/references/agent-template/*.md surveys/<slug>/.claude/a
 rm surveys/<slug>/.claude/agents/README.md
 ```
 
-**또는** `scripts/bootstrap.sh <slug> <title_ko> <title_en> <domain>`으로 위 전 과정 한 번에 실행.
+**또는** `scripts/bootstrap.sh <slug> <title_ko> <title_en> <domain> [--visibility=group --group=<grp>]`으로 위 전 과정 한 번에 실행.
+
+### Visibility 분기 (public vs group)
+
+- **public (기본)**: `surveys/<slug>/` 에 직접 scaffold + commit/push는 terry-surveys (PUBLIC).
+- **`--visibility=group --group=<grp>`**: scaffold 직후 `terry-private/surveys/<slug>/`로 이전 + 심링크 복원. `.gitignore`에 슬러그 자동 추가는 안 되므로 사용자가 한 줄 추가해야 함 (`echo "surveys/<slug>" >> .gitignore`). commit/push는 `cd ../terry-private` 후 수행.
+- **2026-04-29 사고**: physical-ai-manufacturing이 `--visibility=group` 인자 없이 부트스트랩되어 PUBLIC repo에 leak. 이후 force-push로 history 정리. group 콘텐츠는 반드시 `--visibility=group` 명시.
 
 ### Step 4. Placeholder 치환
 

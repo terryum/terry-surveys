@@ -16,6 +16,7 @@ _refs_extracted.json
 # linked in via scripts/link-private.sh. The symlink itself is ignored so the
 # restricted content never lands in the public monorepo.
 surveys/snu-tactile-hand
+surveys/physical-ai-manufacturing
 revise-source/
 **/revise-source/
 _revise-source/

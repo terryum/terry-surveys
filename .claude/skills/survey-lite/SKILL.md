@@ -27,6 +27,17 @@ ls surveys/<slug>/survey.json          # 없으면 /survey "<제목>" 먼저 실
 ls surveys/<slug>/.claude/agents/      # 없으면 bootstrap 필요
 ```
 
+**⚠ Visibility 가드 (필수 — 2026-04-29 leak 사고 후 추가):**
+부트스트랩이 잘못돼서 group-private 콘텐츠가 PUBLIC repo에 들어가 있는 경우 lite 흐름이 추가 leak을 가속하지 않도록 abort:
+```bash
+visibility=$(python3 -c "import json; print(json.load(open('surveys/<slug>/survey.json')).get('visibility','public'))")
+if [ "$visibility" = "group" ] && [ ! -L "surveys/<slug>" ]; then
+  echo "ABORT: visibility=group이지만 surveys/<slug>가 심링크가 아님 — terry-private으로 이전 필요"
+  echo "  /survey 스킬의 부트스트랩 fix 또는 link-private.sh 실행"
+  exit 1
+fi
+```
+
 survey.json을 읽어 domain, 챕터 목록, parts 구조를 파악한다.
 
 ---

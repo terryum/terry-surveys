@@ -593,6 +593,41 @@ def check_analysis_outputs(survey_dir, iss):
         )
 
 
+def check_visibility_consistency(survey_dir, iss):
+    """survey.json visibility=group이면 directory가 심링크여야 한다. 실파일이면 PUBLIC repo
+    leak 위험 (2026-04-29 physical-ai-manufacturing 사고). 또한 .gitignore에서
+    제외돼 있어야 commit이 차단된다."""
+    survey_json = os.path.join(survey_dir, 'survey.json')
+    if not os.path.isfile(survey_json):
+        return  # check_survey_json이 별도로 처리
+    try:
+        with open(survey_json, encoding='utf-8') as f:
+            cfg = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return
+    visibility = cfg.get('visibility')
+    if visibility != 'group':
+        return  # public 흐름은 별 검증 불필요
+    slug = os.path.basename(survey_dir)
+    # 1) 디렉토리가 심링크가 아니면 leak 위험
+    if not os.path.islink(survey_dir):
+        iss.err(
+            f'visibility=group이지만 surveys/{slug}/가 심링크가 아님 — '
+            f'PUBLIC repo에 leak 위험. terry-private으로 이전 후 '
+            f'`bash scripts/link-private.sh` 실행. (2026-04-29 사고 재발 방지)'
+        )
+    # 2) .gitignore에서 제외돼 있는지
+    gitignore = os.path.join(ROOT, '.gitignore')
+    if os.path.isfile(gitignore):
+        with open(gitignore, encoding='utf-8') as f:
+            ignored = f.read()
+        if f'surveys/{slug}' not in ignored:
+            iss.err(
+                f'visibility=group이지만 .gitignore에 `surveys/{slug}` 라인 없음 — '
+                f'심링크라도 git이 추적할 수 있음. .gitignore에 추가 필요.'
+            )
+
+
 # ------------------------------------------------------------------
 # Orchestration
 # ------------------------------------------------------------------
@@ -615,6 +650,7 @@ def validate_one(name, verbose=True):
     check_research_papers(survey_dir, iss)
     check_research_shards(survey_dir, iss)
     check_analysis_outputs(survey_dir, iss)
+    check_visibility_consistency(survey_dir, iss)
 
     if verbose:
         print(f"\n[{name}]")

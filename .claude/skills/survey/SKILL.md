@@ -35,13 +35,13 @@ URL인지 판별은 정규식 `^https?://`로 충분. URL 형태 제목(매우 �
 
 1. 제목 → slug 도출, `surveys/<slug>/` 충돌 체크.
 2. `python3 build.py --new <slug>` (공개 구조 스캐폴딩).
-3. `mkdir .claude/agents/` + 템플릿 6개 복사 + placeholder 치환.
-4. `survey.json` 제목·설명·날짜 초벌 채움.
-5. `python3 build.py --index` + `--validate <slug>`.
-6. (선택) Git 초기 커밋.
-7. Next-steps 안내 — 에이전트 파이프라인 개시 방법.
+3. **(visibility=group인 경우)** scaffold를 `terry-private/surveys/<slug>/`로 mv + symlink 복원. **이 단계 없이는 PUBLIC repo에 비공개 콘텐츠 leak 가능** (2026-04-29 physical-ai-manufacturing 사고).
+4. `mkdir .claude/agents/` + 템플릿 6개 복사 + placeholder 치환.
+5. `survey.json` 제목·설명·날짜·**visibility/group** 초벌 채움.
+6. `python3 build.py --index` + `--validate <slug>`.
+7. Next-steps 안내 — public 흐름이면 `git add` 안내, group 흐름이면 `cd ../terry-private && git ...` 안내.
 
-`scripts/bootstrap.sh <slug> "<title_ko>" "<title_en>" "<domain>" [--dry-run]`이 위 1–5를 한 번에 실행한다.
+`scripts/bootstrap.sh <slug> "<title_ko>" "<title_en>" "<domain>" [--visibility=group --group=<grp>] [--dry-run]`이 위 1–6을 한 번에 실행한다. **`--visibility=group --group=<grp>`** 인자가 있으면 자동으로 terry-private 라우팅.
 
 ### 예시
 ```
