@@ -219,6 +219,14 @@ python /Users/terrytaewoongum/Codes/personal/terryum-ai/scripts/flatten-transpar
 
 **이유**: 다크모드 사이트·PDF에서 투명 영역이 검정으로 비친다. R2 엣지는 `immutable` 1년 캐시라 배포 후 파일 교체로는 회복 불가 (2026-04 terryum.ai post #13 사고 — 투명 cover/og가 다크모드에서 로봇 사진 전체를 검정으로 묻어버림).
 
+### P7. 모든 참고문헌 entry는 하이퍼링크를 포함해야 한다
+
+**규칙**: `## 참고문헌` / `## References` 섹션의 모든 번호 entry는 마크다운 링크 `[text](url)`를 최소 1개 포함해야 한다. 논문이면 arXiv/DOI/저널 URL, 블로그/뉴스/공식 docs면 원문 URL, GitHub repo면 저장소 URL. 우선 제목을 링크화 — `Author (Year). [Title](url). Venue.` 형식.
+
+**이유**: reference 항목은 본문 인용을 클릭한 독자가 도착하는 종착지. 거기서 새 탭으로 원본을 확인할 수 없으면 인용의 의미가 절반으로 줄어든다. `build_site.py:build_references_list_html`이 `[text](url)` → `<a target="_blank" rel="noopener">`로 변환하므로, 마크다운 링크가 없으면 평문 → 클릭 불가 (2026-05-05 claude-to-codex 사고: 12장 전체가 텍스트만으로 출판됨).
+
+**검증**: `build.py --validate`가 링크 없는 ref entry를 ERROR로 잡는다. URL 출처는 `book/references.bib`의 `url` 필드 — `@misc`/`@online`/`@article` 모두 `url`을 채워둔 상태가 표준이므로 그대로 가져다 쓰면 된다.
+
 ### P6. Reader-facing 콘텐츠에 monorepo-internal path 노출 금지
 
 **규칙**: `book/{ko,en}/**.md`에 절대로 다음 경로·워크플로우 안내를 쓰지 말 것:

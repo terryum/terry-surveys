@@ -236,6 +236,8 @@ def check_one_chapter(path, lang, max_ch, survey_dir, iss):
     main_body, refs_text = strip_refs_section(body)
     if not refs_text:
         iss.warn(f'{rel}: no "## 참고문헌" or "## References" section')
+    else:
+        check_unlinked_refs(refs_text, rel, iss)
 
     # Cross-references
     for m in CROSSREF_ALL_RE.finditer(main_body):
@@ -324,6 +326,34 @@ def check_one_chapter(path, lang, max_ch, survey_dir, iss):
     # and S6 (physical-ai-manufacturing); plan in
     # ~/.claude/plans/s5-stateless-lollipop.md.
     check_unresolved_citations(path, body, main_body, rel, iss)
+
+
+REF_MD_LINK_RE = re.compile(r'\[[^\]]+\]\((https?://[^)\s]+)\)')
+
+
+def check_unlinked_refs(refs_text, rel, iss):
+    """Every numbered entry under ## 참고문헌 / ## References must contain at
+    least one markdown hyperlink [text](http://…) — build_site.py renders it
+    as a clickable <a target="_blank">. Without it the entry ships as plain
+    text and the reader can't reach the source. See 2026-05-05
+    claude-to-codex incident: 12 chapters published with text-only refs.
+    """
+    line_no = 0
+    for raw in refs_text.splitlines():
+        line_no += 1
+        m = REF_LINE_RE.match(raw)
+        if not m:
+            continue
+        entry = m.group(1)
+        if REF_MD_LINK_RE.search(entry):
+            continue
+        snippet = entry[:60] + ('…' if len(entry) > 60 else '')
+        iss.err(
+            f'{rel}: reference entry has no hyperlink — every ref under '
+            f'## 참고문헌 / ## References must contain a markdown link '
+            f'[text](url) so build_site.py renders it as <a target="_blank">. '
+            f'Pull the URL from book/references.bib (url field). Entry: "{snippet}"'
+        )
 
 
 def check_unresolved_citations(path, body, main_body, rel, iss):

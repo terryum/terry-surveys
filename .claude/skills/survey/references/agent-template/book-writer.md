@@ -45,15 +45,25 @@ last_updated: "YYYY-MM-DD"
 
 `shared/build_site.py:_extract_year_info`가 reference 항목에서 연도를 추출해 본문 인용을 link화한다. 아래 4-패턴 중 하나에 맞춰야 build_site.py가 인식하며, 어긋나면 본문 `[Author, Year]`이 평문으로 남고 링크가 깨진다 (2026-04-28 S5/S6 사고). 우선순위는 위→아래 순.
 
-1. **`(YYYY)` 학술 표준** — `Author, A. (2025). Title. Venue.`
-2. **`(YYYYa)` 동일 연도 동일 저자 disambiguation** — `WEF (2025a). ...` / `WEF (2025b). ...` (인라인은 `[WEF, 2025a]`, `[WEF, 2025b]`로 정확히 구분)
-3. **`YYYY-MM-DD` 비학술/블로그/뉴스** — `Author, "Title," 2026-04-24. [Author, 2026]` (반드시 끝에 `[Author, YYYY]` 트레일링 태그를 붙여 인라인 인용 형태와 정확히 매치)
-4. **트레일링 태그만** — 약어·다중저자 등으로 본문 인라인이 reference의 first_author와 다를 때 강제 매핑: `Boston Consulting Group and World Economic Forum (2024). ... [BCG & WEF, 2024]`
+1. **`(YYYY)` 학술 표준** — `Author, A. (2025). [Title](https://...). Venue.`
+2. **`(YYYYa)` 동일 연도 동일 저자 disambiguation** — `WEF (2025a). [Title](https://...). ...` (인라인은 `[WEF, 2025a]`)
+3. **`YYYY-MM-DD` 비학술/블로그/뉴스** — `Author, "[Title](https://...)," 2026-04-24. [Author, 2026]` (반드시 끝에 `[Author, YYYY]` 트레일링 태그)
+4. **트레일링 태그만** — 약어·다중저자: `Boston Consulting Group and World Economic Forum (2024). [Title](https://...). ... [BCG & WEF, 2024]`
 
 **금지 패턴** (linkifier가 못 찾음):
 - 본문 `[Author, Year]`인데 reference에는 `Author, "Title," ...` 처럼 연도 표기가 어디에도 없는 경우
 - 본문 `[X & Y, YYYY]` 약어인데 reference는 풀네임이고 트레일링 태그도 없는 경우 → reference 끝에 `[X & Y, YYYY]` 추가
 - `[Figure, 2025; Figure, 2026]`처럼 한 대괄호 안에 세미콜론 다중 인용 → `[Figure, 2025] [Figure, 2026]`처럼 분리
+
+### 참고문헌 항목 — 하이퍼링크 필수 (P7)
+
+**규칙**: `## 참고문헌` / `## References` 섹션의 **모든** 번호 entry는 마크다운 링크 `[text](url)`를 최소 1개 포함해야 한다. 논문이면 arXiv/DOI/저널 URL, 블로그/뉴스/공식 docs면 원문 URL, GitHub repo면 저장소 URL. 트레일링 태그 `[Author, YYYY]`는 링크가 아니므로 별도 본문 링크가 필요하다.
+
+**이유**: 독자가 reference 항목을 클릭하면 새 탭에서 원본을 열 수 있어야 한다. `build_site.py:build_references_list_html`이 `[text](url)` → `<a target="_blank">`를 자동 변환한다 — 마크다운 링크가 없으면 클릭 불가능한 평문이 된다.
+
+**관행**: 우선 제목을 링크화. `Author (Year). [Title](url). Venue.` 형식. 비학술 항목도 동일하게 제목·플랫폼명을 링크화. `book/references.bib`의 `url = {...}` 필드를 그대로 가져와 쓴다.
+
+**검증**: `build.py --validate <slug>`가 링크 없는 ref entry를 ERROR로 차단한다.
 
 ### Figure
 - 마크다운 경로: `![Figure N.M: caption](../../assets/figures/chNN_<slug>_fig<N>.png)`
@@ -103,6 +113,7 @@ last_updated: "YYYY-MM-DD"
 - [ ] **figure alt 텍스트 안에는 `[Author, Year]` 대괄호가 **없는가** (규칙 반대 — alt는 대괄호 없이, 본문은 대괄호 필수)
 - [ ] **book/**.md에 monorepo-internal path 노출 없음** (`glossary/master_*.md`, `bibtex/references.bib`, `.claude/`, `_workspace/`, `shared/` — 유지보수 노트는 CLAUDE.md / README에만)
 - [ ] `## 참고문헌` / `## References` 섹션에 arXiv/DOI/Nature ID 포함
+- [ ] **모든 reference entry에 마크다운 하이퍼링크 `[text](url)` 1개 이상** (P7 — 클릭 시 새 탭에서 원문 열림. validator가 unlinked entry를 ERROR로 차단)
 - [ ] **`python3 build.py --validate {{SURVEY_SLUG}}` PASS — `unresolved citation` 에러 0건** (linkifier가 모든 본문 인용을 reference에 매핑할 수 있어야 클릭 가능 + 백버튼 작동)
 - [ ] frontmatter의 `last_updated`와 `survey.json`의 해당 챕터 `last_updated`가 동일 날짜
 - [ ] 서사 흐름: 챕터 서두 3문장만 읽어도 "왜 이 챕터를 읽는지"가 명확한가

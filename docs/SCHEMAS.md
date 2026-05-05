@@ -28,7 +28,7 @@ Inside a figure caption (`![caption](url)`), do **not** use `[Author, Year]` bra
 
 ### Reference patterns (4)
 1. **Chapter-bottom heading**: `## 참고문헌` (KO) / `## References` (EN), required at end of every chapter.
-2. **List format**: numbered list, `1. Author (Year). Title. *Venue*. URL`.
+2. **List format**: numbered list, `1. Author (Year). [Title](url). *Venue*.` — **markdown link mandatory** on every entry (P7 in `/survey` SKILL.md). `build_site.py:build_references_list_html` converts `[text](url)` → `<a target="_blank" rel="noopener">`; entries without a link render as un-clickable plain text. Validator rejects unlinked entries.
 3. **Auto-anchored**: build emits `<li id="chN-ref-M">` per entry — inline cite `<sup><a href="#chN-ref-M">[M]</a></sup>` resolves here.
 4. **Global references page** (separate from chapter refs): `book/references.bib` → `docs/{lang}/references.html` standalone page. Chapter inline cites do **not** link here; they link to the chapter-bottom list anchor.
 
@@ -40,6 +40,7 @@ Inline cite click → smooth scroll to `#chN-ref-M` → 3-second highlight → `
 - Rejects arrow/abbrev cross-refs (`→Ch.N`, `→N장`, `(ChN)`).
 - Enforces ≥50% bibtex_key coverage and ≥30% arxiv/doi coverage in `_refs_extracted.json`.
 - Warns when `_research/papers.json` is missing or 100% `provenance: bibtex_backfill` (deep-researcher needed).
+- **Rejects reference list entries without a markdown `[text](url)` link** (P7 — guards against 2026-05-05 claude-to-codex incident where 12 chapters shipped with text-only refs).
 
 ## Sidebar TOC (chapter pages)
 
