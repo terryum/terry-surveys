@@ -765,14 +765,25 @@ blockquote strong {
   color: var(--text-primary);
 }
 
-/* --- Tables --- */
+/* --- Tables ---
+   Column widths follow the browser's natural table-layout: auto algorithm,
+   which sizes columns by cumulative content width. The previous rules
+   (display:block + th{white-space:nowrap; min-width:80px}) broke that
+   algorithm and gave short-content columns too much width when headers
+   were longer than content (e.g., "Time (1 cycle)" header dominating a
+   column of "분/시간" cells). For horizontal scroll on narrow viewports
+   we wrap each <table> in <div class="table-wrap"> via build_site.py.
+*/
+.table-wrap {
+  overflow-x: auto;
+  margin: 1.5rem 0;
+  max-width: 100%;
+}
+
 .styled-table {
   width: 100%;
   border-collapse: collapse;
-  margin: 1.5rem 0;
   font-size: 0.9rem;
-  overflow-x: auto;
-  display: block;
 }
 
 .styled-table thead {
@@ -785,15 +796,16 @@ blockquote strong {
   font-weight: 600;
   color: var(--text-primary);
   border-bottom: 2px solid var(--border-subtle);
-  white-space: nowrap;
-  min-width: 80px;
+  vertical-align: bottom;
 }
 
 .styled-table td {
   padding: 0.7rem 1rem;
   border-bottom: 1px solid var(--border-subtle);
   color: var(--text-secondary);
-  word-break: break-word;
+  vertical-align: top;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 .styled-table td img {

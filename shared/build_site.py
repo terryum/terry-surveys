@@ -478,7 +478,7 @@ def md_to_html_content(md_text, ch_num, lang):
         if stripped.startswith('>'):
             flush_list()
             if in_table:
-                html_parts.append('</tbody></table>')
+                html_parts.append('</tbody></table></div>')
                 in_table = False
             content = stripped.lstrip('>').strip()
             if not in_blockquote:
@@ -493,7 +493,7 @@ def md_to_html_content(md_text, ch_num, lang):
         if not stripped:
             flush_list()
             if in_table:
-                html_parts.append('</tbody></table>')
+                html_parts.append('</tbody></table></div>')
                 in_table = False
             continue
 
@@ -503,7 +503,7 @@ def md_to_html_content(md_text, ch_num, lang):
         if stripped.startswith('## '):
             flush_list()
             if in_table:
-                html_parts.append('</tbody></table>')
+                html_parts.append('</tbody></table></div>')
                 in_table = False
             title = stripped[3:].strip()
             sec_match = re.match(r'(\d+\.\d+)', title)
@@ -523,7 +523,7 @@ def md_to_html_content(md_text, ch_num, lang):
         if stripped.startswith('### '):
             flush_list()
             if in_table:
-                html_parts.append('</tbody></table>')
+                html_parts.append('</tbody></table></div>')
                 in_table = False
             title = stripped[4:].strip()
             html_parts.append(f'<h3>{process_inline(title)}</h3>')
@@ -532,7 +532,7 @@ def md_to_html_content(md_text, ch_num, lang):
         if stripped.startswith('#### '):
             flush_list()
             if in_table:
-                html_parts.append('</tbody></table>')
+                html_parts.append('</tbody></table></div>')
                 in_table = False
             title = stripped[5:].strip()
             html_parts.append(f'<h4>{process_inline(title)}</h4>')
@@ -561,7 +561,11 @@ def md_to_html_content(md_text, ch_num, lang):
             if not in_table:
                 flush_list()
                 in_table = True
-                html_parts.append('<table class="styled-table">')
+                # Wrap the table so .table-wrap can carry overflow-x:auto on
+                # narrow viewports without forcing display:block on the table
+                # itself (which would break table-layout:auto column sizing —
+                # short-content columns dominated by their long headers).
+                html_parts.append('<div class="table-wrap"><table class="styled-table">')
                 cells = [c.strip() for c in stripped.split('|')[1:-1]]
                 html_parts.append('<thead><tr>')
                 for c in cells:
@@ -577,7 +581,7 @@ def md_to_html_content(md_text, ch_num, lang):
                 html_parts.append('</tr>')
             continue
         elif in_table:
-            html_parts.append('</tbody></table>')
+            html_parts.append('</tbody></table></div>')
             in_table = False
 
         if re.match(r'^[-*]\s', stripped):
@@ -607,7 +611,7 @@ def md_to_html_content(md_text, ch_num, lang):
     flush_blockquote()
     flush_list()
     if in_table:
-        html_parts.append('</tbody></table>')
+        html_parts.append('</tbody></table></div>')
     if in_code:
         html_parts.append('</code></pre>')
     if current_section_id is not None:
@@ -1236,6 +1240,33 @@ def build_toc_html(config, lang_code):
 # CSS/JS copy with placeholder replacement
 # ---------------------------------------------------------------------------
 
+def write_headers(docs_dir):
+    """Write Cloudflare Pages _headers for static-asset caching.
+
+    HTML stays no-cache so chapter edits ship instantly. CSS/JS file names
+    are not content-hashed, so cap at 1h. /assets/* covers figures and
+    cover images — 24h is conservative enough that figure swaps appear
+    within a day, while removing per-request revalidate roundtrips.
+    """
+    content = (
+        "/*.html\n"
+        "  Cache-Control: public, max-age=0, must-revalidate\n"
+        "\n"
+        "/css/*\n"
+        "  Cache-Control: public, max-age=3600\n"
+        "\n"
+        "/js/*\n"
+        "  Cache-Control: public, max-age=3600\n"
+        "\n"
+        "/assets/*\n"
+        "  Cache-Control: public, max-age=86400\n"
+    )
+    out_path = os.path.join(docs_dir, '_headers')
+    with open(out_path, 'w', encoding='utf-8') as f:
+        f.write(content)
+    print(f"  Created: _headers")
+
+
 def copy_shared_assets(config, shared_dir, docs_dir):
     """Copy shared CSS/JS to survey docs, replacing placeholders in header.js."""
     css_src = os.path.join(shared_dir, 'css')
@@ -1393,6 +1424,10 @@ def build_survey(config, survey_dir, shared_dir):
             copied += 1
         if copied:
             print(f"  Overlaid {copied} shared figure(s) from monorepo assets/figures/")
+
+    # Cloudflare Pages cache headers (additive — does not affect _redirects)
+    print("Writing _headers...")
+    write_headers(docs_dir)
 
     print("\nBuild complete!")
     total = 0

@@ -65,6 +65,17 @@ last_updated: "YYYY-MM-DD"
 
 **검증**: `build.py --validate <slug>`가 링크 없는 ref entry를 ERROR로 차단한다.
 
+### 표 (Table) — 컬럼 폭은 내용이 결정한다
+
+`shared/build_site.py`는 표를 `<div class="table-wrap"><table class="styled-table">…</table></div>`로 감싸 렌더링하고, CSS는 `table-layout: auto`(브라우저 기본)에 맡긴다. 즉 **컬럼 폭은 누적 내용 길이로 결정되며, 헤더 길이로 결정되지 않는다**. 이전엔 `th { white-space: nowrap; min-width: 80px }` + `table { display: block }`이 layout 알고리즘을 깨뜨려, 헤더가 긴 컬럼이 내용이 짧아도 폭을 독차지하던 사고가 있었다 (2026-05 llm-wiki-to-ai-scientist Ch3 §3.3 사고 — `정의` 컬럼은 긴 내용에도 좁고, `시간` 컬럼은 한 글자 내용에도 넓어졌다). 2026-05-24 CSS+build_site 수정으로 영구 해결.
+
+**저자 측 가이드**:
+- **컬럼 수 5개 이하 권장**. 7-컬럼 표는 가독성이 떨어지고 좁은 viewport에서 가로 스크롤이 강제된다.
+- **헤더는 짧게, 내용은 자유롭게**. 헤더에 `(1 cycle)` 같은 단위 부연은 첫 행 셀에 footnote로 풀거나 캡션으로 옮기는 게 좋다.
+- **단위 컬럼은 묶어라**. `비용 (1 cycle)` + `시간 (1 cycle)`이 각자 좁은 한 단어 셀이면 `리소스`로 한 컬럼에 `$5-50 / week · weekly maintenance` 식으로 합쳐 컬럼 수를 줄인다.
+- **긴 셀은 최대 2-3줄을 목표**로 잡고, 그 이상이면 셀을 쪼개거나 표 밖 commentary로 옮긴다.
+- **셀 내 줄바꿈이 필요할 때** `<br>`을 직접 쓰지 말고 `;` `·` 같은 구분자로 자연스럽게 잘리도록 둔다 — 브라우저가 word-break 처리한다.
+
 ### Figure
 - 마크다운 경로: `![Figure N.M: caption](../../assets/figures/chNN_<slug>_fig<N>.png)`
 - 공유 레지스트리 figure는 `../../../../assets/figures/<slug>_fig<N>.png`
