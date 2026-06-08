@@ -238,6 +238,7 @@ def replace_citations_with_links(html_text, cite_map, ch_num, ref_list=None):
         return html_text
     if ref_list is None:
         ref_list = []
+    cite_counter = 0
 
     year_refs = {}
     for key, num in cite_map.items():
@@ -250,7 +251,13 @@ def replace_citations_with_links(html_text, cite_map, ch_num, ref_list=None):
             year_refs[yr].append((author, num))
 
     def make_link(num, title):
-        return f'<sup><a class="cite-link" href="#ch{ch_num}-ref-{num}" title="{title}">[{num}]</a></sup>'
+        nonlocal cite_counter
+        cite_counter += 1
+        cite_id = f'ch{int(ch_num):02d}-cite-{cite_counter}'
+        return (
+            f'<sup id="{cite_id}"><a class="cite-link" '
+            f'href="#ch{ch_num}-ref-{num}" title="{title}">[{num}]</a></sup>'
+        )
 
     def citation_replacer(match):
         full_match = match.group(0)

@@ -128,9 +128,14 @@ document.addEventListener('DOMContentLoaded', function() {
       const target = document.getElementById(targetId);
       if (!target) return;
 
-      // Give this citation a unique back-anchor
-      const backId = 'cite-back-' + targetId;
-      this.closest('sup').id = backId;
+      // Use the build-time citation id when available. Older generated pages
+      // get a deterministic fallback so every click can become the back target.
+      const citeSup = this.closest('sup');
+      if (!citeSup) return;
+      if (!citeSup.id) {
+        citeSup.id = 'cite-back-' + targetId + '-' + idx;
+      }
+      const backId = citeSup.id;
 
       // Scroll reference into view with padding at top
       const headerOffset = 100;
@@ -140,25 +145,27 @@ document.addEventListener('DOMContentLoaded', function() {
       target.classList.add('ref-highlight');
       setTimeout(() => target.classList.remove('ref-highlight'), 3000);
 
-      // Inject back-link if not already present
-      if (!target.querySelector('.cite-backlink')) {
-        const backLink = document.createElement('a');
+      // The same reference can be cited from several places. Always retarget
+      // the backlink to the most recently clicked citation.
+      let backLink = target.querySelector('.cite-backlink');
+      if (!backLink) {
+        backLink = document.createElement('a');
         backLink.className = 'cite-backlink';
-        backLink.href = '#' + backId;
         backLink.textContent = ' [본문으로 돌아가기]';
         backLink.title = 'Back to text';
-        backLink.addEventListener('click', function(ev) {
-          ev.preventDefault();
-          ev.stopPropagation();
-          const backTarget = document.getElementById(backId);
-          if (backTarget) {
-            scrollToWithOffset(backTarget, headerOffset);
-            backTarget.classList.add('cite-back-highlight');
-            setTimeout(() => backTarget.classList.remove('cite-back-highlight'), 2000);
-          }
-        });
         target.appendChild(backLink);
       }
+      backLink.href = '#' + backId;
+      backLink.onclick = function(ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const backTarget = document.getElementById(backId);
+        if (backTarget) {
+          scrollToWithOffset(backTarget, headerOffset);
+          backTarget.classList.add('cite-back-highlight');
+          setTimeout(() => backTarget.classList.remove('cite-back-highlight'), 2000);
+        }
+      };
     });
   });
 });
