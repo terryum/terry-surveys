@@ -55,11 +55,11 @@ URL인지 판별은 정규식 `^https?://`로 충분. URL 형태 제목(매우 �
 
 1. URL에서 메타(title, description, toc) 추출 (WebFetch / README).
 2. 메타 객체 구성 (toc는 ko ≤12자 / en ≤19자 per item).
-3. **이미지 — Gemini cover 1장 + utility 자동 파생**:
+3. **이미지 — gpt-image-2 medium cover 1장 + utility 자동 파생**:
    ```bash
-   # Gemini로 1:1 cover만 생성 (v3 prompt 5규칙 적용 — registration-playbook Step 3)
+   # gpt-image-2 medium으로 1:1 cover만 생성 (v3 prompt 5규칙 적용 — registration-playbook Step 3)
    python3 ~/.claude/skills/image-gen/scripts/generate-image.py "<prompt>" \
-     --style darkmode --ratio 1:1 \
+     --style darkmode --ratio 1:1 --quality medium \
      -o terryum-ai/public/images/projects/{slug}-cover.webp
    # utility가 표준 spec으로 압축 + og.png + thumb.webp 자동 파생 (post와 동일 표준)
    cd terryum-ai && node scripts/process-content-images.mjs --type=survey --slug={slug} --force
@@ -192,13 +192,13 @@ node /Users/terrytaewoongum/Codes/personal/terryum-ai/scripts/sync-survey-candid
 
 ### P3. Figure 소스 3-way 병용
 
-**규칙**: 세 계열을 함께 쓴다 — (a) 논문 원본 figure 크롭, (b) 공식 플랫폼/제품 사진 (press kit / GitHub / 하드웨어 arXiv, fair use), (c) Gemini 생성 개념도. 단일 소스로만 채우지 말 것.
+**규칙**: 세 계열을 함께 쓴다 — (a) 논문 원본 figure 크롭, (b) 공식 플랫폼/제품 사진 (press kit / GitHub / 하드웨어 arXiv, fair use), (c) OpenAI gpt-image-2 생성 개념도. 단일 소스로만 채우지 말 것.
 
-**이유**: 단일 소스 정책은 챕터 유형에 따라 비효율 — 논문 figure는 이론/산업 분석 챕터에서 희소하고, 플랫폼 사진은 회사 챕터에서만 합리적, Gemini는 이론/전략 챕터의 1급 소스.
+**이유**: 단일 소스 정책은 챕터 유형에 따라 비효율 — 논문 figure는 이론/산업 분석 챕터에서 희소하고, 플랫폼 사진은 회사 챕터에서만 합리적, gpt-image-2는 이론/전략 챕터의 1급 소스. 기본 품질은 `medium`; Terry가 결과물이 마음에 들지 않는다고 재생성을 지시할 때만 `high`.
 
 ### P4. 매니페스트에 `source_type` + `license_basis` 필수
 
-**규칙**: `_workspace/04_image_manifest.json`의 모든 항목에 `source_type` (paper_figure/platform_photo/gemini/seminar_pdf/blog) + `license_basis` 필수. 플랫폼 사진은 `source_url` · `fetch_date` · `sha256` 추가. Gemini는 `source_prompt` 추가.
+**규칙**: `_workspace/04_image_manifest.json`의 모든 항목에 `source_type` (paper_figure/platform_photo/ai_generated/seminar_pdf/blog) + `license_basis` 필수. 플랫폼 사진은 `source_url` · `fetch_date` · `sha256` 추가. AI 생성 이미지는 `source_prompt` · `provider` · `model` · `quality` 추가.
 
 **이유**: 저작권·fair use 추적성, 향후 이미지 재활용·교체 시 원본 복원.
 
@@ -254,8 +254,8 @@ python /Users/terrytaewoongum/Codes/personal/terryum-ai/scripts/flatten-transpar
 - **필드**: `survey.json` 최상위 `cover_image` (경로는 `"../assets/cover.<ext>"`).
 - **파일 위치**: `surveys/<slug>/assets/cover.{jpg,png,webp,svg}` (`assets/figures/` 아님 — flat `assets/` 루트).
 - **해상도**: 16:9 landscape 권장 (2752×1536 또는 유사). 1:1 정사각도 허용 (CSS `aspect-ratio: 16/9; object-fit: cover`가 center-crop).
-- **재사용**: MODE B 등록 시 생성된 `terryum-ai/public/images/projects/survey-<slug>-og.jpg` (16:9) 또는 `-cover.webp` (1:1)를 그대로 복사하는 것을 우선. 이미 있는 자산을 **새로 생성하지 말 것** (2026-04 humanoid-revolution 사고: 이미 좋은 OG가 있는데 Gemini로 새로 생성해 ₩210 낭비).
-- **생성 폴백**: og가 없을 때만 `/image-gen` (cinematic hero banner, 16:9, 2K).
+- **재사용**: MODE B 등록 시 생성된 `terryum-ai/public/images/projects/survey-<slug>-og.jpg` (16:9) 또는 `-cover.webp` (1:1)를 그대로 복사하는 것을 우선. 이미 있는 자산을 **새로 생성하지 말 것** (2026-04 humanoid-revolution 사고: 이미 좋은 OG가 있는데 새로 생성해 비용 낭비).
+- **생성 폴백**: og가 없을 때만 `/image-gen` (OpenAI gpt-image-2 medium, cinematic hero banner, 16:9, 2K).
 - **빌드 동작**: `build_site.py`가 `surveys/<slug>/assets/cover.*` → `docs/assets/cover.*`로 자동 복사. `index.html`은 `../assets/cover.<ext>`를 참조.
 - **CSS**: `.hero-cover` (max 960px, 라운디드, soft shadow, 16:9 aspect-ratio).
 

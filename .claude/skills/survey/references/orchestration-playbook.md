@@ -195,7 +195,7 @@ T-qa:          qa-reviewer         → _qa_report.md, READY FOR RELEASE 플래�
 | 머지 스크립트가 arxiv_id 충돌 감지 | `_merge_report.md`에 충돌 기록. 양쪽 method_summary 다르면 longer 본 채택 + 다른 본을 `method_summary_alt` 필드에 보존 |
 | 경계년도 논문 중복 진입 (peer grep 실패) | 머지 스크립트가 dedup. owner 필드를 먼저 entry한 쪽으로 정규화 |
 | book-writer가 같은 챕터 두 번 편집 | TaskCreate의 챕터별 단일 owner 원칙으로 방지. 충돌 시 파일 mtime 기반 최신본 채택 + diff 기록 |
-| image-curator가 논문 PDF 접근 불가 | `<!-- IMAGE: 대체 일러스트 요청 -->` 로 변환, Gemini fallback(챕터당 ≤ 2개 상한) |
+| image-curator가 논문 PDF 접근 불가 | `<!-- IMAGE: 대체 일러스트 요청 -->` 로 변환, OpenAI gpt-image-2 medium fallback (`--style survey-dark --ratio 16:9`; 챕터당 상한 없음) |
 | fact-checker가 수치 불일치 발견 | book-writer에 SendMessage로 정정 제안. 10초 무응답 시 보수적으로 "approximately" 완화 표현으로 수정 후 로그 |
 | qa-reviewer가 CRITICAL 이슈 발견 | 해당 담당 에이전트에 재작업 요청. 3회 실패 시 사용자 개입 요청 |
 

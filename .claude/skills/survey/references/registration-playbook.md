@@ -64,7 +64,7 @@
   - 초과 시 약어나 짧은 표현으로 조정.
 - `description`: 한글/영어 각각 **2–3줄** (카드에서 5–7줄 이내로 보이도록).
 
-## Step 3) 이미지 생성 — Gemini cover 1장 + utility로 og/thumb 자동 derive
+## Step 3) 이미지 생성 — gpt-image-2 medium cover 1장 + utility로 og/thumb 자동 derive
 
 **핵심 원칙**: 사람은 cover 1장만 정성껏 생성한다. og.png + thumb.webp는 `process-content-images.mjs` utility가 자동 파생. 이렇게 해야 4-asset spec이 항상 동일하게 강제됨.
 
@@ -81,10 +81,10 @@
 ### 단계
 
 ```bash
-# 1) Gemini로 cover 1장만 1:1로 생성 (raw 2K, ~2MB)
+# 1) OpenAI gpt-image-2 medium으로 cover 1장만 1:1로 생성 (raw 2K, ~2MB)
 python3 ~/.claude/skills/image-gen/scripts/generate-image.py \
   "<v3 prompt — 아래 가이드>" \
-  --style darkmode --ratio 1:1 \
+  --style darkmode --ratio 1:1 --quality medium \
   -o /Users/terrytaewoongum/Codes/personal/terryum-ai/public/images/projects/{slug}-cover.webp
 
 # 2) utility가 cover를 표준 spec으로 압축 + og.png + thumb.webp 자동 파생
@@ -93,7 +93,7 @@ node scripts/process-content-images.mjs --type=survey --slug={slug} --force
 ```
 
 `process-content-images.mjs` 동작:
-- cover.webp가 raw Gemini 출력이면 1200×1200 WebP q90으로 재처리 → ~140 KB
+- cover.webp가 raw gpt-image-2 출력이면 1200×1200 WebP q90으로 재처리 → ~140 KB
 - cover.webp에서 og.png 1200×630 자동 파생 → ~300 KB
 - cover.webp에서 thumb.webp 288×288 자동 파생 → ~13 KB
 - 이미 표준 spec이면 skip (idempotent)
@@ -109,7 +109,7 @@ cover.webp 생성 시 **다섯 규칙**을 모두 지킨다 — 한 가지라도
 **규칙 2: subject 구성요소를 이름으로 명시 (추상화 금지)**
 > ✅ `CLAUDE.md and subagent configuration in cyan glow, AGENTS.md and Codex CLI in orange glow, an LLM Wiki knowledge-brain structure`
 > ❌ "two AI coding terminal windows", "abstract neural dependency graph"
-> Gemini는 구체적 명사를 받으면 디테일을 거기에 쏟는다. 추상화될수록 디테일이 빠진다 (V2 사고 — 풀블리드 만들었지만 디자인이 약해진 원인).
+> gpt-image-2도 구체적 명사를 받으면 디테일을 거기에 쏟는다. 추상화될수록 디테일이 빠진다 (V2 사고 — 풀블리드 만들었지만 디자인이 약해진 원인).
 
 **규칙 3: edge-to-edge composition 한 줄로 명시 (긴 명령 금지)**
 > ✅ `"Edge-to-edge composition, no book mockup, no frame, no shadow."` (3 negatives)
@@ -117,7 +117,7 @@ cover.webp 생성 시 **다섯 규칙**을 모두 지킨다 — 한 가지라도
 > Negative prompt 7개+ 면 모델이 negative 처리에 budget을 써서 positive composition quality가 깎인다.
 
 **규칙 4: 금지어 절대 안 씀**
-> "book cover", "book mockup", "square book", "Clean upper area for title overlay" → Gemini가 책 표지 + 회색 배경 + 그림자를 그림. "title overlay" 힌트가 책 위쪽 비우기 효과를 만들어 책-mockup 레이아웃을 유도하는 trigger.
+> "book cover", "book mockup", "square book", "Clean upper area for title overlay" → 모델이 책 표지 + 회색 배경 + 그림자를 그리기 쉽다. "title overlay" 힌트가 책 위쪽 비우기 효과를 만들어 book-mockup 레이아웃을 유도하는 trigger.
 
 **규칙 5: 끝에 "deep dark background"가 아니라 specific gradient 명시**
 > ✅ `"Deep midnight blue to purple gradient"` 또는 `"Deep navy blue background"`
@@ -145,7 +145,7 @@ mockup, no frame, no shadow."
 --style darkmode --ratio 1:1
 ```
 
-**OG는 별도 Gemini call 필요 없음** — `process-content-images.mjs`가 cover.webp에서 1200×630 PNG로 자동 파생 (~300 KB). 별도 16:9 prompt 짤 필요 없음. 비용 ₩200/등록 절감.
+**OG는 별도 image call 필요 없음** — `process-content-images.mjs`가 cover.webp에서 1200×630 PNG로 자동 파생 (~300 KB). 별도 16:9 prompt 짤 필요 없음. 기본 생성은 OpenAI `gpt-image-2` `medium`; Terry가 결과물 불만족으로 재생성을 지시할 때만 `high`.
 
 **왜 utility 한 곳에서 다 처리하는가** (2026-04-28 사고 가족):
 - 사고 가족: 무압축 cover (2.4 MB) → Bluesky 1MB blob 실패; thumb 누락 → 홈 카드 broken image; og 1200×630 아님 → Facebook scraper reject. 전부 사람이 압축/derive 단계를 빼먹어서 발생.

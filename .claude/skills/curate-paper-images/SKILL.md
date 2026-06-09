@@ -1,11 +1,11 @@
 ---
 name: curate-paper-images
-description: "논문 figure를 선별하여 책 챕터에 삽입하고, 논문 원문과 대조하여 내용을 보강하며, 필요시 Gemini로 보조 일러스트를 생성하는 스킬. '이미지 추가', '논문 사진', 'figure 삽입', '이미지 큐레이션', '논문 그림', '챕터에 그림 넣어줘', '이미지 보강', '시각 자료 추가' 요청 시 반드시 이 스킬을 사용할 것. 챕터가 텍스트만으로 구성되어 있고 시각적 보강이 필요할 때도 자동 트리거."
+description: "논문 figure를 선별하여 책 챕터에 삽입하고, 논문 원문과 대조하여 내용을 보강하며, 필요시 OpenAI gpt-image-2로 보조 일러스트를 생성하는 스킬. '이미지 추가', '논문 사진', 'figure 삽입', '이미지 큐레이션', '논문 그림', '챕터에 그림 넣어줘', '이미지 보강', '시각 자료 추가' 요청 시 반드시 이 스킬을 사용할 것. 챕터가 텍스트만으로 구성되어 있고 시각적 보강이 필요할 때도 자동 트리거."
 ---
 
 # Curate Paper Images — 논문 Figure 큐레이션 + 내용 보강 스킬
 
-논문 figure를 선별하여 책 챕터에 배치하고, 논문 원문과 대조하여 내용을 보강하며, 필요시 Gemini로 보조 일러스트를 생성한다.
+논문 figure를 선별하여 책 챕터에 배치하고, 논문 원문과 대조하여 내용을 보강하며, 필요시 OpenAI gpt-image-2로 보조 일러스트를 생성한다.
 
 ## 전제 조건
 
@@ -19,8 +19,10 @@ description: "논문 figure를 선별하여 책 챕터에 삽입하고, 논문 �
 1. **논문 원본 figure**: arXiv PDF / 저널 PDF → 해당 figure 크롭. 메서드·결과 챕터의 **1급 소스**.
 2. **플랫폼 / 제품 공식 사진**: 상용 휴머노이드·쿼드러패드·액추에이터·센서 플랫폼은 회사 press kit, GitHub README, 하드웨어 arXiv 논문에서 가져온다. 학술 리뷰 fair use 범위. **회사·플랫폼 챕터의 1급 소스**.
 3. **세미나 PDF / 블로그 포스트**: `docs/revise-source/*.pdf`, `terryum-ai/posts/papers/{slug}/` — 이미 크롭되어 meta 첨부된 figure.
-4. **Gemini 생성 개념도**: `/image-gen`, `/image-gen` — 이론·전략·생태계 챕터의 overview 스키마, 타임라인, 비교 다이어그램. **티어 쿼터 내에서 다수 생성 허용** (이전의 "챕터당 ≤ 2" 상한 폐기).
+4. **OpenAI gpt-image-2 생성 개념도**: `/image-gen` 또는 `~/.claude/skills/image-gen/scripts/generate-image.py` — 이론·전략·생태계 챕터의 overview 스키마, 타임라인, 비교 다이어그램. 기본은 `--style survey-dark --ratio 16:9 --quality medium`; Terry가 결과물을 마음에 들지 않는다고 재생성을 지시할 때만 `--quality high` 또는 `--high`를 쓴다. **티어 쿼터 내에서 다수 생성 허용** (이전의 "챕터당 ≤ 2" 상한 폐기).
 5. **웹 이미지 검색 (최후 수단)**: 위 네 경로에 없을 때만. 반드시 원 출처를 확인하고 라이선스 근거를 `_assets_log.md`에 기록.
+
+Google Gemini / Imagen 계열 이미지 생성은 신규 survey figure 생성에서 비활성화한다. 과거 산출물의 provenance를 설명할 때만 Gemini 명칭을 남긴다.
 
 ## 7단계 워크플로우
 
@@ -32,7 +34,7 @@ description: "논문 figure를 선별하여 책 챕터에 삽입하고, 논문 �
 매핑 항목:
 - paper_name: 논문 명칭
 - slug_short: 축약명 (예: saycan, rt2, openvla, pi0)
-- source_type: seminar_pdf | blog | arxiv | gemini
+- source_type: seminar_pdf | blog | arxiv | ai_generated
 - source_location: PDF 페이지 | 블로그 슬러그 | arXiv URL
 - figures_available: 사용 가능한 figure 번호 목록
 ```
@@ -61,10 +63,10 @@ description: "논문 figure를 선별하여 책 챕터에 삽입하고, 논문 �
 
 | 챕터 유형 | figure 수 | 소스 믹스 |
 |---|---|---|
-| Theory / Overview / Primer | 3–5 | Gemini 스키마 중심 + 논문 figure 1–2개 |
-| Method / Algorithm survey | 3–6 | 논문 figure 중심 + Gemini 타임라인 1개 |
+| Theory / Overview / Primer | 3–5 | gpt-image-2 스키마 중심 + 논문 figure 1–2개 |
+| Method / Algorithm survey | 3–6 | 논문 figure 중심 + gpt-image-2 타임라인 1개 |
 | Platform / Company / Hardware | 4–8 (**실제 사진 ≥ 2**) | 플랫폼 press + 하드웨어 arXiv + 회사 공개 다이어그램 |
-| History / Ecosystem | 3–5 | 역사 사진 + Gemini 스키마 + 논문 figure |
+| History / Ecosystem | 3–5 | 역사 사진 + gpt-image-2 스키마 + 논문 figure |
 
 **하한**: 챕터당 ≥ 3 (예외는 `_assets_log.md`에 사유).
 **논문당**: 핵심 논문 3개, 그 외 2개.
@@ -73,7 +75,7 @@ description: "논문 figure를 선별하여 책 챕터에 삽입하고, 논문 �
 
 **네이밍 규칙:**
 - 논문 figure: `assets/figures/ch{NN}_{slug_short}_fig{N}.{ext}` (예: `ch04_pi0_fig2.jpeg`)
-- Gemini 생성: `assets/figures/ch{NN}_illust_{topic}.png` (예: `ch01_illust_agentic_loop.png`)
+- gpt-image-2 생성: `assets/figures/ch{NN}_illust_{topic}.png` (예: `ch01_illust_agentic_loop.png`)
 
 **소스별 크롭 방법:**
 - 세미나 PDF: 해당 페이지에서 figure 영역 크롭, PNG/JPG 저장
@@ -119,7 +121,7 @@ Figure 번호는 챕터 내 순차 번호: Figure 2.1, 2.2, 2.3, ...
 **Caption 처리:**
 - 출처 attribution 필수: `출처: Author (Year), Fig. N`
 - 캡션이 길면 1-2문장으로 요약
-- Gemini 생성 일러스트는 `출처:` 없이 내용 설명만 기재
+- gpt-image-2 생성 일러스트는 `출처:` 없이 내용 설명만 기재
 
 **⚠ 치명적 함정 — alt 텍스트에 `[Author, Year]` 대괄호 인용 금지**
 build_site.py의 citation linkifier가 markdown 이미지 alt 텍스트 안의 `[Author, Year]`도 `<sup><a>[N]</a></sup>` HTML로 바꾸면서 alt 속성의 closing `"`를 조기에 닫는다. 결과: `loading="lazy"`, `onerror=...`, `style="cursor:zoom-in"` 등 이미지 태그의 나머지 HTML 속성이 figcaption에 **visible text로 새어 나옴** (2026-04 humanoid-revolution 사고 — `[Kajita et al., 2003]`이 ch01.html의 figcaption에 `loading="lazy" onerror="..."` 유출).
@@ -128,9 +130,9 @@ build_site.py의 citation linkifier가 markdown 이미지 alt 텍스트 안의 `
 
 본문(narrative text)의 `[Author, Year]` 인용은 대괄호 유지 가능 — linkifier가 태그 경계 바깥에서 안전하게 처리한다. 규칙은 **이미지 alt 텍스트에만** 적용.
 
-### Step 7: Gemini 개념도 · 비교 다이어그램 생성
+### Step 7: OpenAI gpt-image-2 개념도 · 비교 다이어그램 생성
 
-이론/전략/생태계 챕터는 논문 figure로 커버되지 않는 시각 자료가 챕터 본문을 이해하는 데 핵심이다. Gemini로 다음 유형을 **적극** 생성한다:
+이론/전략/생태계 챕터는 논문 figure로 커버되지 않는 시각 자료가 챕터 본문을 이해하는 데 핵심이다. OpenAI gpt-image-2로 다음 유형을 **적극** 생성한다. 신규 생성 기본 명령은 `python3 ~/.claude/skills/image-gen/scripts/generate-image.py "<prompt>" --style survey-dark --ratio 16:9 --quality medium -o assets/figures/chNN_<slug>_figN.png` 이다:
 
 **생성 권장 유형:**
 - **Overview schematic**: 3-레이어 아키텍처 · Sim-to-Real 3전략처럼 여러 논문을 아우르는 구조도.
@@ -141,11 +143,11 @@ build_site.py의 citation linkifier가 markdown 이미지 alt 텍스트 안의 `
 
 티어 쿼터 내에서 필요한 만큼 생성한다 (이전의 "챕터당 ≤ 2개" 상한 **폐기**). 네이밍: `ch{NN}_illust_{topic}.png`.
 
-**단, 플랫폼/회사 챕터 주의**: Gemini 개념도만으로 회사 챕터를 채우지 말 것. 해당 챕터는 **실제 제품 사진 ≥ 2개를 선확보**한 후 Gemini 다이어그램을 추가.
+**단, 플랫폼/회사 챕터 주의**: AI 생성 개념도만으로 회사 챕터를 채우지 말 것. 해당 챕터는 **실제 제품 사진 ≥ 2개를 선확보**한 후 gpt-image-2 다이어그램을 추가.
 
 ## 산출물
 
-1. `assets/figures/ch{NN}_*.{ext}` — 논문 figure + Gemini 일러스트
+1. `assets/figures/ch{NN}_*.{ext}` — 논문 figure + gpt-image-2 일러스트
 2. `book/ko/ch*.md` — 이미지 마크다운 + 내용 보강된 한글 챕터
 3. `book/en/ch*.md` — 이미지 마크다운 + 내용 보강된 영문 챕터
 4. `_workspace/04_image_manifest.json` — 매니페스트 (3-way source 추적):
@@ -155,7 +157,7 @@ build_site.py의 citation linkifier가 markdown 이미지 alt 텍스트 안의 `
   "total_images": 75,
   "paper_figures": 22,
   "platform_photos": 22,
-  "gemini_illustrations": 22,
+  "ai_generated": 22,
   "existing_kept": 9,
   "chapters": {
     "ch11": [
@@ -183,10 +185,13 @@ build_site.py의 citation linkifier가 markdown 이미지 alt 텍스트 안의 `
       },
       {
         "figure_id": "Figure 11.3",
-        "source_type": "gemini",
-        "source_prompt": "Hybrid MPC+RL control stack diagram, 16:9, flat vector",
+        "source_type": "ai_generated",
+        "source_prompt": "Hybrid MPC+RL control stack diagram, dark cinematic survey style, 16:9",
+        "provider": "openai",
+        "model": "gpt-image-2",
+        "quality": "medium",
         "file": "ch11_illust_hybrid_stack.png",
-        "license_basis": "generated illustration, by author",
+        "license_basis": "internally generated (OpenAI gpt-image-2, medium, via image-gen skill)",
         "caption_ko": "...",
         "caption_en": "..."
       }
@@ -196,15 +201,15 @@ build_site.py의 citation linkifier가 markdown 이미지 alt 텍스트 안의 `
 ```
 
 Key schema fields:
-- `source_type`: `paper_figure` | `platform_photo` | `gemini` | `seminar_pdf` | `blog`
+- `source_type`: `paper_figure` | `platform_photo` | `ai_generated` | `seminar_pdf` | `blog`
 - `license_basis` **필수** (모든 항목).
 - 플랫폼 사진은 `source_url` · `fetch_date` · `sha256` 필수.
-- Gemini는 `source_prompt` 필수.
+- AI 생성 이미지는 `source_prompt` · `provider` · `model` · `quality` 필수.
 
 ## 주의사항
 
-- **3-way 소스 병용**: 챕터 유형별 티어 쿼터 (agent-template `image-curator.md` 참조)로 소스 믹스 결정. Gemini는 이론·생태계 챕터의 **1급 소스**.
-- **플랫폼 사진은 회사 챕터의 필수 성분**: Ch급 회사 분석 챕터는 실제 제품 사진 ≥ 2개 없이 Gemini 스키마만으로 채우지 말 것.
+- **3-way 소스 병용**: 챕터 유형별 티어 쿼터 (agent-template `image-curator.md` 참조)로 소스 믹스 결정. gpt-image-2 개념도는 이론·생태계 챕터의 **1급 소스**.
+- **플랫폼 사진은 회사 챕터의 필수 성분**: Ch급 회사 분석 챕터는 실제 제품 사진 ≥ 2개 없이 AI 생성 스키마만으로 채우지 말 것.
 - **경로 규칙**: `../../assets/figures/`로 시작해야 build_site.py가 올바르게 변환
 - **블록 이미지**: 한 줄에 `![...](...)`만 있으면 build_site.py가 `<figure>` 태그로 변환
 - **다크모드**: 논문 figure는 단일 버전 — `onerror` fallback이 원본 표시
