@@ -1,0 +1,175 @@
+#!/usr/bin/env python3
+"""Audit survey figure rasters for likely bad crops.
+
+This is a triage tool, not an automatic verdict. It flags images that deserve
+visual inspection: extreme aspect ratios, large asymmetric blank margins, or
+page-screenshot-like crops where the actual figure occupies too little of the
+canvas.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+
+from PIL import Image, ImageStat
+
+
+IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp"}
+
+
+def _content_mask_bounds(image: Image.Image) -> tuple[int, int, int, int] | None:
+    rgb = image.convert("RGB")
+    gray = rgb.convert("L")
+    # Treat near-white paper background as blank. This catches PDF page crops
+    # with a figure squeezed into one side while preserving dark-mode diagrams.
+    mask = gray.point(lambda p: 255 if p < 246 else 0)
+    return mask.getbbox()
+
+
+def _edge_dark_fraction(image: Image.Image, side: str) -> float:
+    rgb = image.convert("RGB")
+    w, h = rgb.size
+    band = max(2, min(w, h) // 100)
+    if side == "left":
+        crop = rgb.crop((0, 0, band, h))
+    elif side == "right":
+        crop = rgb.crop((w - band, 0, w, h))
+    elif side == "top":
+        crop = rgb.crop((0, 0, w, band))
+    else:
+        crop = rgb.crop((0, h - band, w, h))
+    gray = crop.convert("L")
+    hist = gray.histogram()
+    dark = sum(hist[:246])
+    return dark / max(1, crop.size[0] * crop.size[1])
+
+
+def audit_image(path: Path, include_low_confidence: bool = False) -> dict | None:
+    try:
+        with Image.open(path) as image:
+            w, h = image.size
+            mode = image.mode
+            alpha_flag = mode in {"RGBA", "LA"} or ("transparency" in image.info)
+            bounds = _content_mask_bounds(image)
+            reasons: list[str] = []
+            low_confidence: list[str] = []
+            if alpha_flag and include_low_confidence:
+                reasons.append("has-alpha")
+            aspect = w / h if h else 0
+            if aspect > 4.0:
+                reasons.append(f"very-wide:{aspect:.2f}")
+            elif aspect > 3.4 and include_low_confidence:
+                low_confidence.append(f"wide-review:{aspect:.2f}")
+            if aspect < 0.35:
+                reasons.append(f"very-tall:{aspect:.2f}")
+            elif aspect < 0.42 and include_low_confidence:
+                low_confidence.append(f"tall-review:{aspect:.2f}")
+            if bounds:
+                left, top, right, bottom = bounds
+                margins = {
+                    "L": left / w,
+                    "R": (w - right) / w,
+                    "T": top / h,
+                    "B": (h - bottom) / h,
+                }
+                content_area = ((right - left) * (bottom - top)) / max(1, w * h)
+                for key, value in margins.items():
+                    opposite = {
+                        "L": margins["R"],
+                        "R": margins["L"],
+                        "T": margins["B"],
+                        "B": margins["T"],
+                    }[key]
+                    if value >= 0.24 and value - opposite >= 0.18:
+                        reasons.append(f"blank-{key}:{value:.0%}")
+                    elif value >= 0.24 and include_low_confidence:
+                        low_confidence.append(f"blank-review-{key}:{value:.0%}")
+                if content_area <= 0.40 and max(margins.values()) >= 0.18:
+                    reasons.append(f"small-content-area:{content_area:.0%}")
+            edge_hits = {
+                side: _edge_dark_fraction(image, side)
+                for side in ("left", "right", "top", "bottom")
+            }
+            for side, value in edge_hits.items():
+                # A full-bleed image naturally has dark pixels on all sides.
+                # Edge contact is useful only as supporting evidence for a
+                # high-risk asymmetric crop, so keep it low-confidence.
+                if value >= 0.78 and include_low_confidence:
+                    low_confidence.append(f"edge-{side}:{value:.0%}")
+            if include_low_confidence:
+                reasons.extend(low_confidence)
+            if not reasons:
+                return None
+            stat = ImageStat.Stat(image.convert("RGB"))
+            return {
+                "path": str(path),
+                "width": w,
+                "height": h,
+                "mode": mode,
+                "mean_rgb": [round(v, 1) for v in stat.mean],
+                "reasons": reasons,
+            }
+    except Exception as exc:  # pragma: no cover - diagnostic path
+        return {"path": str(path), "error": str(exc), "reasons": ["unreadable"]}
+
+
+def iter_images(root: Path):
+    for path in sorted(root.glob("surveys/*/assets/figures/*")):
+        if path.suffix.lower() in IMAGE_EXTS and path.is_file():
+            yield path
+
+
+def render_markdown(results: list[dict]) -> str:
+    lines = [
+        "# Figure Crop Audit",
+        "",
+        "Generated by `scripts/audit_figure_crops.py`. Candidates require visual inspection; wide timeline figures and intentionally tall composites can be false positives.",
+        "",
+        f"Candidate count: {len(results)}",
+        "",
+        "| Path | Size | Reasons |",
+        "|---|---:|---|",
+    ]
+    for item in results:
+        size = f"{item.get('width', '?')}x{item.get('height', '?')}"
+        reasons = ", ".join(item.get("reasons", []))
+        lines.append(f"| `{item['path']}` | {size} | {reasons} |")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--repo-root", default=".", help="terry-surveys repo root")
+    parser.add_argument("--json", action="store_true", help="print JSON instead of markdown")
+    parser.add_argument(
+        "--include-low-confidence",
+        action="store_true",
+        help="include noisy transparency/edge/aspect review hints",
+    )
+    parser.add_argument("--write-report", help="write markdown report to this path")
+    args = parser.parse_args()
+
+    root = Path(args.repo_root).resolve()
+    results = [
+        item
+        for item in (
+            audit_image(path, include_low_confidence=args.include_low_confidence)
+            for path in iter_images(root)
+        )
+        if item
+    ]
+
+    if args.write_report:
+        Path(args.write_report).write_text(render_markdown(results), encoding="utf-8")
+    if args.json:
+        print(json.dumps(results, ensure_ascii=False, indent=2))
+    else:
+        print(render_markdown(results))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

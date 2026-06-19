@@ -14,6 +14,7 @@ import re
 import os
 import json
 import shutil
+import html
 
 
 # ---------------------------------------------------------------------------
@@ -50,6 +51,31 @@ def load_config(survey_dir):
 # ---------------------------------------------------------------------------
 # Markdown parsing
 # ---------------------------------------------------------------------------
+
+def _normalize_figure_src(src):
+    """Normalize survey markdown figure paths to the built docs location."""
+    src = src.replace('../../../../assets/figures/', '../assets/figures/')
+    src = src.replace('../../assets/figures/', '../assets/figures/')
+    return src
+
+
+def _attr(value):
+    """Escape text for safe HTML attribute insertion."""
+    return html.escape(str(value), quote=True)
+
+
+def _figure_button(src, caption, img_src=None, css_class='figure-lightbox-trigger'):
+    """Render an image as an in-page lightbox trigger, not a new-tab link."""
+    img_src = img_src or src
+    return (
+        f'<button type="button" class="{css_class}" '
+        f'data-lightbox-src="{_attr(src)}" '
+        f'data-lightbox-caption="{_attr(caption)}" '
+        f'aria-label="Open image">\n'
+        f'    <img src="{_attr(img_src)}" alt="{_attr(caption)}" loading="lazy" '
+        f'onerror="this.onerror=null;this.src=this.closest(\'button\').dataset.lightboxSrc">\n'
+        f'  </button>'
+    )
 
 def parse_frontmatter(md):
     """Extract YAML frontmatter and body."""
@@ -415,11 +441,8 @@ def md_to_html_content(md_text, ch_num, lang):
         def inline_img(m):
             alt = m.group(1)
             src = m.group(2)
-            # Survey-local (../../) or shared-registry (../../../../) paths
-            # all land at the same docs/assets/figures/ output root.
-            src = src.replace('../../../../assets/figures/', '../assets/figures/')
-            src = src.replace('../../assets/figures/', '../assets/figures/')
-            return f'<a href="{src}" target="_blank"><img src="{src}" alt="{alt}" loading="lazy" style="max-height:160px;width:auto;border-radius:8px;cursor:zoom-in"></a>'
+            src = _normalize_figure_src(src)
+            return _figure_button(src, alt, css_class='inline-image-lightbox-trigger')
         # Image alt text may contain `[Author, Year]` citations — allow inner `]`
         # so long as it is not followed by `(` (which would start the URL group).
         text = re.sub(r'!\[((?:[^\]]|\](?!\())*)\]\(([^)]+)\)', inline_img, text)
@@ -449,7 +472,10 @@ def md_to_html_content(md_text, ch_num, lang):
         text = re.sub(r'\x00MATH(\d+)\x00', restore_math, text)
         return text
 
-    for i, line in enumerate(lines):
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        i += 1
         stripped = line.strip()
 
         if stripped.startswith('$$') and stripped.endswith('$$') and len(stripped) > 4:
@@ -545,6 +571,48 @@ def md_to_html_content(md_text, ch_num, lang):
             html_parts.append(f'<h4>{process_inline(title)}</h4>')
             continue
 
+        if stripped.startswith(':::figure-gallery'):
+            flush_blockquote()
+            flush_list()
+            if in_table:
+                html_parts.append('</tbody></table></div>')
+                in_table = False
+            label = stripped.replace(':::figure-gallery', '', 1).strip()
+            items = []
+            while i < len(lines):
+                gallery_line = lines[i].strip()
+                i += 1
+                if gallery_line == ':::':
+                    break
+                gallery_match = re.match(
+                    r'(?:[-*]\s*)?!\[((?:[^\]]|\](?!\())*)\]\(([^)]+)\)',
+                    gallery_line
+                )
+                if not gallery_match:
+                    continue
+                caption = gallery_match.group(1)
+                src = _normalize_figure_src(gallery_match.group(2))
+                items.append((caption, src))
+            if items:
+                gallery_parts = ['<div class="figure-gallery" data-figure-gallery>']
+                if label:
+                    gallery_parts.append(f'  <div class="figure-gallery-label">{process_inline(label)}</div>')
+                gallery_parts.append('  <div class="figure-gallery-controls" aria-hidden="false">')
+                gallery_parts.append('    <button type="button" class="figure-gallery-nav" data-gallery-prev aria-label="Previous images">&lt;</button>')
+                gallery_parts.append('    <button type="button" class="figure-gallery-nav" data-gallery-next aria-label="Next images">&gt;</button>')
+                gallery_parts.append('  </div>')
+                gallery_parts.append('  <div class="figure-gallery-track" role="list">')
+                for caption, src in items:
+                    src_dark = src.replace('_technical.png', '_darkmode.png')
+                    gallery_parts.append('    <div class="figure-gallery-card" role="listitem">')
+                    gallery_parts.append(_figure_button(src, caption, img_src=src_dark, css_class='figure-gallery-trigger'))
+                    gallery_parts.append(f'      <div class="figure-gallery-caption">{process_inline(caption)}</div>')
+                    gallery_parts.append('    </div>')
+                gallery_parts.append('  </div>')
+                gallery_parts.append('</div>')
+                html_parts.append('\n'.join(gallery_parts))
+            continue
+
         # Block-level image: allow inner `]` not followed by `(` so alt text can
         # contain `[Author, Year]` citations (inline_img at process_inline uses
         # the same widened pattern for the paragraph-level case).
@@ -553,13 +621,10 @@ def md_to_html_content(md_text, ch_num, lang):
             flush_list()
             caption = img_match.group(1)
             src = img_match.group(2)
-            # Survey-local (../../) or shared-registry (../../../../) paths
-            # all land at the same docs/assets/figures/ output root.
-            src = src.replace('../../../../assets/figures/', '../assets/figures/')
-            src = src.replace('../../assets/figures/', '../assets/figures/')
+            src = _normalize_figure_src(src)
             src_dark = src.replace('_technical.png', '_darkmode.png')
             html_parts.append(f'<figure>')
-            html_parts.append(f'  <a href="{src}" target="_blank"><img src="{src_dark}" alt="{caption}" loading="lazy" onerror="this.onerror=null;this.src=\'{src}\'" style="cursor:zoom-in"></a>')
+            html_parts.append('  ' + _figure_button(src, caption, img_src=src_dark))
             html_parts.append(f'  <figcaption>{process_inline(caption)}</figcaption>')
             html_parts.append(f'</figure>')
             continue

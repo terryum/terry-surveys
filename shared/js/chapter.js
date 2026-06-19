@@ -168,4 +168,115 @@ document.addEventListener('DOMContentLoaded', function() {
       };
     });
   });
+
+  // --- Figure gallery horizontal controls ---
+  document.querySelectorAll('[data-figure-gallery]').forEach(gallery => {
+    const track = gallery.querySelector('.figure-gallery-track');
+    const prev = gallery.querySelector('[data-gallery-prev]');
+    const next = gallery.querySelector('[data-gallery-next]');
+    if (!track || !prev || !next) return;
+
+    const scrollByPage = direction => {
+      const amount = Math.max(280, Math.floor(track.clientWidth * 0.82));
+      track.scrollBy({ left: amount * direction, behavior: 'smooth' });
+    };
+
+    prev.addEventListener('click', () => scrollByPage(-1));
+    next.addEventListener('click', () => scrollByPage(1));
+  });
+
+  // --- In-page image lightbox ---
+  const triggers = Array.from(document.querySelectorAll('[data-lightbox-src]'));
+  if (!triggers.length) return;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'image-lightbox';
+  overlay.hidden = true;
+  overlay.innerHTML = [
+    '<button type="button" class="image-lightbox-close" aria-label="Close image">X</button>',
+    '<button type="button" class="image-lightbox-nav image-lightbox-prev" aria-label="Previous image">&lt;</button>',
+    '<div class="image-lightbox-stage">',
+    '  <img class="image-lightbox-img" alt="">',
+    '</div>',
+    '<button type="button" class="image-lightbox-nav image-lightbox-next" aria-label="Next image">&gt;</button>',
+    '<div class="image-lightbox-footer">',
+    '  <div class="image-lightbox-caption"></div>',
+    '  <div class="image-lightbox-counter"></div>',
+    '</div>'
+  ].join('');
+  document.body.appendChild(overlay);
+
+  const lightboxImg = overlay.querySelector('.image-lightbox-img');
+  const lightboxCaption = overlay.querySelector('.image-lightbox-caption');
+  const lightboxCounter = overlay.querySelector('.image-lightbox-counter');
+  const closeBtn = overlay.querySelector('.image-lightbox-close');
+  const prevBtn = overlay.querySelector('.image-lightbox-prev');
+  const nextBtn = overlay.querySelector('.image-lightbox-next');
+
+  let activeItems = [];
+  let activeIndex = 0;
+
+  function itemsForTrigger(trigger) {
+    const gallery = trigger.closest('[data-figure-gallery]');
+    const scope = gallery || document;
+    return Array.from(scope.querySelectorAll('[data-lightbox-src]')).map(el => ({
+      src: el.dataset.lightboxSrc,
+      caption: el.dataset.lightboxCaption || el.querySelector('img')?.alt || '',
+      alt: el.querySelector('img')?.alt || el.dataset.lightboxCaption || ''
+    }));
+  }
+
+  function renderLightbox() {
+    const item = activeItems[activeIndex];
+    if (!item) return;
+    lightboxImg.src = item.src;
+    lightboxImg.alt = item.alt;
+    lightboxCaption.textContent = item.caption;
+    lightboxCounter.textContent = activeItems.length > 1 ? `${activeIndex + 1} / ${activeItems.length}` : '';
+    prevBtn.hidden = activeItems.length < 2;
+    nextBtn.hidden = activeItems.length < 2;
+  }
+
+  function openLightbox(trigger) {
+    activeItems = itemsForTrigger(trigger);
+    activeIndex = Math.max(0, activeItems.findIndex(item => item.src === trigger.dataset.lightboxSrc));
+    renderLightbox();
+    overlay.hidden = false;
+    document.body.classList.add('lightbox-open');
+    closeBtn.focus({ preventScroll: true });
+  }
+
+  function closeLightbox() {
+    overlay.hidden = true;
+    document.body.classList.remove('lightbox-open');
+    lightboxImg.removeAttribute('src');
+  }
+
+  function stepLightbox(delta) {
+    if (activeItems.length < 2) return;
+    activeIndex = (activeIndex + delta + activeItems.length) % activeItems.length;
+    renderLightbox();
+  }
+
+  triggers.forEach(trigger => {
+    trigger.addEventListener('click', event => {
+      event.preventDefault();
+      openLightbox(trigger);
+    });
+  });
+
+  closeBtn.addEventListener('click', closeLightbox);
+  prevBtn.addEventListener('click', () => stepLightbox(-1));
+  nextBtn.addEventListener('click', () => stepLightbox(1));
+  overlay.addEventListener('click', event => {
+    if (event.target === overlay || event.target.classList.contains('image-lightbox-stage')) {
+      closeLightbox();
+    }
+  });
+  document.addEventListener('keydown', event => {
+    if (overlay.hidden) return;
+    if (event.key === 'Escape') closeLightbox();
+    if (event.key === 'ArrowLeft') stepLightbox(-1);
+    if (event.key === 'ArrowRight') stepLightbox(1);
+  });
 });
