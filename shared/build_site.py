@@ -1044,7 +1044,7 @@ def build_glossary_html(lang_code, book_dir):
 
 def build_index_html(config):
     """Build root index.html with language auto-detection."""
-    title = config['short_title']['en']
+    title = config['title']['en']
     return f'''<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1207,7 +1207,7 @@ def build_toc_html(config, lang_code):
   <main>
     <!-- Hero -->
     <section class="hero">
-{cover_html}      <h1 class="gradient-text">{config['short_title'][lang]}</h1>
+{cover_html}      <h1 class="gradient-text">{config['title'][lang]}</h1>
       <p class="subtitle">{subtitle}</p>
       <p class="description">{description}</p>
       <p class="hero-dates" style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.5rem;">
@@ -1289,7 +1289,7 @@ def copy_shared_assets(config, shared_dir, docs_dir):
     os.makedirs(js_dst, exist_ok=True)
 
     github_url = f'https://github.com/{config["github_repo"]}'
-    site_title = config['short_title']['en']
+    site_title = config['title']['en']
 
     for fname in os.listdir(js_src):
         src_path = os.path.join(js_src, fname)

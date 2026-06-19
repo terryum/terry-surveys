@@ -17,7 +17,9 @@ def _write(path, content):
 
 
 def _survey_config(name):
-    # Home hero uses: cover_image → short_title → subtitle → description.
+    # Home hero uses the canonical title, then subtitle and description.
+    # Keep short_title equal to title unless a downstream consumer explicitly
+    # supports a separate label. It must never replace the visible book title.
     # description stays short (KO ≤ 90 chars, EN ≤ 140 chars). The long
     # chapter list already renders below as the Chapter Grid, so the
     # description should be a single hook — never a table of contents.
@@ -32,8 +34,8 @@ def _survey_config(name):
             "en": "Survey Title (English)"
         },
         "short_title": {
-            "ko": "짧은 제목",
-            "en": "Short Title"
+            "ko": "서베이 제목 (한국어)",
+            "en": "Survey Title (English)"
         },
         "subtitle": {
             "ko": "부제목 (한 문장)",
