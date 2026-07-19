@@ -21,7 +21,9 @@ class InstallerTests(unittest.TestCase):
             self.assertTrue((installed / "SKILL.md").is_file())
             self.assertTrue((installed / "scripts/survey_harness.py").is_file())
             self.assertIn("SYNCED", result.stdout)
-            wrapper = subprocess.run(["python3", str(installed / "scripts/survey_harness.py"), "--help"], cwd=ROOT, env=env, capture_output=True, text=True)
+            wrapper_env = dict(env)
+            wrapper_env.pop("TERRY_SURVEYS_ROOT", None)
+            wrapper = subprocess.run(["python3", str(installed / "scripts/survey_harness.py"), "--help"], cwd=ROOT, env=wrapper_env, capture_output=True, text=True)
             self.assertEqual(wrapper.returncode, 0, wrapper.stderr)
             self.assertIn("survey v2 harness", wrapper.stdout)
 
