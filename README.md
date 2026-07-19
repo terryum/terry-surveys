@@ -37,6 +37,18 @@ python3 build.py --validate --all
 python3 build.py --new <slug>
 ```
 
+Large survey assets stay local and are backed up to the private Cloudflare R2
+bucket; generated `docs/` trees are rebuilt locally and deployed directly to
+Pages. Restore assets after a fresh clone with:
+
+```bash
+bash scripts/sync-content-assets.sh download
+```
+
+After adding or changing images, run `upload`. This also refreshes the tracked
+`terry-surveys-contents/assets/manifest.json`. Git stores the manifest and text
+sources, not the binary payload or generated HTML.
+
 `python3 build.py --new <slug>` creates a new folder at
 `terry-surveys-contents/surveys/<slug>` through the `surveys` symlink. New
 survey metadata points to the private contents repository by default. Public

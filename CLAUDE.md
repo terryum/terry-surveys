@@ -62,6 +62,8 @@ terry-surveys/
 Run `bash scripts/setup-contents.sh --check` before content work. New surveys
 must be created under the linked `surveys/` directory and committed to
 `terry-surveys-contents`, never to this public framework repository.
+Binary assets remain local and are synchronized to private R2 with
+`scripts/sync-content-assets.sh`; generated `docs/` output is never committed.
 
 ### Build commands
 ```

@@ -525,6 +525,12 @@ _workspace/
 revise-source/
 docs/revise-source/
 _revise-source/
+assets/
+docs/
+*.pdf
+*.mp3
+*.mp4
+*.zip
 *.tmp
 """
 

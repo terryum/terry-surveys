@@ -44,13 +44,16 @@ old survey entry from masquerading as a refresh sync.
 
 Then perform, in order:
 
-1. Local survey build and validation.
+1. Restore/verify local assets, then local survey build and validation.
 2. Cloudflare Pages deploy and public survey URL check.
 3. Exact Terry post/paper links and master reference index rebuild.
 4. Cover/OG/thumb validation and `terryum-ai` gallery registration.
 5. `terryum-ai` type-check/build, commit, push, and Workers workflow success.
-6. Re-run the `source-repositories.md` gate, then commit and push source/docs
-   to private `terry-surveys-contents`. Record that SHA as `content_commit`.
+6. Upload changed local assets to private R2 and refresh
+   `assets/manifest.json`. Re-run the `source-repositories.md` gate, then commit
+   and push text source plus the manifest to private `terry-surveys-contents`.
+   Never commit `assets/` or generated `docs/`. Record that SHA as
+   `content_commit`.
    Record the public skill/harness version used for scoring as
    `framework_commit`; this commit must contain no survey content.
 7. Candidate/KG sync-back.

@@ -77,7 +77,8 @@ Read `references/orchestration-v2.md` for any book-scale run. Read
    complete.
 8. A full run that reaches `ready` defaults to the complete publication chain:
    local build, Pages deploy, gallery assets and registration, Workers deploy,
-   source push, KG candidate sync, and live KO/EN assertions. Record release
+   private-R2 asset sync, text-only source push, KG candidate sync, and live
+   KO/EN assertions. Record release
    evidence with the controller. Never publish a blocked draft as release-ready.
 
 ## Non-negotiable behavior

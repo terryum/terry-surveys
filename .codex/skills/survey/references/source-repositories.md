@@ -42,6 +42,14 @@ Never add survey content, built survey docs, research workspaces, or private
 master data to the public framework repository. Never make the contents
 repository public unless the user explicitly reverses this policy.
 
+The private contents Git repository is text-first. Do not commit per-survey
+`assets/`, generated `docs/`, PDFs, audio, archives, or other heavyweight
+binaries. Keep them locally, record hashes in `assets/manifest.json`, and sync
+the asset directories to the private `terry-surveys-assets-private` R2 bucket
+with `scripts/sync-content-assets.sh`. Pages deployment still builds from local
+assets and uploads the generated site directly. A fresh clone must restore R2
+assets before build, QA, or release.
+
 ## Metadata and publication
 
 New and migrated surveys use:
