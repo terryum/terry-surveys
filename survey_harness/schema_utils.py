@@ -38,8 +38,10 @@ def _validate_without_dependency(instance: Any, schema: dict, path: str = "<root
         "boolean": lambda value: isinstance(value, bool),
         "null": lambda value: value is None,
     }
-    if expected in type_checks and not type_checks[expected](instance):
-        return [f"{path}: expected {expected}"]
+    expected_types = expected if isinstance(expected, list) else [expected]
+    expected_types = [item for item in expected_types if item in type_checks]
+    if expected_types and not any(type_checks[item](instance) for item in expected_types):
+        return [f"{path}: expected {' or '.join(expected_types)}"]
     if "const" in schema and instance != schema["const"]:
         errors.append(f"{path}: expected constant {schema['const']!r}")
     if "enum" in schema and instance not in schema["enum"]:
@@ -49,6 +51,11 @@ def _validate_without_dependency(instance: Any, schema: dict, path: str = "<root
             errors.append(f"{path}: string is too short")
         if schema.get("pattern") and re.search(schema["pattern"], instance) is None:
             errors.append(f"{path}: string does not match pattern")
+    if isinstance(instance, (int, float)) and not isinstance(instance, bool):
+        if "minimum" in schema and instance < schema["minimum"]:
+            errors.append(f"{path}: number is below minimum")
+        if "maximum" in schema and instance > schema["maximum"]:
+            errors.append(f"{path}: number is above maximum")
     if isinstance(instance, dict):
         for field in schema.get("required", []):
             if field not in instance:
@@ -65,7 +72,11 @@ def _validate_without_dependency(instance: Any, schema: dict, path: str = "<root
                 child_schema = additional
             if child_schema is not None:
                 errors.extend(_validate_without_dependency(value, child_schema, child_path))
+            elif additional is False:
+                errors.append(f"{child_path}: additional property is not allowed")
     if isinstance(instance, list) and isinstance(schema.get("items"), dict):
+        if len(instance) < schema.get("minItems", 0):
+            errors.append(f"{path}: array has too few items")
         for index, value in enumerate(instance):
             errors.extend(_validate_without_dependency(value, schema["items"], f"{path}/{index}"))
     for conditional in schema.get("allOf", []):
