@@ -1,6 +1,6 @@
 ---
 name: survey
-description: "Survey 책 생애주기 전 단계를 관리한다. terry-surveys 모노레포에서 호출하면 MODE A(새 책 부트스트랩 = scaffold + .claude/agents/ 템플릿 복사 + 하네스 구성), 배포된 Cloudflare Pages URL을 주면 MODE B(홈페이지 Surveys 갤러리 등록 + /cite-post 자동 호출). **집필은 기본적으로 --orchestrate로 멀티에이전트 하네스 팀이 자율 병렬 수행** (deep-researcher-foundations·deep-researcher-frontier·critical-analyst·book-writer·image-curator·fact-checker·qa-reviewer 7종 — deep-researcher는 시간대로 2-way 병렬, 샤드 merge 후 canonical papers.json; 나머지 5인은 TeamCreate + SendMessage + TaskCreate로 자체 조율). 서브커맨드로 --orchestrate(팀 집필), --sync-agents(템플릿 전파), --refresh(staleness), --factcheck, --link-posts(Tier 1 포스트 역링크), --deploy(빌드+배포+등록). 새 서베이 책을 시작·집필·유지보수할 때 반드시 이 스킬을 사용할 것."
+description: "Terry의 이중언어 연구 서베이 책을 만들고 갱신·팩트체크·시각화·채점·배포한다. 신규 책과 major refresh는 저장소의 survey_harness v2 상태 머신과 8개 역할 계약을 사용하며 READY 또는 재개 가능한 BLOCKED까지 한 번의 호출로 진행한다."
 argument-hint: "<제목 | URL> [--domain=... | --bootstrap | --register | --orchestrate | --sync-agents | --refresh | --factcheck | --link-posts | --deploy] [--phase=research|write|polish] [--chapters=1-3] [--max-parallel=N] [--visibility=group --group=snu]"
 ---
 
@@ -8,9 +8,27 @@ argument-hint: "<제목 | URL> [--domain=... | --bootstrap | --register | --orch
 
 입력: $ARGUMENTS
 
+> **v2 공용 코어 우선 규칙:** 이 파일은 Claude 런타임 어댑터다. 신규 책과
+> major refresh의 DAG, 품질 기준, 보완 횟수, resume, release 상태는 저장소의
+> `survey_harness/`와 `.codex/skills/survey/references/*-v2.md`가 정본이다.
+> 아래의 고정 paper/word/figure 수나 `TeamCreate` 단계가 공용 프로필과
+> 충돌하면 `survey_harness/config/quality_profiles.yaml`과 controller가 우선한다.
+> Claude team은 controller의 `next` task packet을 dispatch하고 실제 agent ID와
+> 산출물을 `start`/`complete`로 기록해야 한다. 제목만 입력한 신규 책은
+> bootstrap에서 멈추지 않고 full profile이 READY 또는 resumable BLOCKED가 될
+> 때까지 진행하며, READY이면 기본적으로 publication chain까지 수행한다.
+
+> **저장소 분리 규칙:** `terry-surveys`는 public skill/framework 전용이고,
+> 모든 서베이 소스는 private sibling `terry-surveys-contents/surveys/<slug>`가
+> 정본이다. `bash scripts/setup-contents.sh --check`를 먼저 통과시키며,
+> standalone 또는 `terry-private` 서베이 repo를 새 source target으로 만들지 않는다.
+
 이 스킬은 **두 가지 모드**(A: 부트스트랩 / B: 등록)와 **6가지 지속 운영 서브커맨드**로 서베이 책의 모든 단계를 관리한다. 본문은 모드 분기와 요약만 담고, 실제 단계별 세부는 `references/` 내 플레이북을 참조한다.
 
-**집필은 `--orchestrate`가 기본**이다 — 7개 에이전트(`surveys/<slug>/.claude/agents/*.md`)가 `/harness` 규약의 팀 모드로 자율 병렬 수행한다. deep-researcher는 foundations(pre-2024)/frontier(2024+) 2명으로 분리돼 병렬 실행되며 `merge_research_shards.py`가 canonical papers.json 생성. 순차 Phase 실행이 아니라 의존성 그래프 기반 동시 진행·스트리밍·자체 조율이 표준. 세부는 `references/orchestration-playbook.md` 참조.
+**집필은 `--orchestrate`가 기본**이다. KG mapper, evidence librarian,
+foundations/frontier researchers, bilingual writer, image curator, fact checker,
+independent QA의 8개 역할을 v2 controller가 필요한 시점에 bounded dispatch한다.
+고정된 대형 팀을 한 번에 띄우지 않으며 파일 산출물과 persistent state가 인계 계약이다.
 
 ## Step 0. 모드 감지
 
@@ -34,14 +52,13 @@ URL인지 판별은 정규식 `^https?://`로 충분. URL 형태 제목(매우 �
 **세부는 `references/bootstrap-playbook.md` 참조.** 핵심만:
 
 1. 제목 → slug 도출, `surveys/<slug>/` 충돌 체크.
-2. `python3 build.py --new <slug>` (공개 구조 스캐폴딩).
-3. **(visibility=group인 경우)** scaffold를 `terry-private/surveys/<slug>/`로 mv + symlink 복원. **이 단계 없이는 PUBLIC repo에 비공개 콘텐츠 leak 가능** (2026-04-29 physical-ai-manufacturing 사고).
-4. `mkdir .claude/agents/` + 템플릿 6개 복사 + placeholder 치환.
-5. `survey.json` 제목·설명·날짜·**visibility/group** 초벌 채움.
-6. `python3 build.py --index` + `--validate <slug>`.
-7. Next-steps 안내 — public 흐름이면 `git add` 안내, group 흐름이면 `cd ../terry-private && git ...` 안내.
+2. `python3 build.py --new <slug>`로 private contents repo에 스캐폴딩.
+3. `mkdir .claude/agents/` + v2 역할 템플릿 8개 복사 + placeholder 치환.
+4. `survey.json` 제목·설명·날짜·**visibility/group** 초벌 채움.
+5. `python3 build.py --index` + `--validate <slug>`.
+6. `cd ../terry-surveys-contents`에서 source 변경을 커밋하도록 안내.
 
-`scripts/bootstrap.sh <slug> "<title_ko>" "<title_en>" "<domain>" [--visibility=group --group=<grp>] [--dry-run]`이 위 1–6을 한 번에 실행한다. **`--visibility=group --group=<grp>`** 인자가 있으면 자동으로 terry-private 라우팅.
+`scripts/bootstrap.sh <slug> "<title_ko>" "<title_en>" "<domain>" [--visibility=group --group=<grp>] [--dry-run]`이 위 단계를 한 번에 실행한다. visibility는 독자 접근만 바꾸며 source 위치는 항상 private contents repo다.
 
 ### 예시
 ```
@@ -86,21 +103,20 @@ URL인지 판별은 정규식 `^https?://`로 충분. URL 형태 제목(매우 �
 
 ### `/survey --orchestrate <slug> [--phase=...] [--chapters=...] [--max-parallel=N]` — 기본 집필 모드
 
-**세부는 `references/orchestration-playbook.md` 참조.**
-
-`/harness` 규약의 팀 모드로 7개 에이전트를 기동하여 **자율 병렬 집필**. 순차 Phase 아님 — 의존성 그래프 기반 동시 진행·스트리밍이 기본.
+**정본은 `.codex/skills/survey/references/orchestration-v2.md`와
+`role-contracts-v2.md`다.** Claude team API는 controller가 반환한 작업을 실행하는
+dispatch adapter일 뿐이며 품질·상태 판정은 공유 Python 하네스가 맡는다.
 
 **리더(오케스트레이터 = /survey 스킬 자체) 동작**:
-1. `TeamCreate(name="survey-<slug>", members=[deep-researcher-foundations, deep-researcher-frontier, critical-analyst, book-writer, image-curator, fact-checker, qa-reviewer])` — 각 에이전트는 `surveys/<slug>/.claude/agents/<name>.md`를 system prompt로 로드, 모델 `opus`.
-2. `TaskCreate`로 의존성 그래프 설정 (`addBlockedBy`로 표현):
-   - deep-researcher-foundations + deep-researcher-frontier → 각자 `_research/papers_{role}.json` 샤드 (병렬 실행, peer grep으로 중복 회피)
-   - **T-merge-research** (리더 직접 실행): `python3 .claude/skills/survey/scripts/merge_research_shards.py <slug>` → canonical `_research/papers.json` + `_merge_report.md`
-   - critical-analyst (blockedBy: merge 부분 또는 샤드 60% 시점) → `_analysis/gaps.md`
-   - book-writer × 챕터 수 (blockedBy: 해당 Part analysis) — 챕터 간 독립, **병렬 실행**
-   - image-curator, fact-checker — 챕터 완료 이벤트에 **스트림 처리**
-   - qa-reviewer — 진행 중 incremental QA + 최종 관문
-3. 팀원들이 `SendMessage`로 자체 조율 (발견 공유·수정 요청·상충 토론). deep-researcher 2인은 경계년도 논문·중복 엔트리를 서로 넘겨주며 협업.
-4. 리더는 `TaskList`로 진행 모니터링, 작업은 안 함(예외: merge 스크립트 실행). 완료 감지 시 `TeamDelete`.
+1. `survey_harness.py init <slug> --profile full --deploy auto`로 상태를 만든다.
+2. `next`가 반환한 최대 3개 task packet만 role template과 함께 dispatch하고,
+   실제 agent ID를 `start`에 기록한다.
+3. 선언 산출물과 내용 계약을 검증한 뒤에만 `complete`한다. KO/EN 한 챕터는
+   동일 writer가 소유하고 image/factcheck는 챕터 완성 뒤 스트리밍한다.
+4. 모든 작업 뒤 `score --record --plan-remediation`을 실행한다. 실패 소유자에게
+   repair task를 돌려 최대 3회 보완하고 READY 또는 resumable BLOCKED에서 끝낸다.
+5. READY인 full run은 build·Pages·gallery·Workers·source push·KG sync·live KO/EN
+   검증까지 수행하고 release evidence를 controller에 기록한다.
 
 **Phase 플래그**:
 - `--phase=research`: 연구·분석만 (`_research/` + `_analysis/` 산출)
@@ -110,8 +126,8 @@ URL인지 판별은 정규식 `^https?://`로 충분. URL 형태 제목(매우 �
 
 **기타 플래그**:
 - `--chapters=1-3`: 특정 챕터만 타겟 (부분 업데이트·리프레시).
-- `--max-parallel=N`: 동시 진행 챕터 상한 (기본 4).
-- 세션 분할 체크포인트: `_workspace/orchestration_state.json`에 상태 저장.
+- `--max-parallel=N`: worker 동시 실행 상한(기본 3, orchestrator 제외).
+- 세션 분할 체크포인트: `_workspace/harness_state.json`에 상태 저장.
 
 ### `/survey --sync-agents [<slug> | --all] [--dry-run | --apply] [--retrofit]`
 

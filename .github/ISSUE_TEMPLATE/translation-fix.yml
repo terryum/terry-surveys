@@ -1,0 +1,25 @@
+name: Translation improvement
+description: Propose a Korean or English translation correction.
+title: "[Translation] "
+labels: [translation]
+body:
+  - type: input
+    id: survey
+    attributes:
+      label: Survey
+      description: Survey ID, slug, or public URL
+    validations:
+      required: true
+  - type: input
+    id: location
+    attributes:
+      label: Location
+      description: Chapter, section, or URL
+    validations:
+      required: true
+  - type: textarea
+    id: correction
+    attributes:
+      label: Current text and proposed translation
+    validations:
+      required: true

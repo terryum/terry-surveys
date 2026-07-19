@@ -31,6 +31,19 @@ SHARED_DIR = os.path.join(ROOT, 'shared')
 sys.path.insert(0, ROOT)
 
 
+def require_contents_workspace():
+    """Refuse content operations unless the private sibling is linked."""
+    if not os.path.islink(SURVEYS_DIR) or not os.path.isdir(SURVEYS_DIR):
+        print("ERROR: private survey contents are not linked.", file=sys.stderr)
+        print("Run: gh repo clone terryum/terry-surveys-contents ../terry-surveys-contents", file=sys.stderr)
+        print("Then: bash scripts/setup-contents.sh --check", file=sys.stderr)
+        sys.exit(1)
+    contents_root = os.path.dirname(os.path.realpath(SURVEYS_DIR))
+    if not os.path.exists(os.path.join(contents_root, '.git')):
+        print(f"ERROR: linked contents path is not a Git repository: {contents_root}", file=sys.stderr)
+        sys.exit(1)
+
+
 def list_surveys():
     """List all available survey directories."""
     surveys = []
@@ -68,6 +81,7 @@ def scaffold_new(name):
 
 
 def main():
+    require_contents_workspace()
     if len(sys.argv) < 2:
         print(__doc__)
         surveys = list_surveys()

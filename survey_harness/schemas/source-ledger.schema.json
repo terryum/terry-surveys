@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Survey source ledger entry",
+  "type": "object",
+  "required": ["source_id", "title", "source_type", "evidence_tier", "chapter_hints", "verification_status"],
+  "properties": {
+    "source_id": {"type": "string"},
+    "title": {"type": "string", "minLength": 3},
+    "source_type": {"enum": ["paper", "book", "dataset", "official", "industry", "news", "other"]},
+    "evidence_tier": {"enum": ["primary", "secondary", "context"]},
+    "chapter_hints": {"type": "array", "items": {"type": "integer"}},
+    "verification_status": {"enum": ["verified", "partial", "unverified", "rejected"]},
+    "terry_link_eligible": {"type": "boolean"},
+    "terry_link": {"type": ["string", "null"]}
+  }
+}

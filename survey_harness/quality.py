@@ -12,6 +12,7 @@ import hashlib
 import math
 import re
 from pathlib import Path
+from statistics import median
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from .config import load_profile
@@ -77,6 +78,59 @@ def load_jsonl(path: Path) -> Tuple[List[Dict[str, Any]], List[str]]:
             continue
         rows.append(row)
     return rows, errors
+
+
+def _frontmatter_value(text: str, key: str) -> Optional[str]:
+    match = re.match(r"^---\s*\n(.*?)\n---\s*(?:\n|$)", text, flags=re.S)
+    if not match:
+        return None
+    value = re.search(rf'^\s*{re.escape(key)}:\s*["\']?(.*?)["\']?\s*$', match.group(1), flags=re.M)
+    return value.group(1).strip() if value else None
+
+
+def title_style_metrics(path: Path) -> Dict[str, Any]:
+    """Measure title brevity and metadata drift without dictating exact wording."""
+    config = load_json(path / "survey.json", {})
+    parts = config.get("parts", []) if isinstance(config, dict) else []
+    result: Dict[str, Any] = {"part_lengths": {}, "chapter_lengths": {}, "chapter_medians": {}, "metadata_drift": []}
+    for lang in ("ko", "en"):
+        part_rows = []
+        chapter_rows = []
+        for part in parts if isinstance(parts, list) else []:
+            if not isinstance(part, dict):
+                continue
+            part_name = part.get("name", {})
+            expected_part = str(part_name.get(lang) or "") if isinstance(part_name, dict) else ""
+            if expected_part:
+                part_rows.append({"title": expected_part, "chars": len(expected_part)})
+            for chapter in part.get("chapters", []) if isinstance(part.get("chapters"), list) else []:
+                if not isinstance(chapter, dict):
+                    continue
+                try:
+                    chapter_num = int(chapter.get("num", 0))
+                except (TypeError, ValueError):
+                    continue
+                chapter_title = chapter.get("title", {})
+                expected_title = str(chapter_title.get(lang) or "") if isinstance(chapter_title, dict) else ""
+                if expected_title:
+                    chapter_rows.append({"chapter": chapter_num, "title": expected_title, "chars": len(expected_title)})
+                manuscript = path / "book" / lang / f"ch{chapter_num:02d}.md"
+                if not manuscript.exists():
+                    continue
+                text = manuscript.read_text(encoding="utf-8", errors="ignore")
+                observed_title = _frontmatter_value(text, "title")
+                observed_part = _frontmatter_value(text, "part")
+                if observed_title != expected_title:
+                    result["metadata_drift"].append({"lang": lang, "chapter": chapter_num, "field": "title", "expected": expected_title, "observed": observed_title})
+                if observed_part != expected_part:
+                    result["metadata_drift"].append({"lang": lang, "chapter": chapter_num, "field": "part", "expected": expected_part, "observed": observed_part})
+                h1 = re.search(r"^#\s+(?:제\s*\d+장|Chapter\s+\d+)\s*:\s*(.+?)\s*$", text, flags=re.I | re.M)
+                if h1 and h1.group(1).strip() != expected_title:
+                    result["metadata_drift"].append({"lang": lang, "chapter": chapter_num, "field": "h1", "expected": expected_title, "observed": h1.group(1).strip()})
+        result["part_lengths"][lang] = part_rows
+        result["chapter_lengths"][lang] = chapter_rows
+        result["chapter_medians"][lang] = float(median([row["chars"] for row in chapter_rows])) if chapter_rows else 0.0
+    return result
 
 
 def prose(text: str) -> str:
@@ -373,6 +427,24 @@ def evaluate(root: Path, slug: str, profile_name: str = "full") -> Dict[str, Any
     profile = load_profile(profile_name)
     failures: List[Dict[str, Any]] = []
     metrics: Dict[str, Any] = {"chapter_count": len(chapters)}
+
+    title_style = title_style_metrics(path)
+    metrics["title_style"] = title_style
+    for lang in ("ko", "en"):
+        part_limit = int(profile[f"max_part_title_chars_{lang}"])
+        chapter_limit = int(profile[f"max_chapter_title_chars_{lang}"])
+        median_limit = int(profile[f"max_chapter_title_median_chars_{lang}"])
+        long_parts = [row for row in title_style["part_lengths"][lang] if row["chars"] > part_limit]
+        long_chapters = [row for row in title_style["chapter_lengths"][lang] if row["chars"] > chapter_limit]
+        observed_median = title_style["chapter_medians"][lang]
+        if long_parts:
+            add_failure(failures, f"title-part-length-{lang}", "book_writer", f"{lang.upper()} part titles exceed the {part_limit}-character review limit.", long_parts, part_limit)
+        if long_chapters:
+            add_failure(failures, f"title-chapter-length-{lang}", "book_writer", f"{lang.upper()} chapter titles exceed the {chapter_limit}-character review limit.", long_chapters, chapter_limit)
+        if observed_median > median_limit:
+            add_failure(failures, f"title-chapter-median-{lang}", "book_writer", f"{lang.upper()} median chapter-title length is {observed_median:g}; maximum is {median_limit}.", observed_median, median_limit)
+    if title_style["metadata_drift"]:
+        add_failure(failures, "title-metadata-sync", "book_writer", "Part/chapter titles drift between survey.json, manuscript frontmatter, or visible H1 headings.", title_style["metadata_drift"][:24], 0)
 
     corpus_count, invalid_papers, rich_pct = valid_corpus(path)
     corpus_floor = max(int(profile["corpus_floor_base"]), int(profile["corpus_floor_per_chapter"]) * len(chapters))

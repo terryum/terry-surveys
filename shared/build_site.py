@@ -1354,6 +1354,8 @@ def copy_shared_assets(config, shared_dir, docs_dir):
     os.makedirs(js_dst, exist_ok=True)
 
     github_url = f'https://github.com/{config["github_repo"]}'
+    github_visibility = str(config.get('github_repo_visibility', 'private')).casefold()
+    github_style = '' if github_visibility == 'public' else ' style="display:none" aria-hidden="true" tabindex="-1"'
     site_title = config['title']['en']
 
     for fname in os.listdir(js_src):
@@ -1362,6 +1364,7 @@ def copy_shared_assets(config, shared_dir, docs_dir):
         with open(src_path, 'r', encoding='utf-8') as f:
             content = f.read()
         content = content.replace('{{GITHUB_URL}}', github_url)
+        content = content.replace('{{GITHUB_STYLE}}', github_style)
         content = content.replace('{{SITE_TITLE}}', site_title)
         with open(dst_path, 'w', encoding='utf-8') as f:
             f.write(content)

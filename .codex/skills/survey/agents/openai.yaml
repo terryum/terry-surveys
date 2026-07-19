@@ -1,0 +1,6 @@
+interface:
+  display_name: "Survey"
+  short_description: "Run deep, resumable survey-book research harness"
+  default_prompt: "Use $survey to create a release-grade bilingual research survey with evidence, visuals, fact-checking, remediation, and publication."
+policy:
+  allow_implicit_invocation: true

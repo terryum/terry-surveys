@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Survey chapter source packet",
+  "type": "object",
+  "required": ["chapter", "thesis", "sections", "sources", "counterevidence", "visual_candidates"],
+  "properties": {
+    "chapter": {"type": "integer", "minimum": 1},
+    "thesis": {"type": "string", "minLength": 20},
+    "sections": {"type": "array", "minItems": 2},
+    "sources": {"type": "array", "items": {"type": "string"}},
+    "counterevidence": {"type": "array"},
+    "visual_candidates": {"type": "array"}
+  }
+}

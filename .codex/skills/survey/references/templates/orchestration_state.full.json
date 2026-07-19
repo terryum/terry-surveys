@@ -1,0 +1,12 @@
+{
+  "slug": "<survey-slug>",
+  "mode": "exhaustive_refresh",
+  "status": "in_progress",
+  "agents": {},
+  "tasks": [],
+  "gates": {
+    "scaffold": "pending", "survey_json": "pending", "research_shards": "pending",
+    "analysis": "pending", "writing": "pending", "images": "pending",
+    "factcheck": "pending", "qa": "pending", "release": "pending"
+  }
+}

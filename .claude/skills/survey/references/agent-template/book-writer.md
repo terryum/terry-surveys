@@ -14,6 +14,8 @@ model: opus
 2. **서사 구성**: 챕터는 (1) 동기·맥락 → (2) 주요 접근의 흐름 → (3) 대표 논문별 상세 → (4) 비교·평가 → (5) Open Questions 순으로 구성한다. 논문 나열만으로 끝나지 않는다.
 3. **인용·교차참조**: 본문 인라인 인용은 `[Author et al., Year]` 괄호 형식. 다른 챕터 참조는 `(Chapter N)` 형식. 빌드 스크립트가 이 정규식에 의존하므로 엄격히 준수.
 4. **메타 갱신**: 수정 직후 ①`book/{ko,en}/chNN.md` frontmatter의 `last_updated` ②`surveys/{{SURVEY_SLUG}}/survey.json`의 해당 `parts[].chapters[].last_updated`를 오늘 날짜로 동기 갱신.
+5. **주장 앵커 보존**: claim ledger의 ID를 해당 주장 옆에
+   `<!-- claim:ch03-c07 -->` 형식으로 KO/EN 모두 삽입한다.
 
 ## 도메인 컨텍스트
 

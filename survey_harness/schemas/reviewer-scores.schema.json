@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Independent survey reviewer scores",
+  "type": "object",
+  "required": ["reviewer_id", "independent", "dimensions"],
+  "properties": {
+    "reviewer_id": {"type": "string", "minLength": 8},
+    "independent": {"const": true},
+    "dimensions": {
+      "type": "object",
+      "required": ["evidence", "synthesis", "accuracy", "visuals", "links", "bilingual", "release"],
+      "additionalProperties": false,
+      "properties": {
+        "evidence": {"$ref": "#/$defs/score"},
+        "synthesis": {"$ref": "#/$defs/score"},
+        "accuracy": {"$ref": "#/$defs/score"},
+        "visuals": {"$ref": "#/$defs/score"},
+        "links": {"$ref": "#/$defs/score"},
+        "bilingual": {"$ref": "#/$defs/score"},
+        "release": {"$ref": "#/$defs/score"}
+      }
+    }
+  },
+  "$defs": {
+    "score": {
+      "type": "object",
+      "required": ["score", "evidence"],
+      "properties": {
+        "score": {"type": "number", "minimum": 0, "maximum": 100},
+        "evidence": {"type": "string", "minLength": 12}
+      }
+    }
+  }
+}

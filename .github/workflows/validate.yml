@@ -1,15 +1,4 @@
-name: Validate
-
-# Block PRs / direct pushes that introduce broken figure paths, missing
-# bibtex keys, unresolved citations, etc. — the structural invariants that
-# `python3 build.py --validate --all` enforces.
-#
-# Origin: 2026-04 KAIST IP retry storm. The standalone-era ch10.html was
-# deployed referencing /assets/figures/ch10/fig_10_X_*.png while the actual
-# files had been renamed to flat naming. An external automated client looped
-# on the resulting 404s for 4 days. The new SUBFOLDER_FIGURE_RE rule in
-# shared/validate.py catches that exact pattern; this workflow makes sure
-# the rule fires before merge instead of after deploy.
+name: Validate framework
 
 on:
   pull_request:
@@ -25,13 +14,11 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-
-      - name: Validate all surveys
-        run: python3 build.py --validate --all
+          python-version: "3.11"
+      - name: Validate survey skill
+        run: python3 scripts/validate-skill.py .codex/skills/survey
+      - name: Run framework and harness tests
+        run: python3 -m unittest discover -s survey_harness/tests -v

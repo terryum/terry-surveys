@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: General survey discussion
+    url: https://github.com/terryum/terry-surveys/discussions
+    about: Ask general questions about any Terry survey.

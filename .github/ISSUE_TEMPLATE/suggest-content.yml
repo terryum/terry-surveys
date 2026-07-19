@@ -1,0 +1,22 @@
+name: Suggest survey content
+description: Suggest a reference, figure, topic, or update for any survey.
+title: "[Survey suggestion] "
+labels: [survey-suggestion]
+body:
+  - type: input
+    id: survey
+    attributes:
+      label: Survey
+      description: Survey ID, slug, or public URL
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggestion
+    validations:
+      required: true
+  - type: textarea
+    id: sources
+    attributes:
+      label: Primary sources or links

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Scaffold a new survey project in the monorepo.
+"""Scaffold a new survey in the linked private contents repository.
 
 Produces the canonical survey structure defined in the root CLAUDE.md
 under "서베이 생성 표준". All templates default to the standard layout
@@ -28,7 +28,10 @@ def _survey_config(name):
     # running 243 KO chars / 444 EN chars.
     return {
         "id": name,
-        "github_repo": f"terryum/{name}",
+        "github_repo": "terryum/terry-surveys-contents",
+        # Source repositories are private by default even when the rendered
+        # survey is reader-public through Cloudflare/the Terry gallery.
+        "github_repo_visibility": "private",
         "title": {
             "ko": "서베이 제목 (한국어)",
             "en": "Survey Title (English)"
@@ -270,13 +273,13 @@ Thank you for your interest in improving this book! Contributions from the resea
 This project uses an **issue-based contribution workflow**. Rather than submitting pull requests directly, contributors open GitHub Issues with their suggestions, references, or corrections.
 
 ### 1. Suggest New Content
-Use the [**Suggest Content**](../../issues/new?template=suggest-content.yml) template to propose new references, figures, or sections.
+Use the [**Suggest Content**](https://github.com/terryum/terry-surveys/issues/new?template=suggest-content.yml) template to propose new references, figures, or sections.
 
 ### 2. Report Errors
-Use the [**Error Report**](../../issues/new?template=error-report.yml) template to report typos, factual errors, or broken links.
+Use the [**Error Report**](https://github.com/terryum/terry-surveys/issues/new?template=error-report.yml) template to report typos, factual errors, or broken links.
 
 ### 3. Translation Improvements
-Use the [**Translation Improvement**](../../issues/new?template=translation-fix.yml) template for Korean/English wording fixes.
+Use the [**Translation Improvement**](https://github.com/terryum/terry-surveys/issues/new?template=translation-fix.yml) template for Korean/English wording fixes.
 
 ## Credit Policy
 
@@ -297,13 +300,13 @@ By submitting, you agree that your contributions may be used under [CC BY-NC-SA 
 본 프로젝트는 **이슈 기반 기여 방식**을 사용합니다. Pull Request 대신 GitHub Issue로 제안/수정 사항을 공유해 주시면 저자가 검토 후 반영합니다.
 
 ### 1. 콘텐츠 제안
-[**Suggest Content**](../../issues/new?template=suggest-content.yml) 템플릿을 사용해 새로운 레퍼런스, figure, 섹션을 제안합니다.
+[**Suggest Content**](https://github.com/terryum/terry-surveys/issues/new?template=suggest-content.yml) 템플릿을 사용해 새로운 레퍼런스, figure, 섹션을 제안합니다.
 
 ### 2. 오류 신고
-[**Error Report**](../../issues/new?template=error-report.yml) 템플릿을 사용해 오탈자, 사실 오류, 깨진 링크 등을 신고합니다.
+[**Error Report**](https://github.com/terryum/terry-surveys/issues/new?template=error-report.yml) 템플릿을 사용해 오탈자, 사실 오류, 깨진 링크 등을 신고합니다.
 
 ### 3. 번역 개선
-[**Translation Improvement**](../../issues/new?template=translation-fix.yml) 템플릿으로 한/영 번역 개선을 제안합니다.
+[**Translation Improvement**](https://github.com/terryum/terry-surveys/issues/new?template=translation-fix.yml) 템플릿으로 한/영 번역 개선을 제안합니다.
 
 ## 크레딧 정책
 
@@ -540,7 +543,6 @@ def create_survey(name, surveys_dir):
         'assets/figures',
         'docs',
         'scripts',
-        '.github/ISSUE_TEMPLATE',
         '.claude/agents',
     ]:
         os.makedirs(os.path.join(survey_dir, d), exist_ok=True)
@@ -555,22 +557,13 @@ def create_survey(name, surveys_dir):
                _glossary_template(lang))
 
     _write(os.path.join(survey_dir, 'book', 'references.bib'),
-           '% BibTeX references — subset of bibtex/references.bib (monorepo master)\n')
+           '% BibTeX references — subset of the private contents master\n')
 
     _write(os.path.join(survey_dir, 'CLAUDE.md'), _claude_md(name))
     _write(os.path.join(survey_dir, 'README.md'), _readme(name))
     _write(os.path.join(survey_dir, 'LICENSE'), _license())
     _write(os.path.join(survey_dir, 'CONTRIBUTING.md'), _contributing(name))
     _write(os.path.join(survey_dir, '.gitignore'), _gitignore())
-
-    _write(os.path.join(survey_dir, '.github', 'ISSUE_TEMPLATE', 'config.yml'),
-           _issue_config(name))
-    _write(os.path.join(survey_dir, '.github', 'ISSUE_TEMPLATE', 'suggest-content.yml'),
-           _issue_suggest_content())
-    _write(os.path.join(survey_dir, '.github', 'ISSUE_TEMPLATE', 'error-report.yml'),
-           _issue_error_report())
-    _write(os.path.join(survey_dir, '.github', 'ISSUE_TEMPLATE', 'translation-fix.yml'),
-           _issue_translation_fix())
 
     push_path = os.path.join(survey_dir, 'scripts', 'push.sh')
     _write(push_path, _push_script(name))

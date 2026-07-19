@@ -1,0 +1,1 @@
+../../terry-surveys-contents/glossary/master_ko.md

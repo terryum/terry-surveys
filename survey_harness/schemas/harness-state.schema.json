@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://terryum.ai/schemas/survey-harness-state-v2.json",
+  "title": "Survey harness state",
+  "type": "object",
+  "required": ["schema_version", "revision", "run_id", "slug", "profile", "status", "created_at", "updated_at", "tasks", "quality", "release"],
+  "properties": {
+    "schema_version": {"const": "2.0"},
+    "revision": {"type": "integer", "minimum": 0},
+    "run_id": {"type": "string", "minLength": 8},
+    "slug": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+    "profile": {"enum": ["full", "mini", "legacy_baseline"]},
+    "repository_layout": {"enum": ["split-v1", "legacy-monorepo"]},
+    "status": {"enum": ["running", "remediating", "ready", "blocked", "deploy_blocked", "released"]},
+    "tasks": {"type": "array", "items": {"$ref": "#/$defs/task"}},
+    "quality": {"type": "object"},
+    "release": {"type": "object"}
+  },
+  "$defs": {
+    "task": {
+      "type": "object",
+      "required": ["id", "phase", "owner", "status", "dependencies", "artifacts", "attempt"],
+      "properties": {
+        "status": {"enum": ["pending", "running", "completed", "blocked", "skipped"]},
+        "dependencies": {"type": "array", "items": {"type": "string"}},
+        "artifacts": {"type": "array", "items": {"type": "string"}},
+        "attempt": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

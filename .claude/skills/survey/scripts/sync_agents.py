@@ -46,9 +46,10 @@ SURVEYS_DIR = REPO_ROOT / "surveys"
 # to produce deep-researcher-foundations.md + deep-researcher-frontier.md.
 AGENT_SPECS = [
     # (template_filename_without_ext, output_filename_without_ext, extra_values_dict)
+    ("kg-mapper",       "kg-mapper",       {}),
     ("deep-researcher", "deep-researcher-foundations", {"RESEARCHER_ROLE": "foundations"}),
     ("deep-researcher", "deep-researcher-frontier",    {"RESEARCHER_ROLE": "frontier"}),
-    ("critical-analyst", "critical-analyst", {}),
+    ("evidence-librarian", "evidence-librarian", {}),
     ("book-writer",      "book-writer",      {}),
     ("image-curator",    "image-curator",    {}),
     ("fact-checker",     "fact-checker",     {}),

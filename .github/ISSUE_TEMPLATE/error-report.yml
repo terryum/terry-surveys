@@ -1,0 +1,29 @@
+name: Survey error report
+description: Report a factual error, typo, broken citation, or broken link.
+title: "[Survey error] "
+labels: [survey-error]
+body:
+  - type: input
+    id: survey
+    attributes:
+      label: Survey
+      description: Survey ID, slug, or public URL
+    validations:
+      required: true
+  - type: input
+    id: location
+    attributes:
+      label: Location
+      description: Language, chapter, section, or URL
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and proposed correction
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Supporting source

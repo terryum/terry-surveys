@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Survey image plan",
+  "type": "object",
+  "required": ["schema_version", "survey", "chapters"],
+  "properties": {
+    "schema_version": {"const": "2.0"},
+    "survey": {"type": "string", "minLength": 1},
+    "chapters": {
+      "type": "object",
+      "propertyNames": {"pattern": "^ch[0-9]{2}$"},
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["figure_id", "path", "insertion_anchor", "source_type", "license_basis", "status"],
+          "properties": {
+            "figure_id": {"type": "string", "minLength": 1},
+            "path": {"type": "string", "minLength": 1, "pattern": "^(?!/)(?!https?://).+"},
+            "insertion_anchor": {"type": "string", "minLength": 1},
+            "source_type": {"enum": ["paper_figure", "platform_photo", "ai_generated", "author_created", "reused_local"]},
+            "license_basis": {"type": "string", "minLength": 3},
+            "status": {"enum": ["planned", "acquired", "inserted", "rejected"]},
+            "source_url": {"type": "string"},
+            "source_prompt": {"type": "string"},
+            "provider": {"type": "string"},
+            "model": {"type": "string"},
+            "fetch_date": {"type": "string"},
+            "sha256": {"type": "string"}
+          },
+          "allOf": [
+            {"if": {"properties": {"source_type": {"const": "ai_generated"}}}, "then": {"required": ["source_prompt", "provider", "model"]}},
+            {"if": {"properties": {"source_type": {"enum": ["paper_figure", "platform_photo"]}}}, "then": {"required": ["source_url"]}},
+            {"if": {"properties": {"source_type": {"const": "platform_photo"}}}, "then": {"required": ["fetch_date", "sha256"]}}
+          ]
+        }
+      }
+    }
+  }
+}
