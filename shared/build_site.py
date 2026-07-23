@@ -1107,14 +1107,15 @@ def build_glossary_html(lang_code, book_dir):
 # Index & TOC pages (data-driven from config)
 # ---------------------------------------------------------------------------
 
-def build_index_html(config):
+def build_index_html(config, survey_slug=None):
     """Build root index.html with language auto-detection."""
     title = config['title']['en']
+    slug_meta = f'\n  <meta name="survey-slug" content="{html.escape(survey_slug, quote=True)}">' if survey_slug else ''
     return f'''<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">{slug_meta}
   <title>{title}</title>
   <link rel="stylesheet" href="css/style.css">
   <script>
@@ -1440,7 +1441,7 @@ def build_survey(config, survey_dir, shared_dir):
     # Build index pages
     print("Building index pages...")
     with open(os.path.join(docs_dir, 'index.html'), 'w', encoding='utf-8') as f:
-        f.write(build_index_html(config))
+        f.write(build_index_html(config, os.path.basename(os.path.abspath(survey_dir))))
     print("  Created: index.html")
 
     with open(os.path.join(docs_dir, 'ko', 'index.html'), 'w', encoding='utf-8') as f:
