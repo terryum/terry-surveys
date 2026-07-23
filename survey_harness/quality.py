@@ -326,11 +326,13 @@ def claim_anchor_digest(text: str, claim_id: str) -> Tuple[Optional[str], Option
 def content_digest(path: Path, config_path: Optional[Path] = None, evaluator_path: Optional[Path] = None) -> str:
     hasher = hashlib.sha256()
     candidates = []
-    for rel in ("survey.json", "_refs_extracted.json", "_factcheck_report.md", "_qa_report.md", "_workspace/image_plan.json", "_quality/reviewer_scores.json", "_quality/build_validation.json"):
+    for rel in ("survey.json", "_refs_extracted.json", "_factcheck_report.md", "_qa_report.md", "_workspace/image_plan.json", "_workspace/04_image_manifest.json", "_quality/reviewer_scores.json", "_quality/build_validation.json"):
         target = path / rel
         if target.is_file():
             candidates.append(target)
-    for directory in ("book", "_research", "_analysis", "assets/figures"):
+    # Figure binaries live in private R2 and are intentionally absent from the
+    # split content repository. Their committed manifests bind paths and hashes.
+    for directory in ("book", "_research", "_analysis"):
         base = path / directory
         if base.is_dir():
             candidates.extend(item for item in base.rglob("*") if item.is_file())

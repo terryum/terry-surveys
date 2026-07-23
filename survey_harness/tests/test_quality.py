@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from survey_harness.quality import evaluate, korean_prose_language_stats
+from survey_harness.quality import content_digest, evaluate, korean_prose_language_stats
 from survey_harness.tests.helpers import make_passing_mini
 
 
@@ -238,6 +238,16 @@ ordinary english code should be ignored
         failures = {item["id"] for item in scorecard["hard_blockers"]}
         self.assertIn("image-plan-schema", failures)
         self.assertIn("image-plan-coverage", failures)
+
+    def test_content_digest_binds_manifest_not_r2_binary(self):
+        before = content_digest(self.survey)
+        figure = self.survey / "assets/figures/first.png"
+        figure.write_bytes(b"r2-only-binary-change")
+        self.assertEqual(before, content_digest(self.survey))
+
+        manifest = self.survey / "_workspace/04_image_manifest.json"
+        manifest.write_text(json.dumps({"schema_version": "2.0", "assets": [{"path": "first.png", "sha256": "abc"}]}), encoding="utf-8")
+        self.assertNotEqual(before, content_digest(self.survey))
 
     def test_reviewer_id_must_match_a_qa_worker(self):
         state_path = self.survey / "_workspace/harness_state.json"
