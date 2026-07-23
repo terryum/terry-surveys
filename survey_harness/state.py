@@ -470,7 +470,12 @@ def release_receipt_errors(root: Path, state: Dict[str, Any]) -> List[str]:
     if receipt.get("slug") != state["slug"] or receipt.get("content_digest") != expected_digest:
         errors.append("release receipt is not bound to the current slug/content digest")
     labels = {check.get("label") for check in receipt.get("checks", []) if isinstance(check, dict) and check.get("exit_code") == 0}
-    required = {"survey-commit", "survey-commit-remote", "gallery-commit", "gallery-commit-remote", "scored-content-commit", "workers-workflow", "pages_url", "live_ko_url", "live_en_url", "asset-validation", "kg-sync"}
+    commit_labels = (
+        {"content-commit", "content-commit-remote", "framework-commit", "framework-commit-remote"}
+        if state.get("repository_layout") == "split-v1"
+        else {"survey-commit", "survey-commit-remote"}
+    )
+    required = commit_labels | {"gallery-commit", "gallery-commit-remote", "scored-content-commit", "workers-workflow", "pages_url", "live_ko_url", "live_en_url", "asset-validation", "kg-sync"}
     missing = sorted(required - labels)
     if missing:
         errors.append(f"release receipt checks missing: {', '.join(missing)}")

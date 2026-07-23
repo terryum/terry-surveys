@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -11,6 +13,7 @@ from survey_harness.state import (
     plan_remediation,
     record_score,
     ready_tasks,
+    release_receipt_errors,
     resume_state,
     save_state,
     start_task,
@@ -171,6 +174,30 @@ class StateTests(unittest.TestCase):
         }
         with self.assertRaisesRegex(ValueError, "content_commit, framework_commit"):
             update_release(state, "released")
+
+    def test_split_release_receipt_uses_split_commit_labels(self):
+        state = new_state(self.root, "test-survey", "full")
+        state["repository_layout"] = "split-v1"
+        state["status"] = "released"
+        state["quality"]["history"].append({"content_digest": "digest"})
+        labels = {
+            "content-commit", "content-commit-remote", "framework-commit", "framework-commit-remote",
+            "gallery-commit", "gallery-commit-remote", "scored-content-commit", "workers-workflow",
+            "pages_url", "live_ko_url", "live_en_url", "asset-validation", "kg-sync",
+        }
+        payload = (json.dumps({
+            "slug": "test-survey",
+            "content_digest": "digest",
+            "checks": [{"label": label, "exit_code": 0} for label in sorted(labels)],
+        }) + "\n").encode()
+        receipt = self.survey / "_quality/release_receipt.json"
+        receipt.parent.mkdir(parents=True, exist_ok=True)
+        receipt.write_bytes(payload)
+        state["release"]["artifacts"] = {
+            "release_receipt": "_quality/release_receipt.json",
+            "release_receipt_sha256": hashlib.sha256(payload).hexdigest(),
+        }
+        self.assertEqual(release_receipt_errors(self.root, state), [])
 
 
 if __name__ == "__main__":
