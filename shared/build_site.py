@@ -502,6 +502,15 @@ def md_to_html_content(md_text, ch_num, lang):
             html_parts.append(line.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;'))
             continue
 
+        # Claim anchors are manuscript-only evidence metadata. Remove both
+        # standalone and inline forms before interpreting the Markdown line.
+        # Optional backticks cover prose that mentions the marker syntax.
+        stripped = re.sub(
+            r'`?<!--\s*claim:[A-Za-z0-9_.*-]+\s*-->`?',
+            '',
+            stripped,
+        ).strip()
+
         if stripped.startswith('---') and not in_table:
             flush_blockquote()
             flush_list()
