@@ -99,13 +99,15 @@ Read `references/orchestration-v2.md` for any book-scale run. Read
 - Counts cannot override hard blockers. Repeated prose, unsupported claims,
   missing source packets, wall-text endings, broken references, missing image
   provenance, or an unready QA verdict block release.
-- Write Korean manuscripts in Korean ordinary prose. In each chapter, introduce
-  a necessary technical term once as `한국어(English)` and use the Korean term
-  thereafter. Preserve proper names, code identifiers, formulas, units, and
-  established acronyms; do not leave translatable headings, explanations,
-  table labels, or repeated lower-case English terminology untranslated. The
-  configured KO Latin-prose gate is a backstop, not permission to write up to
-  its limit.
+- Write Korean manuscripts in Korean ordinary prose. **통용 영어 용어는 영어로
+  유지한다.** 한국 로보틱스·AI 실무자가 실제로 영어로 말하는 용어(`action head`,
+  `diffusion policy`, `end-effector`, `sim-to-real`, `teacher-student`,
+  `backdrivability`, `proprioceptive` 등)를 한국어 조어로 바꾸지 않는다.
+  한국어로 옮겨야 하는 것은 **일반 동사·형용사·설명 문구·절 제목**이지 전문용어가
+  아니다. 병기는 챕터 첫 등장 1회를 권장하되 **반복 병기를 실패로 처리하지
+  않는다**. 스타일 레퍼런스는 **S1(`robot-hand-tactile-sensor`)·S4(`humanoid-revolution`)의
+  한국어 문장**이다. Preserve proper names, code identifiers, formulas, units, and
+  established acronyms.
 - Keep home titles concise. For a numbered series, use the shared series name
   plus its part marker consistently (for example, `제목 (2/3)`) and put the
   descriptive phrase in `subtitle`, not after an em dash in `title`.

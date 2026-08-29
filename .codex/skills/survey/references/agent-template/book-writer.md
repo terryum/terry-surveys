@@ -21,13 +21,14 @@ model: inherit
    맞추고, 방법 목록과 설명절은 `summary`로 내린다. 연작이면 모든 권을 함께
    점검한다.
 
-## 선행 조건과 분량 하한
+## 선행 조건과 분량 밴드
 
 - full survey 집필은 `_research/papers.json`, source ledger, claim ledger와 담당
   `_analysis/chapter_source_packets/chNN.json`이 controller 검증을 통과한 뒤 시작한다.
-- full survey chapter는 KO/EN 각각 rough words 3000+ 와 reader-learning
-  structure gate 통과가 기본 완료 기준이다. 3000+는 Claude-parity full survey의 hard gate
-  target일 뿐, 사용자가 읽기 부담을 지적한 survey에서는 억지로 늘리지 않는다.
+- full survey chapter는 KO/EN 각각 rough words 하한 3,000 / 목표 4,000 / 상한
+  4,600의 밴드와 reader-learning structure gate를 통과해야 한다. 하한을 채울 때는
+  논증과 사례를 보강하고, 상한을 넘으면 감사형 체크리스트·역할표·절차 반복부터
+  삭제한다.
 - 각 챕터는 active quality profile의 source floor 이상의 구체 출처를 본문 흐름에 통합한다. 단일 NVIDIA
   발표나 기존 S6/S3 재활용만으로 한 챕터를 끝내지 않는다.
 - major refresh에서는 기존 챕터의 유효한 문장, reference, figure, table을 먼저
@@ -57,7 +58,12 @@ model: inherit
 - **주제**: {{DOMAIN}}
 - **챕터 구조**: {{CHAPTERS}}
 - **핵심 용어**: {{TERMS}}
-- **톤**: 학술적이되 읽기 쉬움. 전문가 독자 가정하되 초심자도 맥락은 따라올 수 있게. 인상 서술·광고성 표현 금지.
+- **톤**: 학술적이되 읽기 쉬움. 전문가 독자 가정하되 초심자도 맥락은 따라올 수
+  있게 쓴다. 감사관이 아니라 독자에게 설명하고, 절차·권한·관문을 명세하는 대신
+  무엇이 해결됐고 무엇이 열려 있는지 저자의 판단을 쓴다. 표는 비교가 실제로
+  필요한 곳에만 쓰며 감사 체크리스트·역할 분담표를 습관적으로 만들지 않는다.
+  S1·S4를 문체 레퍼런스로, S11~S14의 반복적 감사형 산문을 안티패턴으로 삼는다.
+  인상 서술·광고성 표현은 금지한다.
 
 ## Reader-Learning Structure Gate
 
@@ -67,7 +73,7 @@ Use this structure in both KO and EN:
 - `## 개요` / `## Overview`: 2-4 short paragraphs that explain why the chapter matters.
 - A blockquote beginning `> **이 장을 읽고 나면...**` / `> **After reading this chapter...**` with 3-5 concrete learning outcomes.
 - At least one markdown table that compresses a decision, taxonomy, roadmap, or evidence comparison.
-- At least three substantive body sections whose titles are unique to the chapter.
+- At least five substantive body sections whose titles are unique to the chapter.
   Do not count `Overview`, `Manufacturing Cell Checkpoint`, `What to Learn Next`,
   glossary, or references toward this floor.
 - A concrete walkthrough: one manufacturing cell, robot hand/platform, dataset,
@@ -76,7 +82,9 @@ Use this structure in both KO and EN:
 - Evidence-tier commentary: separate peer-reviewed papers, official technical
   releases, company demos, and analyst/news claims.
 - Open questions or failure modes that tell the reader what remains unresolved.
-- Short paragraphs by default. Avoid long generated walls; split paragraphs before they exceed roughly 120 rough words.
+- Keep paragraphs long enough to sustain an argument. Split only when a new idea
+  or a genuine readability problem calls for it; do not atomize prose to chase a
+  paragraph-length target.
 - Distribute figures and tables across the argument. The reader should see a
   source image, decision table, roadmap, or schematic again in the latter half
   of the chapter, not only near the overview.
@@ -92,9 +100,9 @@ Hard bans:
   swaps. Normalized repeated paragraphs are release blockers and must be
   rewritten from the chapter's own source cluster.
 - Do not write a chapter that has no table, no learning outcomes, or no actionable next-step guidance.
-- Do not mark a chapter complete if KO or EN is below 3000 rough words, if the
-  chapter reads like a 400-600 word scaffold, or if it lacks chapter-specific
-  visual placeholders.
+- Do not mark a chapter complete if KO or EN is outside the active profile's
+  rough-word band, if the chapter reads like a 400-600 word scaffold, or if it
+  lacks chapter-specific visual placeholders.
 - Do not make every chapter mechanically identical, such as exactly 3 figures,
   exactly 1 table, exactly 24 references, and the same number of body citations.
   Uniform metrics without chapter-specific reason trigger QA inspection.
@@ -172,14 +180,14 @@ last_updated: "YYYY-MM-DD"
 - 서베이별 금지어는 `surveys/{{SURVEY_SLUG}}/CLAUDE.md`에 기록된 것을 준수.
 - 한국어판의 일반 산문은 한국어로 쓴다. 번역 가능한 동사·형용사·설명 문구,
   절 제목, 표 머리글, 그림 설명을 영어로 남기지 않는다.
-- 공학 용어에 널리 쓰이는 한국어가 있으면 해당 챕터의 첫 등장에만
-  `한국어(English)`로 병기한다(예: `속도(velocity)`). 같은 챕터의 이후
-  등장에서는 한국어만 쓴다. 다른 챕터에서는 독자가 독립적으로 읽을 수 있도록
-  첫 등장 병기를 다시 허용한다.
-- 고유명사, 제품·모델명, 코드 식별자, 수식·단위, 통용 약어(VLA, GPU 등)는
-  원형을 보존한다. 한국어 번역이 오히려 모호한 신생 용어는 첫 등장 병기 후
-  glossary에 선택 근거를 기록한다. 이 예외를 일반 영어 문장이나 반복 영문
-  전문용어를 남기는 근거로 쓰지 않는다.
+- **통용 영어 용어는 영어로 유지한다.** 한국 로보틱스·AI 실무자가 영어로 말하는
+  `action head`, `diffusion policy`, `end-effector`, `sim-to-real`,
+  `teacher-student`, `backdrivability`, `proprioceptive` 같은 용어를 한국어
+  조어로 바꾸지 않는다. 고유명사, 제품·모델명, 코드 식별자, 수식·단위, 통용
+  약어(VLA, GPU 등)도 원형을 보존한다.
+- 병기는 챕터 첫 등장 1회를 권장하지만 반복 병기를 실패로 처리하지 않는다.
+  스타일 레퍼런스는 S1(`robot-hand-tactile-sensor`)·S4(`humanoid-revolution`)의
+  한국어 문장이다.
 - 완료 전에 active profile의 `max_ko_latin_prose_fraction` gate를 통과해야 한다.
 - 연작의 홈 제목은 모든 권에서 `공통 제목 (권/전체)` 형식으로 짧게 통일하고,
   권별 설명은 `survey.json`의 `subtitle`과 `description`에 둔다. 한 권의
@@ -189,7 +197,6 @@ last_updated: "YYYY-MM-DD"
   통과해야 한다. 상한은 자동 잘라내기 기준이 아니라 다시 쓰기 신호다. 고유명사나
   공식 API 때문에 긴 예외가 필요하면 제목보다 `summary`로 옮길 수 없는 이유를
   QA에 남긴다.
-  이 수치는 회귀 탐지용 상한일 뿐 목표치가 아니며, 가능한 값은 0에 가깝게 한다.
 
 ## 입력 / 출력 프로토콜
 
@@ -224,8 +231,8 @@ last_updated: "YYYY-MM-DD"
 - [ ] KO/EN 두 파일이 동시에 존재하고 섹션 구조가 1:1 대응하는가
 - [ ] 전체 파트·챕터 제목이 #S1·#S4 수준으로 간결하고, 연작 전체에서 같은
       명명 문법을 쓰며, `survey.json`·frontmatter·visible H1이 일치하는가
-- [ ] full survey인 경우 KO/EN 각각 rough words 3000+ / chapter와 reader-learning structure gate를 만족하는가
-- [ ] scaffold 외 chapter-specific body section이 3개 이상 있고 case walkthrough,
+- [ ] full survey인 경우 KO/EN 각각 rough words 하한 3,000 / 목표 4,000 / 상한 4,600 밴드와 reader-learning structure gate를 만족하는가
+- [ ] scaffold 외 chapter-specific body section이 5개 이상 있고 case walkthrough,
       evidence-tier 논의, open questions/failure modes가 있는가
 - [ ] 인접 기존 서베이의 논지를 흡수한 경우 원출처 reference와 prior-survey bridge가 있는가
 - [ ] 각 챕터가 `_research/papers.json`의 충분한 source cluster를 반영하는가

@@ -49,6 +49,25 @@ stores the controller-compatible normalized excerpt SHA-256 under
 `manuscript_anchors.ko/en`. Avoid repeated chapter
 skeletons and translation compression.
 
+Write for a reader, not an auditor. Use S1 (`robot-hand-tactile-sensor`) and S4
+(`humanoid-revolution`) as the prose references; treat the recurring procedural,
+audit-style apparatus in S11–S14 as an anti-pattern. Apply these prose criteria:
+
+- Keep each KO and EN chapter around 4,000 rough words, within the 3,000–4,600
+  band enforced by the full profile.
+- Use tables only where comparison materially helps. Keep table text at or below
+  2,000 characters per language chapter. Do not habitually add audit checklists,
+  role-responsibility tables, or "common confusion" tables.
+- Carry the argument through paragraphs instead of atomizing it into checklist
+  sections. Do not cap subsection counts: S1 remains readable with 23 headings;
+  the defect is audit-item content, not the number of headings.
+- State the author's judgment: explain what a method solved, what remains open,
+  and why. S4's `판결 1 — QDD 액추에이터: 해결됨 (commodity)` is the reference
+  form for an evidence-backed verdict.
+- Address the reader rather than an auditor. Do not make contract, inheritance,
+  ownership, permission, or "gate to close" language the default grammar of the
+  narrative.
+
 Before prose drafting, audit the complete KO/EN part and chapter title set
 against S1/S4. Use concise noun phrases for parts and a shared `core topic —
 scope/payoff` grammar for chapters. Put lists, method catalogs, and explanatory

@@ -29,6 +29,91 @@ LATIN_UNIT_TOKENS = {
     "cm", "mm", "km", "kg", "mg", "ms", "hz", "khz", "mhz", "ghz",
     "mv", "ma", "kw", "mw", "rpm", "fps", "db", "nm", "rad", "deg",
 }
+LATIN_PROSE_EXCLUDED_TOKENS = {
+    "al", "et", "argmax", "argmin", "bar", "begin", "cdot", "cmd",
+    "ddot", "dot", "end", "frac", "hat", "left", "mathbb", "mathbf", "mathcal",
+    "mathrm", "operatorname", "overline", "partial", "prod", "right",
+    "sqrt", "sum", "text", "tilde", "times", "underline", "vec",
+}
+ALLOWED_KO_TECHNICAL_TERMS = (
+    "abort",
+    "acquisition",
+    "action",
+    "action head",
+    "calibration",
+    "closure",
+    "contact",
+    "controller",
+    "cycle",
+    "damage",
+    "diffusion policy",
+    "evaluation",
+    "end-effector",
+    "event",
+    "failure",
+    "feedback",
+    "finger",
+    "fixture",
+    "force",
+    "gate",
+    "graph",
+    "grasp",
+    "grasping",
+    "grip",
+    "hand",
+    "hardware",
+    "hold",
+    "id",
+    "impedance",
+    "in-hand",
+    "internal",
+    "intervention",
+    "manipulation",
+    "margin",
+    "mode",
+    "model-based",
+    "motion",
+    "multi-object",
+    "normal",
+    "object",
+    "operator",
+    "override",
+    "patch",
+    "phase",
+    "planning",
+    "pose",
+    "rate",
+    "rearrangement",
+    "reference",
+    "reflex",
+    "retry",
+    "shear",
+    "sim-to-real",
+    "slip",
+    "support",
+    "task",
+    "teacher-student",
+    "time",
+    "backdrivability",
+    "proprioceptive",
+    "proprioception",
+    "rollout",
+    "checkpoint",
+    "fine-tuning",
+    "co-training",
+    "pre-training",
+    "post-training",
+    "tokenizer",
+    "embodiment",
+)
+LOWERCASE_PROPER_NAMES = {"libfranka", "openai", "codex", "mujoco"}
+METADATA_NAME_FIELDS = {
+    "affiliation", "affiliations", "author", "authors", "booktitle", "company",
+    "companies", "framework", "frameworks", "institution", "institutions",
+    "journal", "lead_author", "libraries", "library", "model", "models",
+    "organization", "organizations", "product", "products", "publisher", "venue",
+    "vendors", "vendor",
+}
 
 PROCESS_CONTRACTS = [
     "_research/kg_seed.json",
@@ -144,7 +229,62 @@ def prose(text: str) -> str:
     return text
 
 
-def korean_prose_language_stats(text: str) -> Dict[str, Any]:
+def survey_metadata_latin_terms(path: Path) -> set[str]:
+    """Collect proper-name tokens declared by this survey's source metadata."""
+    allowed: set[str] = set()
+
+    def add_value(value: Any) -> None:
+        if isinstance(value, str):
+            allowed.update(token.casefold() for token in LATIN_PROSE_TOKEN_RE.findall(value))
+        elif isinstance(value, list):
+            for item in value:
+                add_value(item)
+
+    def add_proper_names(value: Any) -> None:
+        if not isinstance(value, str):
+            return
+        for token in LATIN_PROSE_TOKEN_RE.findall(value):
+            letters = token.replace("'", "").replace("-", "")
+            if letters.isupper() or token[0].isupper() or any(char.isupper() for char in token[1:]):
+                allowed.add(token.casefold())
+
+    def walk(value: Any) -> None:
+        if isinstance(value, dict):
+            for key, item in value.items():
+                if str(key).casefold() in METADATA_NAME_FIELDS:
+                    add_value(item)
+                walk(item)
+        elif isinstance(value, list):
+            for item in value:
+                walk(item)
+        else:
+            add_proper_names(value)
+
+    for rel in ("_research/papers.json", "survey.json"):
+        walk(load_json(path / rel, {}))
+    for rel in ("bibtex/references.bib", "book/references.bib"):
+        bib_path = path / rel
+        if not bib_path.exists():
+            continue
+        raw = bib_path.read_text(encoding="utf-8", errors="ignore")
+        add_proper_names(raw)
+        for match in re.finditer(
+            r"^\s*(?:author|booktitle|journal|organization|publisher)\s*=\s*[\{\"](.*?)[\}\"]\s*,?\s*$",
+            raw,
+            flags=re.I | re.M,
+        ):
+            add_value(match.group(1))
+        allowed.update(name for name in LOWERCASE_PROPER_NAMES if re.search(rf"\b{re.escape(name)}\b", raw, flags=re.I))
+    metadata_blob = " ".join(
+        (path / rel).read_text(encoding="utf-8", errors="ignore")
+        for rel in ("_research/papers.json", "survey.json")
+        if (path / rel).exists()
+    )
+    allowed.update(name for name in LOWERCASE_PROPER_NAMES if re.search(rf"\b{re.escape(name)}\b", metadata_blob, flags=re.I))
+    return allowed
+
+
+def korean_prose_language_stats(text: str, allowed_latin_tokens: Iterable[str] = ()) -> Dict[str, Any]:
     """Measure untranslated Latin prose in a Korean manuscript.
 
     This is deliberately narrower than a blanket ASCII ratio. It removes
@@ -167,6 +307,9 @@ def korean_prose_language_stats(text: str) -> Dict[str, Any]:
     body = re.sub(r"\$\$.*?\$\$|\$[^$\n]*\$", " ", body, flags=re.S)
     body = re.sub(r"\[[^\]\n]*(?:19|20)\d{2}[a-z]?[^\]\n]*\]", " ", body, flags=re.I)
     body = re.sub(r"<[^>]+>", " ", body)
+    for term in sorted(ALLOWED_KO_TECHNICAL_TERMS, key=len, reverse=True):
+        pattern = re.escape(term).replace(r"\ ", r"\s+")
+        body = re.sub(rf"(?<![A-Za-z0-9]){pattern}(?![A-Za-z0-9])", " ", body, flags=re.I)
     # A chapter may introduce a technical term once as 속도(velocity). Keep a
     # repeated gloss visible and report it separately. The no-whitespace
     # boundary keeps the exception specific and hard to game.
@@ -183,6 +326,9 @@ def korean_prose_language_stats(text: str) -> Dict[str, Any]:
         body,
     )
 
+    allowed = {token.casefold() for token in allowed_latin_tokens}
+    allowed.update(LATIN_PROSE_EXCLUDED_TOKENS)
+    allowed.update(LATIN_UNIT_TOKENS)
     korean_tokens = len(re.findall(r"[가-힣]+", body))
     latin_tokens: List[str] = []
     for match in LATIN_PROSE_TOKEN_RE.finditer(body):
@@ -195,7 +341,7 @@ def korean_prose_language_stats(text: str) -> Dict[str, Any]:
         if token[0].isupper() or any(char.isupper() for char in token[1:]):
             continue
         normalized = token.casefold()
-        if normalized in LATIN_UNIT_TOKENS:
+        if normalized in allowed:
             continue
         latin_tokens.append(normalized)
     denominator = korean_tokens + len(latin_tokens)
@@ -238,6 +384,11 @@ def visual_positions(text: str) -> Tuple[List[int], List[int]]:
         if header.count("|") >= 2 and separator.fullmatch(divider.rstrip("\r\n")) and row.count("|") >= 2:
             table_positions.append(offsets[index])
     return figures, table_positions
+
+
+def markdown_table_chars(text: str) -> int:
+    """Measure reader-visible table weight using the survey benchmark convention."""
+    return sum(len(line.strip()) for line in prose(text).splitlines() if line.strip().startswith("|"))
 
 
 def verified_status(value: Any) -> bool:
@@ -467,6 +618,10 @@ def evaluate(root: Path, slug: str, profile_name: str = "full") -> Dict[str, Any
             add_failure(failures, f"sources-ch{ch:02d}", "evidence_librarian", f"Chapter {ch} has {count} distinct cited sources; requires {min_sources}.", count, min_sources)
 
     min_words = int(profile["min_words_per_language_chapter"])
+    word_tolerance_pct = float(profile.get("word_gate_tolerance_pct", 0))
+    min_words_with_tolerance = math.ceil(min_words * (1.0 - word_tolerance_pct / 100.0))
+    max_words = int(profile.get("max_words_per_language_chapter", 0))
+    max_table_chars = int(profile.get("max_table_chars_per_chapter", 0))
     min_figures = int(profile["min_figures_per_chapter"])
     late_fraction = float(profile["late_visual_fraction"])
     max_gap_target = int(profile["max_learning_aid_gap_words"])
@@ -476,8 +631,10 @@ def evaluate(root: Path, slug: str, profile_name: str = "full") -> Dict[str, Any
     late_passes: List[float] = []
     gap_passes: List[float] = []
     parity_scores: List[float] = []
+    table_density_scores: List[float] = []
     referenced_local_image_paths = set()
     paragraph_norms: List[Tuple[str, str]] = []
+    allowed_ko_latin_tokens = survey_metadata_latin_terms(path)
     for ch in chapters:
         cm: Dict[str, Any] = {}
         lang_words = {}
@@ -488,6 +645,7 @@ def evaluate(root: Path, slug: str, profile_name: str = "full") -> Dict[str, Any
             words = word_count(body)
             diversity, dominant_fraction, subsection_count = prose_quality(text)
             figures, table_positions = visual_positions(text)
+            table_chars = markdown_table_chars(text)
             figure_targets = re.findall(r"!\[[^\]]*\]\(([^\)]+)\)", text)
             missing_figures = []
             for target in figure_targets:
@@ -505,9 +663,9 @@ def evaluate(root: Path, slug: str, profile_name: str = "full") -> Dict[str, Any
             paragraph_norms.extend((value, f"{lang}-ch{ch:02d}") for value in normalized_paragraphs)
             learning_markers = ("이 장을 읽고 나면", "이 챕터를 읽고 나면", "학습 목표") if lang == "ko" else ("After reading this chapter", "By the end of this chapter", "Learning objectives")
             has_learning_outcomes = any(re.search(rf"^>\s*\*\*[^\n]*{re.escape(marker)}", body, flags=re.I | re.M) for marker in learning_markers)
-            ko_language = korean_prose_language_stats(text) if lang == "ko" else None
+            ko_language = korean_prose_language_stats(text, allowed_ko_latin_tokens) if lang == "ko" else None
             lang_words[lang] = words
-            cm[lang] = {"words": words, "figures": len(figures), "tables": len(table_positions), "has_learning_outcomes": has_learning_outcomes, "paragraph_p90_words": paragraph_p90, "missing_local_figures": missing_figures, "last_learning_aid_fraction": round(last_fraction, 3), "max_learning_aid_gap_words": gap, "lexical_diversity": round(diversity, 4), "dominant_token_fraction": round(dominant_fraction, 4), "subsections": subsection_count}
+            cm[lang] = {"words": words, "figures": len(figures), "tables": len(table_positions), "table_chars": table_chars, "has_learning_outcomes": has_learning_outcomes, "paragraph_p90_words": paragraph_p90, "missing_local_figures": missing_figures, "last_learning_aid_fraction": round(last_fraction, 3), "max_learning_aid_gap_words": gap, "lexical_diversity": round(diversity, 4), "dominant_token_fraction": round(dominant_fraction, 4), "subsections": subsection_count}
             if ko_language is not None:
                 cm[lang]["latin_prose_tokens"] = ko_language["latin_prose_tokens"]
                 cm[lang]["korean_tokens"] = ko_language["korean_tokens"]
@@ -519,8 +677,12 @@ def evaluate(root: Path, slug: str, profile_name: str = "full") -> Dict[str, Any
             figure_ratios.append(min(1.0, len(figures) / min_figures) if min_figures else 1.0)
             late_passes.append(1.0 if last_fraction >= late_fraction else 0.0)
             gap_passes.append(1.0 if gap <= max_gap_target else max(0.0, max_gap_target / max(1, gap)))
-            if words < min_words:
-                add_failure(failures, f"depth-{lang}-ch{ch:02d}", "book_writer", f"{lang.upper()} chapter {ch} has {words} rough words; requires {min_words}.", words, min_words)
+            if max_table_chars:
+                table_density_scores.append(min(1.0, max_table_chars / max(1, table_chars)))
+            if words < min_words_with_tolerance:
+                add_failure(failures, f"depth-{lang}-ch{ch:02d}", "book_writer", f"{lang.upper()} chapter {ch} has {words} rough words; requires {min_words} with {word_tolerance_pct:g}% gate tolerance ({min_words_with_tolerance} minimum).", words, min_words_with_tolerance)
+            if max_words and words > max_words:
+                add_failure(failures, f"bloat-{lang}-ch{ch:02d}", "book_writer", f"{lang.upper()} chapter {ch} has {words} rough words; maximum is {max_words}. Cut, do not add. Remove audit-style checklists, role-responsibility tables, and procedural restatement before touching argument prose.", words, max_words)
             if subsection_count < int(profile["min_subsections_per_chapter"]):
                 add_failure(failures, f"structure-{lang}-ch{ch:02d}", "book_writer", f"{lang.upper()} chapter {ch} has {subsection_count} substantive subsections; requires {profile['min_subsections_per_chapter']}.", subsection_count, profile["min_subsections_per_chapter"])
             if diversity < float(profile["min_lexical_diversity"]):
@@ -529,22 +691,22 @@ def evaluate(root: Path, slug: str, profile_name: str = "full") -> Dict[str, Any
                 add_failure(failures, f"dominant-token-{lang}-ch{ch:02d}", "book_writer", f"{lang.upper()} chapter {ch} repeats one token across {dominant_fraction:.1%} of prose; maximum is {profile['max_dominant_token_fraction']:.1%}.", round(dominant_fraction, 4), profile["max_dominant_token_fraction"])
             if lang == "ko" and ko_language is not None:
                 latin_limit = float(profile["max_ko_latin_prose_fraction"])
-                gloss_limit = int(profile["max_ko_repeated_english_glosses"])
-                if ko_language["latin_prose_fraction"] > latin_limit or ko_language["repeated_english_glosses"] > gloss_limit:
+                if ko_language["latin_prose_fraction"] > latin_limit:
                     examples = ", ".join(item["token"] for item in ko_language["top_latin_tokens"][:5])
-                    glosses = ", ".join(item["term"] for item in ko_language["top_repeated_english_glosses"][:5])
                     add_failure(
                         failures,
                         f"korean-language-ko-ch{ch:02d}",
                         "book_writer",
-                        f"KO chapter {ch} uses untranslated lower-case Latin prose in {ko_language['latin_prose_fraction']:.1%} of measured prose tokens (maximum {latin_limit:.1%}) and repeats {ko_language['repeated_english_glosses']} chapter-level English glosses (maximum {gloss_limit}). Frequent tokens: {examples or 'none'}; repeated glosses: {glosses or 'none'}.",
-                        {"latin_prose_fraction": round(ko_language["latin_prose_fraction"], 4), "repeated_english_glosses": ko_language["repeated_english_glosses"]},
-                        {"max_ko_latin_prose_fraction": latin_limit, "max_ko_repeated_english_glosses": gloss_limit},
+                        f"KO chapter {ch} uses untranslated lower-case Latin prose in {ko_language['latin_prose_fraction']:.1%} of measured prose tokens; maximum is {latin_limit:.1%}. Frequent tokens: {examples or 'none'}.",
+                        round(ko_language["latin_prose_fraction"], 4),
+                        latin_limit,
                     )
             if profile["require_learning_outcomes"] and not has_learning_outcomes:
                 add_failure(failures, f"learning-outcomes-{lang}-ch{ch:02d}", "book_writer", f"{lang.upper()} chapter {ch} has no reader-facing learning outcomes.", False, True)
             if len(table_positions) < int(profile["min_tables_per_chapter"]):
                 add_failure(failures, f"tables-{lang}-ch{ch:02d}", "book_writer", f"{lang.upper()} chapter {ch} has {len(table_positions)} markdown tables; requires {profile['min_tables_per_chapter']}.", len(table_positions), profile["min_tables_per_chapter"])
+            if max_table_chars and table_chars > max_table_chars:
+                add_failure(failures, f"apparatus-{lang}-ch{ch:02d}", "book_writer", f"{lang.upper()} chapter {ch} has {table_chars} table characters; maximum is {max_table_chars}. Cut, do not add. Remove audit-style checklists, role-responsibility tables, and procedural restatement; keep tables only where comparison materially helps the reader.", table_chars, max_table_chars)
             if paragraph_p90 > int(profile["max_paragraph_p90_words"]):
                 add_failure(failures, f"paragraph-p90-{lang}-ch{ch:02d}", "book_writer", f"{lang.upper()} chapter {ch} paragraph p90 is {paragraph_p90} words; maximum is {profile['max_paragraph_p90_words']}.", paragraph_p90, profile["max_paragraph_p90_words"])
             if len(figures) < min_figures:
@@ -780,13 +942,17 @@ def evaluate(root: Path, slug: str, profile_name: str = "full") -> Dict[str, Any
 
     research_contract_ratio = 1.0 - len([rel for rel in missing_contracts if rel.startswith(("_research/", "_analysis/"))]) / 4.0
     evidence_auto = 100.0 * (0.45 * min(1.0, corpus_count / max(1, corpus_floor)) + 0.35 * (sum(min(1.0, count / max(1, min_sources)) for count in sources.values()) / max(1, len(sources))) + 0.20 * clamp(research_contract_ratio, 0, 1))
-    synthesis_score = reviewers.get("synthesis", 72.0 if profile_name == "legacy_baseline" else 0.0)
+    synthesis_auto = (
+        100.0 * sum(table_density_scores) / max(1, len(table_density_scores))
+        if max_table_chars
+        else reviewers.get("synthesis", 72.0 if profile_name == "legacy_baseline" else 0.0)
+    )
     accuracy_auto = 0.55 * claim_coverage + 0.45 * ref_verification
     visual_auto = 100.0 * (0.40 * (sum(figure_ratios) / max(1, len(figure_ratios))) + 0.25 * (sum(late_passes) / max(1, len(late_passes))) + 0.20 * (sum(gap_passes) / max(1, len(gap_passes))) + 0.15 * (provenance_coverage / 100.0 if images else (1.0 if profile_name == "legacy_baseline" else 0.0)))
     links_auto = 0.6 * link_coverage + 0.4 * min(100.0, ref_verification / 0.9 if refs else 0.0)
     bilingual_auto = 0.6 * (100.0 * sum(all_word_ratios) / max(1, len(all_word_ratios))) + 0.4 * (sum(parity_scores) / max(1, len(parity_scores)))
     release_auto = 100.0 if build_passed and qa_ready else (70.0 if profile_name == "legacy_baseline" else 0.0)
-    auto_scores = {"evidence": evidence_auto, "synthesis": synthesis_score, "accuracy": accuracy_auto, "visuals": visual_auto, "links": links_auto, "bilingual": bilingual_auto, "release": release_auto}
+    auto_scores = {"evidence": evidence_auto, "synthesis": synthesis_auto, "accuracy": accuracy_auto, "visuals": visual_auto, "links": links_auto, "bilingual": bilingual_auto, "release": release_auto}
     dimensions = {}
     for name, spec in profile["dimensions"].items():
         auto = clamp(auto_scores[name])

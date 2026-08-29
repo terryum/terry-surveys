@@ -5,6 +5,7 @@ from __future__ import annotations
 import fcntl
 import hashlib
 import json
+import math
 import os
 import re
 import tempfile
@@ -335,10 +336,15 @@ def _validate_task_content(base: Path, state: Dict[str, Any], task: Dict[str, An
     if match:
         profile = load_profile(state["profile"])
         minimum = int(profile["min_words_per_language_chapter"])
+        tolerance_pct = float(profile.get("word_gate_tolerance_pct", 0))
+        gate_minimum = math.ceil(minimum * (1.0 - tolerance_pct / 100.0))
+        maximum = int(profile.get("max_words_per_language_chapter", 0))
         for rel in task["artifacts"]:
             count = _rough_words((base / rel).read_text(encoding="utf-8", errors="ignore"))
-            if count < minimum:
-                raise ValueError(f"{task_id} artifact {rel} has {count} rough words; requires {minimum}")
+            if count < gate_minimum:
+                raise ValueError(f"{task_id} artifact {rel} has {count} rough words; requires {minimum} with {tolerance_pct:g}% gate tolerance ({gate_minimum} minimum)")
+            if maximum and count > maximum:
+                raise ValueError(f"{task_id} artifact {rel} has {count} rough words; maximum is {maximum}; cut, do not add")
     match = re.fullmatch(r"image-ch(\d+)", task_id)
     if match:
         ch_key = f"ch{int(match.group(1)):02d}"
@@ -391,7 +397,7 @@ def record_score(state: Dict[str, Any], scorecard_rel: str, scorecard: Dict[str,
 def plan_remediation(state: Dict[str, Any], failures: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     max_attempts = int(state.get("max_remediation_attempts", 3))
     attempts = state["quality"].setdefault("remediation_attempts", {})
-    grouped: Dict[str, List[Dict[str, Any]]] = {}
+    grouped: Dict[tuple[str, str], List[Dict[str, Any]]] = {}
     exhausted = []
     active_failure_ids = {
         failure_id
@@ -407,18 +413,49 @@ def plan_remediation(state: Dict[str, Any], failures: List[Dict[str, Any]]) -> L
         if count >= max_attempts:
             exhausted.append(gate)
             continue
-        grouped.setdefault(failure["owner"], []).append(failure)
+        chapter_match = re.search(r"(?:^|-)ch(\d{2})(?:$|-)", gate)
+        chapter_key = f"ch{chapter_match.group(1)}" if chapter_match else "global"
+        grouped.setdefault((failure["owner"], chapter_key), []).append(failure)
     created = []
     round_number = len(state["quality"].get("history", []))
-    for owner, items in grouped.items():
-        task_id = f"repair-{owner}-r{round_number}"
+    cut_prefixes = (
+        "apparatus-", "bloat-", "dimension-synthesis", "paragraph-p90-",
+        "repeated-paragraphs", "title-chapter-length-", "title-chapter-median-",
+        "title-part-length-",
+    )
+    for (owner, chapter_key), items in grouped.items():
+        chapter_suffix = f"-{chapter_key}" if chapter_key != "global" else ""
+        task_id = f"repair-{owner}{chapter_suffix}-r{round_number}"
         suffix = 1
         existing = {task["id"] for task in state["tasks"]}
         while task_id in existing:
             suffix += 1
-            task_id = f"repair-{owner}-r{round_number}-{suffix}"
+            task_id = f"repair-{owner}{chapter_suffix}-r{round_number}-{suffix}"
         evidence_rel = f"_quality/remediation/{task_id}.json"
-        task = _task(task_id, "remediate", owner, [], [evidence_rel], "\n".join(f"[{item['id']}] {item['message']}" for item in items), [f"repair-owner:{owner}"])
+        directions = {
+            item["id"]: "cut" if item["id"].startswith(cut_prefixes) else "add"
+            for item in items
+        }
+        direction_summary = ", ".join(sorted(set(directions.values())))
+        packet = (
+            f"_analysis/chapter_source_packets/{chapter_key}.json"
+            if chapter_key != "global"
+            else "_analysis/chapter_source_packets/chNN.json (실패가 가리키는 챕터별 파일)"
+        )
+        failure_lines = "\n".join(
+            f"[{item['id']}][direction={directions[item['id']]}] {item['message']}"
+            for item in items
+        )
+        brief = (
+            f"방향: {direction_summary}\n"
+            f"{failure_lines}\n\n"
+            "분량·구조 게이트를 표·소제목·체크리스트 추가로 통과시키지 마라.\n"
+            "부족분은 논증과 사례로 채우고, 초과분은 삭제로 해결하라.\n"
+            "감사 항목 나열표를 새로 만들지 마라.\n\n"
+            f"참조 경로: {packet}\n"
+            "문체 계약: .codex/skills/survey/references/role-contracts-v2.md#book-writereditor"
+        )
+        task = _task(task_id, "remediate", owner, [], [evidence_rel], brief, [f"repair-owner:{owner}"])
         task["failure_ids"] = [item["id"] for item in items]
         state["tasks"].append(task)
         created.append(task)

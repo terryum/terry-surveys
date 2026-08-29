@@ -71,6 +71,46 @@ class StateTests(unittest.TestCase):
         self.assertEqual(state["status"], "blocked")
         self.assertIn("depth-ko-ch01", state["quality"]["blocked_reason"])
 
+    def test_remediation_groups_by_owner_and_chapter_with_direction_contract(self):
+        state = new_state(self.root, "test-survey", "full")
+        failures = [
+            {"id": "depth-ko-ch01", "owner": "book_writer", "message": "too short"},
+            {"id": "apparatus-en-ch01", "owner": "book_writer", "message": "table too heavy"},
+            {"id": "bloat-ko-ch02", "owner": "book_writer", "message": "too long"},
+        ]
+        tasks = plan_remediation(state, failures)
+        self.assertEqual([task["id"] for task in tasks], ["repair-book_writer-ch01-r0", "repair-book_writer-ch02-r0"])
+        first = tasks[0]["brief"]
+        self.assertIn("[depth-ko-ch01][direction=add]", first)
+        self.assertIn("[apparatus-en-ch01][direction=cut]", first)
+        self.assertIn("분량·구조 게이트를 표·소제목·체크리스트 추가로 통과시키지 마라.", first)
+        self.assertIn("부족분은 논증과 사례로 채우고, 초과분은 삭제로 해결하라.", first)
+        self.assertIn("감사 항목 나열표를 새로 만들지 마라.", first)
+        self.assertIn("_analysis/chapter_source_packets/ch01.json", first)
+        self.assertIn("role-contracts-v2.md#book-writereditor", first)
+        self.assertIn("[bloat-ko-ch02][direction=cut]", tasks[1]["brief"])
+
+    def test_write_completion_enforces_tolerant_word_band(self):
+        for lang in ("ko", "en"):
+            chapter = self.survey / f"book/{lang}/ch01.md"
+            chapter.parent.mkdir(parents=True, exist_ok=True)
+            chapter.write_text(" ".join(f"word{i}" for i in range(2900)), encoding="utf-8")
+        state = new_state(self.root, "test-survey", "full")
+        next(task for task in state["tasks"] if task["id"] == "evidence-synthesis")["status"] = "completed"
+        start_task(state, "write-ch01", "writer-band-1")
+        complete_task(self.root, state, "write-ch01")
+        self.assertEqual(next(task for task in state["tasks"] if task["id"] == "write-ch01")["status"], "completed")
+
+        for lang in ("ko", "en"):
+            (self.survey / f"book/{lang}/ch01.md").write_text(
+                " ".join(f"word{i}" for i in range(4700)), encoding="utf-8"
+            )
+        state = new_state(self.root, "test-survey", "full")
+        next(task for task in state["tasks"] if task["id"] == "evidence-synthesis")["status"] = "completed"
+        start_task(state, "write-ch01", "writer-band-2")
+        with self.assertRaisesRegex(ValueError, "maximum is 4600; cut, do not add"):
+            complete_task(self.root, state, "write-ch01")
+
     def test_resume_requeues_abandoned_running_task(self):
         state = new_state(self.root, "test-survey", "mini")
         start_task(state, "kg-seed", "agent-123")

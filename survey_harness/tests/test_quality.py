@@ -5,7 +5,14 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from survey_harness.quality import content_digest, evaluate, korean_prose_language_stats
+from survey_harness.quality import (
+    content_digest,
+    evaluate,
+    korean_prose_language_stats,
+    prose,
+    survey_metadata_latin_terms,
+    word_count,
+)
 from survey_harness.tests.helpers import make_passing_mini
 
 
@@ -140,7 +147,58 @@ class QualityTests(unittest.TestCase):
         failures = {item["id"]: item for item in scorecard["hard_blockers"]}
         self.assertIn("korean-language-ko-ch01", failures)
         self.assertEqual(failures["korean-language-ko-ch01"]["owner"], "book_writer")
-        self.assertGreater(scorecard["metrics"]["chapters"]["ch01"]["ko"]["latin_prose_fraction"], 0.02)
+        self.assertGreater(scorecard["metrics"]["chapters"]["ch01"]["ko"]["latin_prose_fraction"], 0.15)
+
+    def test_depth_gate_allows_five_percent_tolerance(self):
+        chapter = self.survey / "book/en/ch01.md"
+        compact = " ".join(f"compact{i}" for i in range(1130))
+        chapter.write_text(
+            "# Chapter\n\n> **After reading this chapter...** compare evidence.\n\n"
+            f"## One\n\n{compact}\n\n## Two\n\n"
+            "| Method | Evidence |\n|---|---|\n| A | Primary |\n\n"
+            "![first](../../assets/figures/first.png)\n\n"
+            "![late](../../assets/figures/late.png)\n\n## References\n1. Source\n",
+            encoding="utf-8",
+        )
+        measured = word_count(prose(chapter.read_text(encoding="utf-8")))
+        self.assertGreaterEqual(measured, 1140)
+        self.assertLess(measured, 1200)
+        scorecard = evaluate(self.root, "test-survey", "mini")
+        failures = {item["id"] for item in scorecard["hard_blockers"]}
+        self.assertNotIn("depth-en-ch01", failures)
+
+    def test_bloat_gate_requires_cutting(self):
+        chapter = self.survey / "book/en/ch01.md"
+        text = chapter.read_text(encoding="utf-8")
+        text = text.replace("## Analysis", " ".join(f"excess{i}" for i in range(4700)) + "\n\n## Analysis")
+        chapter.write_text(text, encoding="utf-8")
+        scorecard = evaluate(self.root, "test-survey", "mini")
+        failures = {item["id"]: item for item in scorecard["hard_blockers"]}
+        self.assertIn("bloat-en-ch01", failures)
+        self.assertIn("Cut, do not add", failures["bloat-en-ch01"]["message"])
+
+    def test_apparatus_gate_and_synthesis_score_measure_table_weight(self):
+        chapter = self.survey / "book/en/ch01.md"
+        text = chapter.read_text(encoding="utf-8")
+        heavy_table = "| Method | Evidence |\n|---|---|\n| A | " + ("heavy " * 400) + "|"
+        text = text.replace("| Method | Evidence |\n|---|---|\n| A | Primary |", heavy_table)
+        chapter.write_text(text, encoding="utf-8")
+        scorecard = evaluate(self.root, "test-survey", "mini")
+        failures = {item["id"]: item for item in scorecard["hard_blockers"]}
+        self.assertIn("apparatus-en-ch01", failures)
+        self.assertIn("Cut, do not add", failures["apparatus-en-ch01"]["message"])
+        self.assertLess(scorecard["dimensions"]["synthesis"]["automatic"], 100)
+
+    def test_repeated_english_gloss_is_metric_only(self):
+        chapter = self.survey / "book/ko/ch01.md"
+        text = chapter.read_text(encoding="utf-8").replace(
+            "## Analysis", "속도(velocity)를 정하고 목표 속도(velocity)를 확인한다.\n\n## Analysis"
+        )
+        chapter.write_text(text, encoding="utf-8")
+        scorecard = evaluate(self.root, "test-survey", "mini")
+        failures = {item["id"] for item in scorecard["hard_blockers"]}
+        self.assertEqual(scorecard["metrics"]["chapters"]["ch01"]["ko"]["repeated_english_glosses"], 1)
+        self.assertNotIn("korean-language-ko-ch01", failures)
 
     def test_korean_language_metric_ignores_expected_latin_contexts(self):
         text = """# 한국어 장
@@ -161,6 +219,25 @@ ordinary english code should be ignored
         stats = korean_prose_language_stats(text)
         self.assertEqual(stats["latin_prose_tokens"], 1)
         self.assertEqual(stats["top_latin_tokens"], [{"token": "velocity", "count": 1}])
+
+    def test_korean_language_metric_allows_citations_latex_and_common_terms(self):
+        stats = korean_prose_language_stats(
+            "로봇은 et al 표기와 dot ddot cmd frac 명령을 쓴다. "
+            "action head와 diffusion policy, end-effector, sim-to-real, "
+            "teacher-student, backdrivability, proprioceptive, proprioception, "
+            "rollout, checkpoint, fine-tuning, co-training, pre-training, "
+            "post-training, tokenizer, embodiment를 그대로 쓴다."
+        )
+        self.assertEqual(stats["latin_prose_tokens"], 0)
+
+    def test_korean_language_metric_allows_survey_metadata_names(self):
+        papers_path = self.survey / "_research/papers.json"
+        papers = json.loads(papers_path.read_text(encoding="utf-8"))
+        papers[0]["venue"] = "OpenAI Codex MuJoCo libfranka"
+        papers_path.write_text(json.dumps(papers), encoding="utf-8")
+        allowed = survey_metadata_latin_terms(self.survey)
+        stats = korean_prose_language_stats("openai codex mujoco libfranka를 사용한다.", allowed)
+        self.assertEqual(stats["latin_prose_tokens"], 0)
 
     def test_repeated_chapter_gloss_is_detected_after_first_allowance(self):
         stats = korean_prose_language_stats("속도(velocity)는 상태다. 목표 속도(velocity)를 정한다.")
