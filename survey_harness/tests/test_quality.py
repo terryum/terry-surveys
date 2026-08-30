@@ -316,7 +316,7 @@ ordinary english code should be ignored
         self.assertIn("image-plan-schema", failures)
         self.assertIn("image-plan-coverage", failures)
 
-    def test_content_digest_binds_manifest_not_r2_binary(self):
+    def test_content_digest_binds_committed_asset_log_not_local_derived_files(self):
         before = content_digest(self.survey)
         figure = self.survey / "assets/figures/first.png"
         figure.write_bytes(b"r2-only-binary-change")
@@ -324,6 +324,14 @@ ordinary english code should be ignored
 
         manifest = self.survey / "_workspace/04_image_manifest.json"
         manifest.write_text(json.dumps({"schema_version": "2.0", "assets": [{"path": "first.png", "sha256": "abc"}]}), encoding="utf-8")
+        self.assertEqual(before, content_digest(self.survey))
+
+        refs = self.survey / "_refs_extracted.json"
+        refs.write_text(json.dumps([{"bibtex_key": "derived-ref"}]), encoding="utf-8")
+        self.assertEqual(before, content_digest(self.survey))
+
+        asset_log = self.survey / "_assets_log.md"
+        asset_log.write_text("first.png sha256=abc\n", encoding="utf-8")
         self.assertNotEqual(before, content_digest(self.survey))
 
     def test_reviewer_id_must_match_a_qa_worker(self):

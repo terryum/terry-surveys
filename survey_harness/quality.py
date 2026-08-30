@@ -477,7 +477,11 @@ def claim_anchor_digest(text: str, claim_id: str) -> Tuple[Optional[str], Option
 def content_digest(path: Path, config_path: Optional[Path] = None, evaluator_path: Optional[Path] = None) -> str:
     hasher = hashlib.sha256()
     candidates = []
-    for rel in ("survey.json", "_refs_extracted.json", "_factcheck_report.md", "_qa_report.md", "_workspace/image_plan.json", "_workspace/04_image_manifest.json", "_quality/reviewer_scores.json", "_quality/build_validation.json"):
+    # Bind only commit-eligible release evidence. `_refs_extracted.json` and
+    # `_workspace/` are derived local score inputs and are intentionally
+    # gitignored by the split content repository. Their committed counterparts
+    # are the fact-check report, claim ledger, research corpus, and asset log.
+    for rel in ("survey.json", "_assets_log.md", "_factcheck_report.md", "_qa_report.md", "_quality/reviewer_scores.json", "_quality/build_validation.json"):
         target = path / rel
         if target.is_file():
             candidates.append(target)

@@ -50,6 +50,12 @@ with `scripts/sync-content-assets.sh`. Pages deployment still builds from local
 assets and uploads the generated site directly. A fresh clone must restore R2
 assets before build, QA, or release.
 
+Do not force-add gitignored `_workspace/` files or `_refs_extracted.json` merely
+to satisfy release digest checks. They remain local derived score inputs. The
+release digest binds their commit-eligible evidence through `_assets_log.md`,
+`_factcheck_report.md`, `_analysis/claim_evidence.jsonl`, and the tracked
+research corpus.
+
 ## Metadata and publication
 
 New and migrated surveys use:
