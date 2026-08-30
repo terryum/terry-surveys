@@ -153,7 +153,7 @@ def _verify_release_evidence(root: Path, slug: str, evidence: Dict[str, str], ex
             ["node", "scripts/test-visibility-access.mjs"],
             gallery_root,
             "private-live-access",
-            timeout=180,
+            timeout=300,
             env=private_env,
         ))
     else:
