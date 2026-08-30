@@ -73,6 +73,41 @@ def _survey_visibility(root: Path, slug: str) -> str:
     return str(payload.get("visibility") or "public").casefold()
 
 
+def _normalize_kg_title(value: str) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9]+", " ", value.casefold())).strip()
+
+
+def _expected_kg_ids(root: Path, slug: str) -> set[str]:
+    try:
+        payload = json.loads((root / "bibtex" / "refs_index.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return set()
+    expected = set()
+    for paper in payload.get("papers", {}).values():
+        if not isinstance(paper, dict) or not any(
+            isinstance(location, dict) and location.get("survey") == slug
+            for location in paper.get("locations", [])
+        ):
+            continue
+        ids = paper.get("ids", {}) if isinstance(paper.get("ids"), dict) else {}
+        arxiv = [re.sub(r"v\d+$", "", str(item).casefold().replace("arxiv:", "").strip()) for item in ids.get("arxiv", []) if str(item).strip()]
+        doi = [str(item).casefold().replace("https://doi.org/", "").replace("doi:", "").strip() for item in ids.get("doi", []) if str(item).strip()]
+        nature = [str(item).casefold().strip() for item in ids.get("nature", []) if str(item).strip()]
+        bibtex_keys = [str(item).strip() for item in paper.get("bibtex_keys", []) if str(item).strip()]
+        title = _normalize_kg_title(str(paper.get("title") or ""))
+        if arxiv:
+            expected.add(f"arxiv:{arxiv[0]}")
+        elif doi:
+            expected.add(f"doi:{doi[0]}")
+        elif nature:
+            expected.add(f"doi:{nature[0] if nature[0].startswith('10.') else '10.1038/' + nature[0]}")
+        elif bibtex_keys:
+            expected.add(f"bib:{bibtex_keys[0]}")
+        elif title:
+            expected.add(f"title:{title}")
+    return expected
+
+
 def _committed_content_digest(root: Path, slug: str, content_commit: str, framework_commit: str | None = None) -> str:
     with tempfile.TemporaryDirectory(prefix="survey-release-commit-") as tmp:
         temp = Path(tmp)
@@ -181,22 +216,9 @@ def _verify_release_evidence(root: Path, slug: str, evidence: Dict[str, str], ex
         )
     except (OSError, json.JSONDecodeError, AttributeError) as exc:
         raise ValueError(f"release verification failed (kg-sync): {exc}")
-    refs_data = json.loads((root / "surveys" / slug / "_refs_extracted.json").read_text(encoding="utf-8"))
-    if isinstance(refs_data, dict):
-        refs_data = refs_data.get("references", [])
-    expected_ids = set()
-    for row in refs_data if isinstance(refs_data, list) else []:
-        if not isinstance(row, dict):
-            continue
-        arxiv = re.sub(r"v\d+$", "", str(row.get("arxiv_id") or "").lower().replace("arxiv:", "").strip())
-        doi = str(row.get("doi") or "").lower().replace("https://doi.org/", "").replace("doi:", "").strip()
-        bib = str(row.get("bibtex_key") or "").strip()
-        if arxiv:
-            expected_ids.add(f"arxiv:{arxiv}")
-        elif doi:
-            expected_ids.add(f"doi:{doi}")
-        elif bib:
-            expected_ids.add(f"bib:{bib}")
+    expected_ids = _expected_kg_ids(root, slug)
+    if not expected_ids:
+        raise ValueError("release verification failed (kg-sync): current reference index has no canonical IDs for the survey")
     actual_ids = {
         str(candidate.get("canonical_id")) for candidate in candidates if isinstance(candidate, dict)
         and any(isinstance(backref, dict) and backref.get("survey") == slug for backref in candidate.get("survey_backrefs", []))

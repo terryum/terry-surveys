@@ -75,6 +75,10 @@ branches, the GitHub workflow conclusion/head SHA, exact KO/EN
 detail routes and iframe `src` documents, current KG backrefs/IDs, and all three
 live URLs, then writes a hashed `_quality/release_receipt.json`. On success:
 
+KG coverage is compared with canonical IDs rebuilt from the current
+`bibtex/refs_index.json` using the same arXiv → DOI/Nature → BibTeX → normalized
+title precedence as `sync-survey-candidates.mjs`.
+
 ```bash
 python3 .codex/skills/survey/scripts/survey_harness.py release <slug> released \
   --artifact pages_url=<url> --artifact content_commit=<private-content-sha> \

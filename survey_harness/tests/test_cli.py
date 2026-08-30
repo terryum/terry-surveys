@@ -7,7 +7,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 from pathlib import Path
 
-from survey_harness.cli import _survey_visibility, main
+from survey_harness.cli import _expected_kg_ids, _survey_visibility, main
 from survey_harness.state import load_state, save_state
 from survey_harness.tests.helpers import make_passing_mini
 
@@ -59,6 +59,18 @@ class CliIntegrationTests(unittest.TestCase):
         survey["visibility"] = "private"
         survey_path.write_text(json.dumps(survey), encoding="utf-8")
         self.assertEqual(_survey_visibility(self.root, "test-survey"), "private")
+
+    def test_expected_kg_ids_match_sync_canonicalization(self):
+        bibtex = self.root / "bibtex"
+        bibtex.mkdir(exist_ok=True)
+        (bibtex / "refs_index.json").write_text(json.dumps({"papers": {
+            "paper-a": {"title": "Versioned paper", "ids": {"arxiv": ["2601.00001v2"], "doi": [], "nature": []}, "bibtex_keys": [], "locations": [{"survey": "test-survey"}]},
+            "paper-b": {"title": "[Product Guide](https://example.com/guide)", "ids": {"arxiv": [], "doi": [], "nature": []}, "bibtex_keys": [], "locations": [{"survey": "test-survey"}]},
+        }}), encoding="utf-8")
+        self.assertEqual(_expected_kg_ids(self.root, "test-survey"), {
+            "arxiv:2601.00001",
+            "title:product guide https example com guide",
+        })
 
     def test_release_reruns_quality_after_manuscript_changes(self):
         self.run_cli("init", "test-survey", "--profile", "mini")
