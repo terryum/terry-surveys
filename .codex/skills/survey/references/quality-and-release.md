@@ -60,6 +60,14 @@ Then perform, in order:
 8. Live KO/EN list and detail checks, expected iframe source, and absence of an
    active not-found tree.
 
+Private surveys keep their detail iframe behind the admin identity session and
+the `private-surveys.terryum.ai` proxy. For them, release verification runs the
+gallery's production visibility/access probe instead of expecting an iframe in
+anonymous HTML. The probe checks anonymous and member denial, admin KO/EN
+iframes, protected proxy responses, caching/robots headers, and unknown-route
+404 behavior without writing session cookies or Service Token values to the
+receipt.
+
 Record URLs, all three commit SHAs, workflow ID, asset validation, and live
 assertions as release artifacts. The `released` command independently checks
 the private content, public framework, and gallery commits on fetched remote

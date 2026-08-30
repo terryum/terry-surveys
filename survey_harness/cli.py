@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -44,8 +45,8 @@ def emit(data) -> None:
     print(json.dumps(data, ensure_ascii=False, indent=2))
 
 
-def _checked(command, cwd: Path, label: str, timeout: int = 45) -> Dict[str, Any]:
-    result = subprocess.run(command, cwd=cwd, capture_output=True, text=True, timeout=timeout)
+def _checked(command, cwd: Path, label: str, timeout: int = 45, env: Dict[str, str] | None = None) -> Dict[str, Any]:
+    result = subprocess.run(command, cwd=cwd, capture_output=True, text=True, timeout=timeout, env=env)
     if result.returncode != 0:
         detail = (result.stderr or result.stdout).strip()[:1200]
         raise ValueError(f"release verification failed ({label}): {detail}")
@@ -62,6 +63,14 @@ class _IframeParser(HTMLParser):
             values = dict(attrs)
             if values.get("src"):
                 self.sources.append(values["src"])
+
+
+def _survey_visibility(root: Path, slug: str) -> str:
+    try:
+        payload = json.loads((root / "surveys" / slug / "survey.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return "public"
+    return str(payload.get("visibility") or "public").casefold()
 
 
 def _committed_content_digest(root: Path, slug: str, content_commit: str, framework_commit: str | None = None) -> str:
@@ -137,18 +146,29 @@ def _verify_release_evidence(root: Path, slug: str, evidence: Dict[str, str], ex
         live_content[key] = content
         checks.append(check)
     pages_origin = f"{parsed_urls['pages_url'].scheme}://{parsed_urls['pages_url'].netloc}"
-    for lang, key in (("ko", "live_ko_url"), ("en", "live_en_url")):
-        parser = _IframeParser()
-        parser.feed(live_content[key])
-        resolved = [urljoin(str(evidence[key]), source) for source in parser.sources]
-        expected_prefix = urljoin(str(evidence["pages_url"]).rstrip("/") + "/", f"{lang}/")
-        matching = [source for source in resolved if source.startswith(expected_prefix) and source.startswith(pages_origin)]
-        if not matching or any(marker in live_content[key] for marker in ("404 not found", "page not found", "페이지를 찾을 수")):
-            raise ValueError(f"release verification failed ({key}): an iframe bound to {expected_prefix} is missing or not-found content was detected")
-        iframe_check = _checked(["curl", "-fsSL", "--max-time", "30", matching[0]], root, f"iframe-{lang}")
-        if "<html" not in iframe_check["stdout"].casefold():
-            raise ValueError(f"release verification failed (iframe-{lang}): iframe document is not HTML")
-        checks.append(iframe_check)
+    if _survey_visibility(root, slug) == "private":
+        private_env = dict(os.environ)
+        private_env["TEST_BASE_URL"] = f"{parsed_urls['live_ko_url'].scheme}://{parsed_urls['live_ko_url'].netloc}"
+        checks.append(_checked(
+            ["node", "scripts/test-visibility-access.mjs"],
+            gallery_root,
+            "private-live-access",
+            timeout=180,
+            env=private_env,
+        ))
+    else:
+        for lang, key in (("ko", "live_ko_url"), ("en", "live_en_url")):
+            parser = _IframeParser()
+            parser.feed(live_content[key])
+            resolved = [urljoin(str(evidence[key]), source) for source in parser.sources]
+            expected_prefix = urljoin(str(evidence["pages_url"]).rstrip("/") + "/", f"{lang}/")
+            matching = [source for source in resolved if source.startswith(expected_prefix) and source.startswith(pages_origin)]
+            if not matching or any(marker in live_content[key] for marker in ("404 not found", "page not found", "페이지를 찾을 수")):
+                raise ValueError(f"release verification failed ({key}): an iframe bound to {expected_prefix} is missing or not-found content was detected")
+            iframe_check = _checked(["curl", "-fsSL", "--max-time", "30", matching[0]], root, f"iframe-{lang}")
+            if "<html" not in iframe_check["stdout"].casefold():
+                raise ValueError(f"release verification failed (iframe-{lang}): iframe document is not HTML")
+            checks.append(iframe_check)
     asset_script = root / ".codex/skills/survey/scripts/validate_gallery_assets.py"
     checks.append(_checked([sys.executable, str(asset_script), slug, "--terryum-ai-root", str(gallery_root)], root, "asset-validation"))
     kg_path = root.parent / "terry-papers" / "knowledge-index.json"

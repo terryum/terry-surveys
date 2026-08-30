@@ -7,7 +7,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 from pathlib import Path
 
-from survey_harness.cli import main
+from survey_harness.cli import _survey_visibility, main
 from survey_harness.state import load_state, save_state
 from survey_harness.tests.helpers import make_passing_mini
 
@@ -52,6 +52,13 @@ class CliIntegrationTests(unittest.TestCase):
             rc = main(["--repo-root", str(self.root), "score", "test-survey", "--profile", "mini", "--record"])
         self.assertEqual(rc, 1)
         self.assertFalse((self.root / "surveys/test-survey/_quality/scorecard.json").exists())
+
+    def test_survey_visibility_reads_private_release_mode(self):
+        survey_path = self.root / "surveys/test-survey/survey.json"
+        survey = json.loads(survey_path.read_text(encoding="utf-8"))
+        survey["visibility"] = "private"
+        survey_path.write_text(json.dumps(survey), encoding="utf-8")
+        self.assertEqual(_survey_visibility(self.root, "test-survey"), "private")
 
     def test_release_reruns_quality_after_manuscript_changes(self):
         self.run_cli("init", "test-survey", "--profile", "mini")
