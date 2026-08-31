@@ -11,7 +11,7 @@
     "slug": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
     "profile": {"enum": ["full", "mini", "legacy_baseline"]},
     "repository_layout": {"enum": ["split-v1", "legacy-monorepo"]},
-    "status": {"enum": ["running", "remediating", "ready", "blocked", "deploy_blocked", "released"]},
+    "status": {"enum": ["running", "remediating", "ready", "preview_ready", "blocked", "deploy_blocked", "released"]},
     "tasks": {"type": "array", "items": {"$ref": "#/$defs/task"}},
     "quality": {"type": "object"},
     "release": {"type": "object"}

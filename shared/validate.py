@@ -146,6 +146,15 @@ def check_survey_json(survey_dir, iss):
     for field in REQUIRED_SURVEY_FIELDS:
         if field not in cfg:
             iss.err(f'survey.json missing required field: {field}')
+    content_type = cfg.get('content_type', 'survey')
+    if content_type not in {'survey', 'tutorial'}:
+        iss.err('survey.json content_type must be survey or tutorial')
+    if content_type == 'tutorial':
+        tutorial_number = cfg.get('tutorial_number')
+        if not isinstance(tutorial_number, int) or isinstance(tutorial_number, bool) or tutorial_number < 1:
+            iss.err('tutorial survey.json requires a positive integer tutorial_number')
+        if cfg.get('visibility', 'private') not in {'private', 'public'}:
+            iss.err('tutorial visibility must be private or public')
     features = cfg.get('features', {})
     for k in ('glossary', 'pdf', 'paper'):
         if k in features and not isinstance(features[k], bool):
@@ -189,6 +198,7 @@ def check_survey_json(survey_dir, iss):
     if not parts:
         iss.warn('survey.json has no parts[]')
     chapter_nums = []
+    all_chapter_nums = []
     for p_idx, part in enumerate(parts):
         for c_idx, ch in enumerate(part.get('chapters', [])):
             for k in ('num', 'title', 'summary'):
@@ -197,14 +207,33 @@ def check_survey_json(survey_dir, iss):
                         f'survey.json parts[{p_idx}].chapters[{c_idx}] missing {k}'
                     )
             if 'num' in ch:
-                chapter_nums.append(ch['num'])
-    return {'config': cfg, 'chapter_nums': chapter_nums}
+                all_chapter_nums.append(ch['num'])
+                status = ch.get('status', 'ready')
+                if status not in {'planned', 'ready'}:
+                    iss.err(
+                        f'survey.json parts[{p_idx}].chapters[{c_idx}] '
+                        f'has invalid status {status!r}'
+                    )
+                if status == 'ready':
+                    chapter_nums.append(ch['num'])
+    if len(all_chapter_nums) != len(set(all_chapter_nums)):
+        iss.err('survey.json chapter numbers must be unique')
+    if content_type == 'tutorial':
+        all_ready = bool(all_chapter_nums) and len(chapter_nums) == len(all_chapter_nums)
+        expected_status = 'active' if all_ready else 'wip'
+        if cfg.get('status') != expected_status:
+            iss.err(f'tutorial status must be {expected_status} for the current chapter readiness')
+    return {
+        'config': cfg,
+        'chapter_nums': chapter_nums,
+        'all_chapter_nums': all_chapter_nums,
+    }
 
 
-def check_chapters(survey_dir, chapter_nums, iss):
+def check_chapters(survey_dir, chapter_nums, iss, all_chapter_nums=None):
     """Check both ko/ and en/ chapters for frontmatter, citations,
     cross-refs, figures, and that numbers align with survey.json."""
-    max_ch = max(chapter_nums) if chapter_nums else 0
+    max_ch = max(all_chapter_nums or chapter_nums) if (all_chapter_nums or chapter_nums) else 0
     for lang in ('ko', 'en'):
         book_lang = os.path.join(survey_dir, 'book', lang)
         if not os.path.isdir(book_lang):
@@ -222,6 +251,24 @@ def check_chapters(survey_dir, chapter_nums, iss):
         for fname in sorted(found):
             path = os.path.join(book_lang, fname)
             check_one_chapter(path, lang, max_ch, survey_dir, iss)
+
+
+def check_tutorial_artifacts(survey_dir, ready_chapters, iss):
+    required = (
+        '_tutorial/roadmap.md',
+        '_tutorial/environment_matrix.json',
+        '_tutorial/source_ledger.jsonl',
+        '_tutorial/user_validation.jsonl',
+    )
+    for rel in required:
+        if not os.path.isfile(os.path.join(survey_dir, rel)):
+            iss.err(f'{rel} missing for tutorial')
+    for chapter in ready_chapters:
+        packet = f'_tutorial/chapter_packets/ch{chapter:02d}.json'
+        manifest = f'labs/ch{chapter:02d}/manifest.json'
+        for rel in (packet, manifest):
+            if not os.path.isfile(os.path.join(survey_dir, rel)):
+                iss.err(f'{rel} missing for ready tutorial chapter')
 
 
 def check_one_chapter(path, lang, max_ch, survey_dir, iss):
@@ -656,14 +703,17 @@ def validate_one(name, verbose=True):
     survey_meta = check_survey_json(survey_dir, iss)
     if survey_meta is not None:
         chapter_nums = survey_meta['chapter_nums']
-        check_chapters(survey_dir, chapter_nums, iss)
-    check_bib_subset(survey_dir, iss)
-    check_glossary_subset(survey_dir, iss)
-    check_refs_extracted(survey_dir, iss)
-    check_factcheck_report(survey_dir, iss)
-    check_research_papers(survey_dir, iss)
-    check_research_shards(survey_dir, iss)
-    check_analysis_outputs(survey_dir, iss)
+        check_chapters(survey_dir, chapter_nums, iss, survey_meta['all_chapter_nums'])
+        if survey_meta['config'].get('content_type', 'survey') == 'tutorial':
+            check_tutorial_artifacts(survey_dir, chapter_nums, iss)
+    if survey_meta is None or survey_meta['config'].get('content_type', 'survey') == 'survey':
+        check_bib_subset(survey_dir, iss)
+        check_glossary_subset(survey_dir, iss)
+        check_refs_extracted(survey_dir, iss)
+        check_factcheck_report(survey_dir, iss)
+        check_research_papers(survey_dir, iss)
+        check_research_shards(survey_dir, iss)
+        check_analysis_outputs(survey_dir, iss)
     check_visibility_consistency(survey_dir, iss)
 
     if verbose:

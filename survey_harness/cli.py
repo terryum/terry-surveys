@@ -399,6 +399,77 @@ def command_release(args, root: Path) -> int:
     return 0
 
 
+def _release_artifacts(items) -> Dict[str, str]:
+    artifacts = {}
+    for item in items:
+        if "=" not in item:
+            raise ValueError(f"release artifact must be KEY=VALUE: {item!r}")
+        key, value = item.split("=", 1)
+        if re.search(r"(?:secret|cookie|authorization|password)", key, re.I):
+            raise ValueError("release receipts must not contain secrets, cookies, or authorization values")
+        artifacts[key] = value
+    return artifacts
+
+
+def command_publication(args, root: Path) -> int:
+    state = load_state(root, args.slug)
+    base = root / "surveys" / args.slug
+    channel = args.channel
+    if args.status == "blocked":
+        state["status"] = "deploy_blocked"
+        state["release"]["status"] = "blocked"
+        state["release"]["blocked_reason"] = args.reason
+        save_state(root, state)
+        emit({"channel": channel, "status": "blocked", "reason": args.reason})
+        return 0
+    fresh = evaluate(root, args.slug, state["profile"])
+    history = state.get("quality", {}).get("history", [])
+    if not fresh["passed"] or not history or history[-1].get("content_digest") != fresh.get("content_digest"):
+        raise ValueError("publication requires a passing score for the current recorded digest")
+    if args.status == "running":
+        state["release"]["status"] = f"{channel}_running"
+        save_state(root, state)
+        emit({"channel": channel, "status": "running", "content_digest": fresh["content_digest"]})
+        return 0
+    artifacts = _release_artifacts(args.artifact)
+    common = {"content_commit", "framework_commit", "gallery_commit", "workflow_id", "pages_url"}
+    if channel == "preview":
+        required = common | {"anonymous", "member", "admin_ko", "admin_en"}
+        expected_host = f"{args.slug}-preview.pages.dev"
+    else:
+        required = common | {"live_ko", "live_en"}
+        expected_host = f"{args.slug}.pages.dev"
+    missing = sorted(required - set(artifacts))
+    if missing:
+        raise ValueError(f"{channel} publication artifacts missing: {', '.join(missing)}")
+    if urlparse(artifacts["pages_url"]).hostname != expected_host:
+        raise ValueError(f"{channel} pages_url must use {expected_host}")
+    releases = base / "_quality/releases"
+    releases.mkdir(parents=True, exist_ok=True)
+    receipt = {"schema_version": "1.0", "channel": channel, "content_digest": fresh["content_digest"], **artifacts}
+    if channel == "preview":
+        expected_access = {"anonymous": "denied", "member": "denied", "admin_ko": "passed", "admin_en": "passed"}
+        if any(artifacts[key] != value for key, value in expected_access.items()):
+            raise ValueError("preview access matrix failed")
+        state["status"] = "preview_ready"
+        state["release"]["status"] = "preview_released"
+    else:
+        preview = releases / "preview.json"
+        if not preview.is_file() or json.loads(preview.read_text(encoding="utf-8")).get("content_digest") != fresh["content_digest"]:
+            raise ValueError("production must promote the exact approved preview digest")
+        survey_path = base / "survey.json"
+        survey = json.loads(survey_path.read_text(encoding="utf-8"))
+        survey["visibility"] = "public"
+        survey_path.write_text(json.dumps(survey, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        state["status"] = "released"
+        state["release"]["status"] = "released"
+    path = releases / f"{channel}.json"
+    path.write_text(json.dumps(receipt, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    save_state(root, state)
+    emit({"channel": channel, "status": "released", "receipt": str(path.relative_to(base))})
+    return 0
+
+
 def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--repo-root", help="terry-surveys repository root; defaults to cwd")
@@ -470,6 +541,13 @@ def parser() -> argparse.ArgumentParser:
     release.add_argument("--reason")
     release.add_argument("--artifact", action="append", default=[], help="KEY=VALUE evidence such as pages_url=...")
     release.set_defaults(func=command_release)
+    publication = sub.add_parser("publication", help="record protected preview or explicit production promotion")
+    publication.add_argument("slug")
+    publication.add_argument("channel", choices=["preview", "production"])
+    publication.add_argument("status", choices=["running", "released", "blocked"])
+    publication.add_argument("--artifact", action="append", default=[])
+    publication.add_argument("--reason")
+    publication.set_defaults(func=command_publication)
     return p
 
 

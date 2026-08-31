@@ -1,0 +1,6 @@
+interface:
+  display_name: "Tutorial"
+  short_description: "Build bilingual action-first tutorials with previews"
+  default_prompt: "Use $tutorial to build a bilingual action-first tutorial and deploy its protected preview."
+policy:
+  allow_implicit_invocation: true

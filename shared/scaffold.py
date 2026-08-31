@@ -28,10 +28,13 @@ def _survey_config(name):
     # running 243 KO chars / 444 EN chars.
     return {
         "id": name,
+        "content_type": "survey",
         "github_repo": "terryum/terry-surveys-contents",
         # Source repositories are private by default even when the rendered
         # survey is reader-public through Cloudflare/the Terry gallery.
         "github_repo_visibility": "private",
+        "visibility": "private",
+        "status": "wip",
         "title": {
             "ko": "서베이 제목 (한국어)",
             "en": "Survey Title (English)"
@@ -89,6 +92,33 @@ def _survey_config(name):
             }
         ]
     }
+
+
+def _tutorial_config(name, tutorial_number):
+    config = _survey_config(name)
+    config.update({
+        "content_type": "tutorial",
+        "tutorial_number": tutorial_number,
+        "title": {"ko": "튜토리얼 제목", "en": "Tutorial Title"},
+        "short_title": {"ko": "튜토리얼 제목", "en": "Tutorial Title"},
+        "subtitle": {"ko": "첫 성공부터 완성까지", "en": "From first success to completion"},
+        "description": {
+            "ko": "직접 실행하며 배우는 액션 우선 튜토리얼.",
+            "en": "An action-first tutorial built around observable results.",
+        },
+        "features": {"glossary": False, "pdf": False, "paper": False},
+        "parts": [{
+            "name": {"ko": "Part I: 첫 성공", "en": "Part I: First Success"},
+            "chapters": [{
+                "num": 1,
+                "title": {"ko": "첫 번째 챕터", "en": "First Chapter"},
+                "summary": {"ko": "로드맵 작성 후 확정", "en": "Finalized with the roadmap"},
+                "status": "planned",
+                "last_updated": "",
+            }],
+        }],
+    })
+    return config
 
 
 def _chapter_template(lang, title):
@@ -479,7 +509,7 @@ def _push_script(name):
 # (configured with Git Provider: No — direct upload only)
 #
 # Usage:
-#   bash scripts/push.sh [commit message]
+#   bash scripts/push.sh [--preview|--production] [commit message]
 #
 # The survey's docs/ is built by `python3 build.py {name}` from the
 # monorepo root. This script assumes docs/ is already up to date.
@@ -489,7 +519,11 @@ def _push_script(name):
 
 set -euo pipefail
 
+CHANNEL="preview"
+if [ "${{1:-}}" = "--preview" ]; then shift; fi
+if [ "${{1:-}}" = "--production" ]; then CHANNEL="production"; shift; fi
 PROJECT_NAME="{name}"
+if [ "$CHANNEL" = "preview" ]; then PROJECT_NAME="{name}-preview"; fi
 SRC_DIR="$(cd "$(dirname "${{BASH_SOURCE[0]}}")/.." && pwd)/docs"
 MSG="${{1:-update $PROJECT_NAME}}"
 
@@ -500,6 +534,15 @@ fi
 
 TMP_DIR="$(mktemp -d -t pages-deploy-XXXX)"
 trap "rm -rf '$TMP_DIR'" EXIT
+
+if [ "$CHANNEL" = "preview" ]; then
+  TERRYUM_AI="$(cd "$(dirname "${{BASH_SOURCE[0]}}")/../../../terryum-ai" 2>/dev/null && pwd || true)"
+  if [ -z "$TERRYUM_AI" ] || [ ! -f "$TERRYUM_AI/scripts/provision-survey-preview-access.mjs" ]; then
+    echo "ERROR: terryum-ai Access provisioner is required before preview upload" >&2
+    exit 1
+  fi
+  node "$TERRYUM_AI/scripts/provision-survey-preview-access.mjs" --project="$PROJECT_NAME" --hostname="$PROJECT_NAME.pages.dev"
+fi
 
 echo "=== rsync docs/ → $TMP_DIR (excluding revise-source/) ==="
 rsync -a \\
@@ -583,3 +626,30 @@ def create_survey(name, surveys_dir):
     print(f"  3. Write chapters in surveys/{name}/book/ko/ and book/en/")
     print(f"  4. Fill book/{{ko,en}}/glossary.md with domain terms")
     print(f"  5. Run: python3 build.py {name}")
+
+
+def create_tutorial(name, surveys_dir, tutorial_number):
+    """Create a tutorial shell; the curriculum task owns the final roadmap."""
+    survey_dir = os.path.join(surveys_dir, name)
+    if os.path.exists(survey_dir):
+        raise FileExistsError(f"surveys/{name}/ already exists")
+    if not isinstance(tutorial_number, int) or tutorial_number < 1:
+        raise ValueError("tutorial_number must be a positive integer")
+    for directory in (
+        'book/ko', 'book/en', 'assets/figures', 'docs', 'scripts',
+        '_tutorial/chapter_packets', '_quality/releases', 'labs',
+    ):
+        os.makedirs(os.path.join(survey_dir, directory), exist_ok=True)
+    with open(os.path.join(survey_dir, 'survey.json'), 'w', encoding='utf-8') as handle:
+        json.dump(_tutorial_config(name, tutorial_number), handle, ensure_ascii=False, indent=2)
+        handle.write('\n')
+    _write(os.path.join(survey_dir, '_tutorial', 'roadmap.md'),
+           '# Tutorial roadmap\n\n- Audience: pending\n- Final goal: pending\n- First success: pending\n')
+    _write(os.path.join(survey_dir, '_tutorial', 'environment_matrix.json'), '{}\n')
+    _write(os.path.join(survey_dir, '_tutorial', 'source_ledger.jsonl'), '')
+    _write(os.path.join(survey_dir, '_tutorial', 'user_validation.jsonl'), '')
+    _write(os.path.join(survey_dir, '.gitignore'), _gitignore())
+    push_path = os.path.join(survey_dir, 'scripts', 'push.sh')
+    _write(push_path, _push_script(name))
+    os.chmod(push_path, 0o755)
+    return survey_dir

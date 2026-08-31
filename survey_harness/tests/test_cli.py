@@ -106,6 +106,35 @@ class CliIntegrationTests(unittest.TestCase):
         self.assertEqual(rc, 1)
         self.assertIn("manuscript changed", stderr.getvalue())
 
+    def test_preview_and_production_require_the_same_digest(self):
+        self.run_cli("init", "test-survey", "--profile", "mini")
+        state = load_state(self.root, "test-survey")
+        for task in state["tasks"]:
+            task["status"] = "completed"
+            task["agent_ids"] = ["agent-reviewer-123" if task["owner"] == "qa_reviewer" else f"agent-{task['id']}"]
+        save_state(self.root, state)
+        self.run_cli("score", "test-survey", "--profile", "mini", "--write", "--record")
+        preview = [
+            "content_commit=abc", "framework_commit=def", "gallery_commit=ghi", "workflow_id=1",
+            "pages_url=https://test-survey-preview.pages.dev", "anonymous=denied", "member=denied",
+            "admin_ko=passed", "admin_en=passed",
+        ]
+        arguments = sum((["--artifact", item] for item in preview), [])
+        rc, result = self.run_cli("publication", "test-survey", "preview", "released", *arguments)
+        self.assertEqual(rc, 0, result)
+        chapter = self.root / "surveys/test-survey/book/en/ch01.md"
+        chapter.write_text(chapter.read_text(encoding="utf-8") + "\nchanged snapshot\n", encoding="utf-8")
+        production = [
+            "content_commit=abc", "framework_commit=def", "gallery_commit=ghi", "workflow_id=2",
+            "pages_url=https://test-survey.pages.dev", "live_ko=passed", "live_en=passed",
+        ]
+        arguments = sum((["--artifact", item] for item in production), [])
+        stderr = StringIO()
+        with redirect_stderr(stderr):
+            rc = main(["--repo-root", str(self.root), "publication", "test-survey", "production", "released", *arguments])
+        self.assertEqual(rc, 1)
+        self.assertIn("current recorded digest", stderr.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()

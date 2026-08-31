@@ -474,6 +474,29 @@ main {
   box-shadow: 0 12px 40px var(--accent-glow);
 }
 
+.chapter-card-planned {
+  cursor: default;
+  opacity: 0.58;
+  filter: saturate(0.55);
+}
+
+.chapter-card-planned:hover {
+  transform: none;
+  border-color: var(--border-subtle);
+}
+
+.chapter-status {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.btn-disabled {
+  cursor: default;
+  opacity: 0.55;
+  pointer-events: none;
+}
+
 .chapter-card:hover::before { opacity: 1; }
 
 .chapter-card .ch-num {

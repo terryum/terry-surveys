@@ -23,6 +23,8 @@ Never edit the installed skill copy first.
   existing maintenance behavior, but record book-scale work in v2 state.
 - `--deploy`: require a passing v2 scorecard, then follow
   `references/quality-and-release.md`.
+- `--publish <slug>`: promote the exact approved preview digest to public
+  production. Never infer this authorization from create, refresh, or deploy.
 - Repository audit, bootstrap, migration, or release: read
   `references/source-repositories.md`. Keep GitHub source visibility separate
   from reader visibility.
@@ -75,11 +77,12 @@ Read `references/orchestration-v2.md` for any book-scale run. Read
    failure gets at most three automatic repair passes. After that, leave a
    resumable `blocked` state with the exact failure IDs; do not call the survey
    complete.
-8. A full run that reaches `ready` defaults to the complete publication chain:
-   local build, Pages deploy, gallery assets and registration, Workers deploy,
-   private-R2 asset sync, text-only source push, KG candidate sync, and live
-   KO/EN assertions. Record release
-   evidence with the controller. Never publish a blocked draft as release-ready.
+8. A full run that reaches `ready` defaults to the complete protected-preview
+   chain: local build, `<slug>-preview` Pages deployment after Access
+   provisioning, private gallery registration, Workers deploy, private-R2 asset
+   sync, text-only source push, KG candidate sync, and anonymous/member denial
+   plus admin KO/EN assertions. Production stays unchanged until an explicit
+   `--publish`. Never publish a blocked draft as release-ready.
 
 ## Non-negotiable behavior
 

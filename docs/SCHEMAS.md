@@ -183,6 +183,20 @@ bibtex/refs_index.json
 
 ## `survey.json`
 
+`content_type` defaults to `survey` for backward compatibility. Tutorials set
+`content_type: tutorial`, a positive integer `tutorial_number`, and start with
+`visibility: private` plus `status: wip`. Each chapter may set `status` to
+`planned` or `ready`; a missing chapter status means `ready`. Planned chapters
+remain visible as disabled roadmap cards and need no Markdown. Ready chapters
+require both `book/ko/chNN.md` and `book/en/chNN.md`. A tutorial changes to
+`status: active` only when every chapter is ready.
+
+Tutorials also track `_tutorial/roadmap.md`,
+`_tutorial/environment_matrix.json`, `_tutorial/source_ledger.jsonl`,
+`_tutorial/chapter_packets/chNN.json`, `labs/chNN/manifest.json`, and
+`_tutorial/user_validation.jsonl`. Release evidence is append-only under
+`_quality/releases/`, separated by preview and production channel.
+
 - `id`, `github_repo`: identifiers
 - `title`, `short_title`, `subtitle`, `description`: bilingual
 - **`cover_image`**: hero banner. Usually `"../assets/cover.jpg"`. File at `surveys/<slug>/assets/cover.{jpg,png,webp,svg}` (flat root, not under `figures/`). 16:9 recommended. Reuse `terryum-ai/public/images/projects/survey-<slug>-og.jpg` if it exists. `build_site.py` copies to `docs/assets/cover.*` and places above `<h1>`.

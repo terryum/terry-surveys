@@ -67,15 +67,15 @@ python3 ~/.codex/skills/survey/scripts/sync_agents.py <slug> --retrofit --apply 
 
 Codex skill에서 실행할 때는 skill이 repo 밖(`~/.codex/skills/survey`)에 있으므로 `--repo-root=/Users/terrytaewoongum/Codes/personal/terry-surveys`를 명시해도 된다. 스크립트는 KG mapper, evidence librarian, foundations/frontier researchers, writer, image curator, fact checker, QA reviewer의 v2 역할 파일 8개를 만든다.
 
-### Reader visibility 분기 (public vs group)
+### Reader visibility 분기 (private preview vs group)
 
-- **public (기본)**: 독자에게 렌더링된 책을 공개한다. 소스는 여전히
-  `terry-surveys-contents`에만 저장한다.
+- **private (기본)**: 새 서베이는 `status: wip` 비공개 preview로 시작한다.
+  production 공개는 별도 `/survey --publish <slug>`에서만 수행한다.
 - **`--visibility=group --group=<grp>`**: 같은 비공개 contents repo에 두고
   `survey.json.visibility`와 group metadata만 설정한다. 다른 repo로 옮기거나
   별도 `.gitignore` 예외를 만들지 않는다.
 
-`public/group`은 reader access이고 GitHub source visibility와 별개다. 새
+`private/group/public`은 reader access이고 GitHub source visibility와 별개다. 새
 서베이는 canonical private contents repo만 source target으로 사용한다.
 standalone repo를 생성하거나 기존 standalone repo로 push하지 않는다.
 

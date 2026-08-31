@@ -30,7 +30,7 @@ After three failed repair passes for the same failure ID, preserve all score
 history and stop in resumable blocked state. A later `--resume` may succeed after
 new sources, corrected assets, credentials, or user direction arrive.
 
-## Publication chain
+## Preview chain (default)
 
 After state becomes `ready`, record release start:
 
@@ -45,9 +45,12 @@ old survey entry from masquerading as a refresh sync.
 Then perform, in order:
 
 1. Restore/verify local assets, then local survey build and validation.
-2. Cloudflare Pages deploy and public survey URL check.
+2. Create/verify `<slug>-preview` Pages, provision its Cloudflare Access
+   application and existing admin/service-token policies, then upload and check
+   the protected preview. Never upload first and add Access later.
 3. Exact Terry post/paper links and master reference index rebuild.
-4. Cover/OG/thumb validation and `terryum-ai` gallery registration.
+4. Cover/OG/thumb validation and private `terryum-ai` gallery registration using
+   `preview_embed_url`. Preserve an existing public `embed_url` during refresh.
 5. `terryum-ai` type-check/build, commit, push, and Workers workflow success.
 6. Upload changed local assets to private R2 and refresh
    `assets/manifest.json`. Re-run the `source-repositories.md` gate, then commit
@@ -57,8 +60,26 @@ Then perform, in order:
    Record the public skill/harness version used for scoring as
    `framework_commit`; this commit must contain no survey content.
 7. Candidate/KG sync-back.
-8. Live KO/EN list and detail checks, expected iframe source, and absence of an
-   active not-found tree.
+8. Live checks: anonymous and ordinary member denial, admin KO/EN preview iframe
+   success, expected iframe source, and absence of an active not-found tree.
+
+Record a preview receipt under `_quality/releases/`. Access API permission or
+protection-check failure is `deploy_blocked`: preserve the source commits and do
+not report the run complete.
+
+Use `survey_harness.py publication <slug> preview released --artifact ...` only
+after the access checks have actually passed. Record failures with
+`publication <slug> preview blocked --reason ...`.
+
+## Production promotion
+
+Only `/survey --publish <slug>` authorizes production. Re-score, require the
+current digest to match the approved preview receipt, deploy that exact snapshot
+to `<slug>.pages.dev`, set the registry `embed_url` public, and retain
+`preview_embed_url` for the admin preview route. Later edits update preview only
+until the next explicit publish.
+Record the promotion with `publication <slug> production released`; the command
+refuses a digest different from `_quality/releases/preview.json`.
 
 Private surveys keep their detail iframe behind the admin identity session and
 the `private-surveys.terryum.ai` proxy. For them, release verification runs the

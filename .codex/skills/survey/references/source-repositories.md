@@ -4,7 +4,9 @@
 
 Keep reader access and GitHub source access independent:
 
-- `survey.json.visibility` controls reader access (`public` or `group`).
+- `survey.json.visibility` controls reader access (`private`, `public`, or `group`).
+  New surveys start private; a refresh of an existing public survey keeps its
+  production snapshot public while the next revision is reviewed in preview.
 - `terryum/terry-surveys` is the public framework repository. It contains only
   the skill, harness, schemas, scaffold, builders, and shared presentation code.
 - `terryum/terry-surveys-contents` is the private canonical content repository.

@@ -36,7 +36,7 @@ TITLE_EN="$3"
 DOMAIN="$4"
 shift 4
 
-VISIBILITY=""
+VISIBILITY="private"
 GROUP=""
 DRY_RUN=""
 REPO_ROOT="/Users/terrytaewoongum/Codes/personal/terry-surveys"
@@ -78,7 +78,7 @@ if [ ! -d "$TEMPLATE_DIR" ]; then
 fi
 SCAFFOLD_DIR="$REPO_ROOT/surveys/$SLUG"
 SURVEY_DIR="$SCAFFOLD_DIR"
-SCAFFOLD_LOCATION="terry-surveys-contents/surveys/$SLUG (private source; reader visibility: ${VISIBILITY:-public})"
+SCAFFOLD_LOCATION="terry-surveys-contents/surveys/$SLUG (private source; reader visibility: $VISIBILITY)"
 
 say() { printf "[bootstrap] %s\n" "$*"; }
 run() {
@@ -163,7 +163,8 @@ cfg["dates"] = {
     "first_published": datetime.date.today().isoformat(),
     "last_updated": datetime.date.today().isoformat(),
 }
-cfg["visibility"] = visibility if visibility else "public"
+cfg["visibility"] = visibility if visibility else "private"
+cfg["status"] = "wip"
 cfg["group"] = group if group else None
 with open(path, "w", encoding='utf-8') as f:
     json.dump(cfg, f, ensure_ascii=False, indent=2)
@@ -183,6 +184,6 @@ cat <<EOF
   2) Run the v2 controller loop: /survey --orchestrate $SLUG
   3) Use /survey --sync-agents $SLUG only when refreshing generated role context
   4) Commit + push: cd ../terry-surveys-contents && git add surveys/$SLUG/ && git commit && git push
-  5) After deploy, register using the requested reader visibility (${VISIBILITY:-public})
+  5) After deploy, register the private preview; publish only on an explicit /survey --publish
 
 EOF

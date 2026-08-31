@@ -33,15 +33,18 @@ def load_config(survey_dir):
     for part_idx, part in enumerate(config['parts'], 1):
         part_num = part.get('part_num_override', part_idx)
         for ch in part['chapters']:
+            status = ch.get('status', 'ready')
             chapters_ko[ch['num']] = {
                 'title': ch['title']['ko'],
                 'part': part['name']['ko'],
-                'part_num': part_num
+                'part_num': part_num,
+                'status': status,
             }
             chapters_en[ch['num']] = {
                 'title': ch['title']['en'],
                 'part': part['name']['en'],
-                'part_num': part_num
+                'part_num': part_num,
+                'status': status,
             }
 
     num_chapters = max(chapters_ko.keys()) if chapters_ko else 0
@@ -738,7 +741,7 @@ def build_sidebar(sections, part_num):
 # Chapter HTML builder
 # ---------------------------------------------------------------------------
 
-def build_chapter_html(ch_num, lang, chapters_meta, book_dir, lang_code, num_chapters):
+def build_chapter_html(ch_num, lang, chapters_meta, book_dir, lang_code, available_chapters):
     """Build a complete chapter HTML page."""
     md_path = os.path.join(book_dir, f'ch{ch_num:02d}.md')
     if not os.path.exists(md_path):
@@ -766,15 +769,18 @@ def build_chapter_html(ch_num, lang, chapters_meta, book_dir, lang_code, num_cha
         updated_label = 'Last updated'
         toc_label = 'Index'
 
-    if ch_num > 1:
-        prev_link = f'<a href="ch{ch_num-1:02d}.html" class="prev">&larr; Ch.{ch_num-1}</a>'
+    chapter_index = available_chapters.index(ch_num)
+    if chapter_index:
+        previous = available_chapters[chapter_index - 1]
+        prev_link = f'<a href="ch{previous:02d}.html" class="prev">&larr; Ch.{previous}</a>'
     else:
         prev_link = '<span class="placeholder"></span>'
 
     toc_link = f'<a href="./" class="toc-link">{toc_label}</a>'
 
-    if ch_num < num_chapters:
-        next_link = f'<a href="ch{ch_num+1:02d}.html" class="next">Ch.{ch_num+1} &rarr;</a>'
+    if chapter_index + 1 < len(available_chapters):
+        following = available_chapters[chapter_index + 1]
+        next_link = f'<a href="ch{following:02d}.html" class="next">Ch.{following} &rarr;</a>'
     else:
         next_link = '<span class="placeholder"></span>'
 
@@ -891,13 +897,16 @@ def parse_bib(bib_path):
     return refs
 
 
-def collect_all_chapter_refs(book_dir):
+def collect_all_chapter_refs(book_dir, allowed_chapters=None):
     """Collect all references from all chapters, deduplicated."""
     all_refs = []
     seen_keys = set()
 
     for fname in sorted(os.listdir(book_dir)):
         if not fname.startswith('ch') or not fname.endswith('.md'):
+            continue
+        match = re.fullmatch(r'ch(\d+)\.md', fname)
+        if allowed_chapters is not None and (not match or int(match.group(1)) not in allowed_chapters):
             continue
         with open(os.path.join(book_dir, fname), 'r', encoding='utf-8') as f:
             content = f.read()
@@ -924,12 +933,12 @@ def collect_all_chapter_refs(book_dir):
     return all_refs
 
 
-def build_references_html(config, lang_code, bib_path, book_dir=None):
+def build_references_html(config, lang_code, bib_path, book_dir=None, allowed_chapters=None):
     """Build consolidated references page from all chapter references."""
     # Collect refs from all chapters (primary source)
     chapter_refs = []
     if book_dir and os.path.isdir(book_dir):
-        chapter_refs = collect_all_chapter_refs(book_dir)
+        chapter_refs = collect_all_chapter_refs(book_dir, allowed_chapters)
 
     # Also parse BibTeX for any additional refs not in chapters
     bib_refs = []
@@ -1195,6 +1204,13 @@ def build_toc_html(config, lang_code):
         )
 
     start_text = '읽기 시작' if lang_code == 'ko' else 'Start Reading'
+    planned_text = '준비 중' if lang_code == 'ko' else 'Coming soon'
+    ready_chapters = [
+        ch['num']
+        for part in config['parts']
+        for ch in part['chapters']
+        if ch.get('status', 'ready') == 'ready'
+    ]
 
     # Highlights
     highlights = config.get('highlights', {}).get(lang, [])
@@ -1219,6 +1235,15 @@ def build_toc_html(config, lang_code):
             num_str = f'{ch["num"]:02d}'
             ch_title = ch['title'][lang]
             ch_summary = ch.get('summary', {}).get(lang, '')
+            if ch.get('status', 'ready') == 'planned':
+                chapters_html += f'''          <div class="chapter-card chapter-card-planned fade-in" aria-disabled="true">
+            <span class="ch-num">{num_str}</span>
+            <h3>{ch_title}</h3>
+            <p>{ch_summary}</p>
+            <span class="chapter-status">{planned_text}</span>
+          </div>
+'''
+                continue
             chapters_html += f'''          <a href="ch{num_str}.html" class="chapter-card fade-in">
             <span class="ch-num">{num_str}</span>
             <h3>{ch_title}</h3>
@@ -1291,7 +1316,7 @@ def build_toc_html(config, lang_code):
         <span>Last updated: {last_upd}</span>
       </p>
       <div class="hero-cta">
-        <a href="ch01.html" class="btn-primary">{start_text}</a>
+        {f'<a href="ch{ready_chapters[0]:02d}.html" class="btn-primary">{start_text}</a>' if ready_chapters else f'<span class="btn-primary btn-disabled" aria-disabled="true">{planned_text}</span>'}
       </div>
     </section>
 
@@ -1392,10 +1417,19 @@ def build_survey(config, survey_dir, shared_dir):
     book_ko = os.path.join(survey_dir, 'book', 'ko')
     book_en = os.path.join(survey_dir, 'book', 'en')
     bib_path = os.path.join(survey_dir, 'book', 'references.bib')
+    ready_chapters = sorted(
+        ch for ch, meta in chapters_ko.items()
+        if meta.get('status', 'ready') == 'ready'
+    )
 
     # Ensure output directories
     for d in ['ko', 'en', 'css', 'js', os.path.join('assets', 'figures')]:
         os.makedirs(os.path.join(docs_dir, d), exist_ok=True)
+    for lang_code in ('ko', 'en'):
+        lang_docs = os.path.join(docs_dir, lang_code)
+        for filename in os.listdir(lang_docs):
+            if re.fullmatch(r'ch\d+\.html', filename):
+                os.remove(os.path.join(lang_docs, filename))
 
     # Copy shared CSS/JS
     print("Copying shared assets...")
@@ -1405,8 +1439,8 @@ def build_survey(config, survey_dir, shared_dir):
 
     # Build KO chapters
     print("Building Korean chapters...")
-    for ch in sorted(chapters_ko.keys()):
-        html = build_chapter_html(ch, 'ko', chapters_ko, book_ko, 'ko', num_chapters)
+    for ch in ready_chapters:
+        html = build_chapter_html(ch, 'ko', chapters_ko, book_ko, 'ko', ready_chapters)
         if html:
             out_path = os.path.join(docs_dir, 'ko', f'ch{ch:02d}.html')
             with open(out_path, 'w', encoding='utf-8') as f:
@@ -1415,8 +1449,8 @@ def build_survey(config, survey_dir, shared_dir):
 
     # Build EN chapters
     print("Building English chapters...")
-    for ch in sorted(chapters_en.keys()):
-        html = build_chapter_html(ch, 'en', chapters_en, book_en, 'en', num_chapters)
+    for ch in ready_chapters:
+        html = build_chapter_html(ch, 'en', chapters_en, book_en, 'en', ready_chapters)
         if html:
             out_path = os.path.join(docs_dir, 'en', f'ch{ch:02d}.html')
             with open(out_path, 'w', encoding='utf-8') as f:
@@ -1427,7 +1461,7 @@ def build_survey(config, survey_dir, shared_dir):
     print("Building references...")
     for lang_code in ['ko', 'en']:
         lang_book_dir = book_ko if lang_code == 'ko' else book_en
-        html = build_references_html(config, lang_code, bib_path, book_dir=lang_book_dir)
+        html = build_references_html(config, lang_code, bib_path, book_dir=lang_book_dir, allowed_chapters=set(ready_chapters))
         out_path = os.path.join(docs_dir, lang_code, 'references.html')
         with open(out_path, 'w', encoding='utf-8') as f:
             f.write(html)
