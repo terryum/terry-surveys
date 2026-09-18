@@ -34,11 +34,11 @@ class StateTests(unittest.TestCase):
     def test_dag_starts_with_one_task_and_unlocks_strategy(self):
         state = new_state(self.root, "test-survey", "mini")
         self.assertEqual([task["id"] for task in ready_tasks(state)], ["kg-seed"])
-        evidence = next(task for task in state["tasks"] if task["id"] == "evidence-synthesis")
+        evidence = next(task for task in state["tasks"] if task["id"] == "packet-ch01")
         kg_seed = next(task for task in state["tasks"] if task["id"] == "kg-seed")
         self.assertIn("_workspace/inputs/input_manifest.md", kg_seed["artifacts"])
         self.assertIn("_analysis/chapter_source_packets/ch01.json", evidence["artifacts"])
-        self.assertIn("_analysis/chapter_source_packets/ch02.json", evidence["artifacts"])
+        self.assertNotIn("_analysis/chapter_source_packets/ch02.json", evidence["artifacts"])
         qa_one = next(task for task in state["tasks"] if task["id"] == "qa-ch01")
         self.assertNotIn("_analysis/chapter_source_packets/ch02.json", qa_one["artifacts"])
         for rel in ("_research/kg_seed.json", "_analysis/prior_survey_absorption.md"):
@@ -57,6 +57,9 @@ class StateTests(unittest.TestCase):
 
     def test_remediation_exhausts_after_configured_attempts(self):
         state = new_state(self.root, "test-survey", "full")
+        manuscript = self.survey / "book/ko/ch01.md"
+        manuscript.parent.mkdir(parents=True, exist_ok=True)
+        manuscript.write_text("실제 수정 대상 원고.", encoding="utf-8")
         failure = [{"id": "depth-ko-ch01", "owner": "book_writer", "message": "too short"}]
         for _ in range(3):
             tasks = plan_remediation(state, failure)
@@ -90,13 +93,14 @@ class StateTests(unittest.TestCase):
         self.assertIn("role-contracts-v2.md#book-writereditor", first)
         self.assertIn("[bloat-ko-ch02][direction=cut]", tasks[1]["brief"])
 
-    def test_write_completion_enforces_tolerant_word_band(self):
+    def test_write_completion_does_not_enforce_prose_length(self):
         for lang in ("ko", "en"):
             chapter = self.survey / f"book/{lang}/ch01.md"
             chapter.parent.mkdir(parents=True, exist_ok=True)
             chapter.write_text(" ".join(f"word{i}" for i in range(2900)), encoding="utf-8")
         state = new_state(self.root, "test-survey", "full")
-        next(task for task in state["tasks"] if task["id"] == "evidence-synthesis")["status"] = "completed"
+        # Isolate manuscript completion from separately tested DAG prerequisites.
+        next(task for task in state["tasks"] if task["id"] == "write-ch01")["dependencies"] = []
         start_task(state, "write-ch01", "writer-band-1")
         complete_task(self.root, state, "write-ch01")
         self.assertEqual(next(task for task in state["tasks"] if task["id"] == "write-ch01")["status"], "completed")
@@ -106,10 +110,11 @@ class StateTests(unittest.TestCase):
                 " ".join(f"word{i}" for i in range(4700)), encoding="utf-8"
             )
         state = new_state(self.root, "test-survey", "full")
-        next(task for task in state["tasks"] if task["id"] == "evidence-synthesis")["status"] = "completed"
+        # Isolate manuscript completion from separately tested DAG prerequisites.
+        next(task for task in state["tasks"] if task["id"] == "write-ch01")["dependencies"] = []
         start_task(state, "write-ch01", "writer-band-2")
-        with self.assertRaisesRegex(ValueError, "maximum is 4600; cut, do not add"):
-            complete_task(self.root, state, "write-ch01")
+        complete_task(self.root, state, "write-ch01")
+        self.assertEqual(next(task for task in state["tasks"] if task["id"] == "write-ch01")["status"], "completed")
 
     def test_resume_requeues_abandoned_running_task(self):
         state = new_state(self.root, "test-survey", "mini")

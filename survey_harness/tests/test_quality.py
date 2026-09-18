@@ -13,7 +13,7 @@ from survey_harness.quality import (
     survey_metadata_latin_terms,
     word_count,
 )
-from survey_harness.tests.helpers import make_passing_mini
+from survey_harness.tests.helpers import make_passing_mini, write_current_reviews
 
 
 class QualityTests(unittest.TestCase):
@@ -21,6 +21,7 @@ class QualityTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
         self.survey = make_passing_mini(self.root)
+        write_current_reviews(self.survey, write_state=True)
 
     def tearDown(self):
         self.temp.cleanup()
@@ -30,7 +31,27 @@ class QualityTests(unittest.TestCase):
         self.assertTrue(scorecard["passed"], scorecard["hard_blockers"])
         self.assertGreaterEqual(scorecard["score"], scorecard["release_score"])
 
-    def test_long_titles_route_to_book_writer(self):
+    def test_short_reviewed_chapter_without_tables_or_learning_block_can_pass(self):
+        for lang in ("ko", "en"):
+            chapter = self.survey / f"book/{lang}/ch01.md"
+            kept, long_paragraphs = [], 0
+            for line in chapter.read_text(encoding="utf-8").splitlines():
+                if line.startswith(("> **", "|")):
+                    continue
+                if len(line.split()) > 80:
+                    long_paragraphs += 1
+                    if long_paragraphs > 4:
+                        continue
+                kept.append(line)
+            chapter.write_text("\n".join(kept) + "\n", encoding="utf-8")
+        write_current_reviews(self.survey)
+        scorecard = evaluate(self.root, "test-survey", "mini")
+        self.assertTrue(scorecard["passed"], scorecard["hard_blockers"])
+        self.assertIn("depth-en-ch01", {row["id"] for row in scorecard["warnings"]})
+        self.assertIn("tables-en-ch01", {row["id"] for row in scorecard["warnings"]})
+        self.assertEqual(scorecard["dimensions"]["synthesis"]["score"], 92)
+
+    def test_long_titles_are_editorial_warnings(self):
         config_path = self.survey / "survey.json"
         config = json.loads(config_path.read_text(encoding="utf-8"))
         config["parts"][0]["name"]["en"] = "Part I: " + "A" * 70
@@ -38,6 +59,7 @@ class QualityTests(unittest.TestCase):
         config_path.write_text(json.dumps(config), encoding="utf-8")
         scorecard = evaluate(self.root, "test-survey", "mini")
         failures = {item["id"]: item for item in scorecard["hard_blockers"]}
+        failures = {item["id"]: item for item in scorecard["warnings"]}
         self.assertEqual(failures["title-part-length-en"]["owner"], "book_writer")
         self.assertEqual(failures["title-chapter-length-en"]["owner"], "book_writer")
         self.assertIn("title-chapter-median-en", failures)
@@ -120,7 +142,8 @@ class QualityTests(unittest.TestCase):
             )
         scorecard = evaluate(self.root, "test-survey", "mini")
         failures = {item["id"] for item in scorecard["hard_blockers"]}
-        self.assertIn("depth-en-ch01", failures)
+        self.assertNotIn("depth-en-ch01", failures)
+        self.assertIn("depth-en-ch01", {item["id"] for item in scorecard["warnings"]})
         self.assertLess(scorecard["metrics"]["chapters"]["ch01"]["en"]["words"], 100)
 
     def test_repeated_token_prose_is_blocked(self):
@@ -138,13 +161,15 @@ class QualityTests(unittest.TestCase):
         failures = {item["id"] for item in scorecard["hard_blockers"]}
         self.assertIn("dominant-token-en-ch01", failures)
 
-    def test_excessive_english_prose_in_korean_chapter_is_blocked(self):
+    def test_latin_prose_metric_is_an_editorial_warning(self):
         chapter = self.survey / "book/ko/ch01.md"
         text = chapter.read_text(encoding="utf-8")
         english = " ".join(f"ordinaryword{i} explains untranslated engineering prose" for i in range(350))
         chapter.write_text(text.replace("## Analysis", f"{english}\n\n## Analysis"), encoding="utf-8")
         scorecard = evaluate(self.root, "test-survey", "mini")
         failures = {item["id"]: item for item in scorecard["hard_blockers"]}
+        self.assertNotIn("korean-language-ko-ch01", failures)
+        failures = {item["id"]: item for item in scorecard["warnings"]}
         self.assertIn("korean-language-ko-ch01", failures)
         self.assertEqual(failures["korean-language-ko-ch01"]["owner"], "book_writer")
         self.assertGreater(scorecard["metrics"]["chapters"]["ch01"]["ko"]["latin_prose_fraction"], 0.15)
@@ -167,17 +192,19 @@ class QualityTests(unittest.TestCase):
         failures = {item["id"] for item in scorecard["hard_blockers"]}
         self.assertNotIn("depth-en-ch01", failures)
 
-    def test_bloat_gate_requires_cutting(self):
+    def test_bloat_is_an_editorial_warning(self):
         chapter = self.survey / "book/en/ch01.md"
         text = chapter.read_text(encoding="utf-8")
         text = text.replace("## Analysis", " ".join(f"excess{i}" for i in range(4700)) + "\n\n## Analysis")
         chapter.write_text(text, encoding="utf-8")
         scorecard = evaluate(self.root, "test-survey", "mini")
         failures = {item["id"]: item for item in scorecard["hard_blockers"]}
+        self.assertNotIn("bloat-en-ch01", failures)
+        failures = {item["id"]: item for item in scorecard["warnings"]}
         self.assertIn("bloat-en-ch01", failures)
         self.assertIn("Cut, do not add", failures["bloat-en-ch01"]["message"])
 
-    def test_apparatus_gate_and_synthesis_score_measure_table_weight(self):
+    def test_table_weight_warns_without_manufacturing_synthesis_score(self):
         chapter = self.survey / "book/en/ch01.md"
         text = chapter.read_text(encoding="utf-8")
         heavy_table = "| Method | Evidence |\n|---|---|\n| A | " + ("heavy " * 400) + "|"
@@ -185,9 +212,13 @@ class QualityTests(unittest.TestCase):
         chapter.write_text(text, encoding="utf-8")
         scorecard = evaluate(self.root, "test-survey", "mini")
         failures = {item["id"]: item for item in scorecard["hard_blockers"]}
+        self.assertNotIn("apparatus-en-ch01", failures)
+        failures = {item["id"]: item for item in scorecard["warnings"]}
         self.assertIn("apparatus-en-ch01", failures)
         self.assertIn("Cut, do not add", failures["apparatus-en-ch01"]["message"])
-        self.assertLess(scorecard["dimensions"]["synthesis"]["automatic"], 100)
+        write_current_reviews(self.survey)
+        current = evaluate(self.root, "test-survey", "mini")
+        self.assertEqual(current["dimensions"]["synthesis"]["score"], 92)
 
     def test_repeated_english_gloss_is_metric_only(self):
         chapter = self.survey / "book/ko/ch01.md"
@@ -279,6 +310,8 @@ ordinary english code should be ignored
         scorecard = evaluate(self.root, "test-survey", "mini")
         failures = {item["id"] for item in scorecard["hard_blockers"]}
         self.assertIn("repeated-paragraphs", failures)
+        self.assertNotIn("learning-outcomes-en-ch01", failures)
+        failures = {item["id"] for item in scorecard["warnings"]}
         self.assertIn("learning-outcomes-en-ch01", failures)
         self.assertIn("tables-en-ch01", failures)
         self.assertIn("paragraph-p90-en-ch01", failures)
@@ -291,6 +324,8 @@ ordinary english code should be ignored
         chapter.write_text(text, encoding="utf-8")
         scorecard = evaluate(self.root, "test-survey", "mini")
         failures = {item["id"] for item in scorecard["hard_blockers"]}
+        self.assertNotIn("learning-outcomes-en-ch01", failures)
+        failures = {item["id"] for item in scorecard["warnings"]}
         self.assertIn("learning-outcomes-en-ch01", failures)
         self.assertIn("tables-en-ch01", failures)
 
@@ -333,6 +368,17 @@ ordinary english code should be ignored
         asset_log = self.survey / "_assets_log.md"
         asset_log.write_text("first.png sha256=abc\n", encoding="utf-8")
         self.assertNotEqual(before, content_digest(self.survey))
+
+    def test_content_digest_reads_editorial_code_beside_selected_evaluator(self):
+        archive = self.root / "archived-framework"
+        archive.mkdir()
+        evaluator = archive / "quality.py"
+        evaluator.write_text("archived evaluator")
+        editorial = archive / "editorial.py"
+        editorial.write_text("archived editorial rules")
+        before = content_digest(self.survey, evaluator_path=evaluator)
+        editorial.write_text("changed archived editorial rules")
+        self.assertNotEqual(before, content_digest(self.survey, evaluator_path=evaluator))
 
     def test_reviewer_id_must_match_a_qa_worker(self):
         state_path = self.survey / "_workspace/harness_state.json"

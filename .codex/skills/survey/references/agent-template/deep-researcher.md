@@ -19,7 +19,7 @@ model: inherit
 | **깊이 vs 폭** | 계보 추적 깊이 우선 (방법론 증명의 원류 → 후속 변형) | 광범위 스캔 우선 (출시된 모든 유의미 업데이트 포함) |
 | **연구 범위** | foundational lineages와 negative results | freshness-sensitive frontier와 industry primary sources |
 
-**경계년도 (2023년 말 / 2024년 초) 처리 규칙**: frontier가 기본 owner. foundations는 해당 논문을 grep hit 시 skip하고 자신의 chapter_hint만 `SendMessage(peer)`로 피어에게 전달.
+**경계년도 (2023년 말 / 2024년 초) 처리 규칙**: frontier가 기본 owner. foundations는 해당 논문을 grep hit 시 skip하고 자신의 chapter_hint만 `담당 packet의 handoff 기록`로 피어에게 전달.
 
 ## 완료 기준 — 공용 profile과 검색 포화
 
@@ -143,11 +143,11 @@ python3 ~/.codex/skills/survey/scripts/merge_research_shards.py {{SURVEY_SLUG}} 
 1. **마스터 bibtex grep**: `grep -i "{arxiv_id}\|{title}" bibtex/references.bib`. hit이 있으면 기존 키 재사용.
 2. **peer 샤드 grep**: `grep -i "{arxiv_id}\|{normalized_title}" _research/papers_{peer_role}.json`. hit이 있으면:
    - 본인 샤드에 entry 생성 **금지**
-   - 대신 `SendMessage(peer, "Your {bibtex_key} entry: please add chapter_hint Ch{N} and tag [...]")`로 보완 요청
+   - 대신 담당 packet의 handoff 기록에 `{bibtex_key}`의 chapter_hint·tag 보완 요청로 보완 요청
 3. **자기 샤드 grep**: 이전 세션에 이미 넣었는지 확인. 중복 append 방지.
 
 경계 케이스 (peer 시간대 경계의 논문):
-- foundations가 2024년 1월 arXiv 논문을 발견 → frontier로 "배달": `SendMessage(peer, "Noticed 2024 paper in your territory: {title} {url}")` 후 자신은 추가하지 않음.
+- foundations가 2024년 1월 arXiv 논문을 발견 → frontier로 "배달": 담당 packet의 handoff 기록에 `{title} {url}` 후 자신은 추가하지 않음.
 - frontier가 2023년 연말 (예: 12월 20일 발행) 논문을 발견 → foundations 영역이지만 2024년 초 혹은 중반 re-post / journal version이 있으면 frontier가 journal version만 커버하고 foundations에게 원본 notice.
 
 ## 에러 핸들링
@@ -156,7 +156,7 @@ python3 ~/.codex/skills/survey/scripts/merge_research_shards.py {{SURVEY_SLUG}} 
 - **arXiv ID / DOI 불명**: 해당 필드를 `null`로 두고 `url`에 가장 안정적인 링크(프로젝트 페이지·저널 페이지) 기록.
 - **중복 인용 발견**: 위 중복 방지 프로토콜 적용. 모호하면 `_research/duplicates_{{RESEARCHER_ROLE}}.md`에 기록하고 머지 단계에서 해결.
 - **재시도 정책**: 검색 실패는 1회 재시도 후 기록하되 엔트리에 `"status": "incomplete"` 플래그.
-- **peer 미응답 10분**: peer가 offline/dead일 수 있음. 임시 decision: owner 경계 논문을 자신의 샤드에 "boundary_paper: true"로 기록 후 계속. 머지 스크립트가 dedup.
+- **다른 연구자 확인 대기**: 기다리지 말고 자기 샤드의 handoff에 경계 논문과 이유를 기록한다. 다른 샤드를 수정하지 않고 evidence librarian이 병합 시 처리한다.
 
 ## 팀 통신 프로토콜
 
@@ -166,8 +166,8 @@ python3 ~/.codex/skills/survey/scripts/merge_research_shards.py {{SURVEY_SLUG}} 
 - **수신**:
   - `qa-reviewer` (커버리지 피드백 — "이 분야 누락" 지적)
   - `deep-researcher-{peer}` (위 송신의 반대)
-- **TaskCreate**: 새 논문 발견 시 개별 태스크로 만들지 말고 샤드에 일괄 누적. 특별히 중요한 seminal은 `book-writer`에 SendMessage로 알림.
-- **체크포인트**: 본인 샤드 60% 완료 시점에 peer에게 `"60% done, please do cross-coverage pass of my shard"` 발송. 둘 다 100% 완료 신호 시 orchestrator가 머지 스크립트 자동 실행.
+- **Controller packet**: 새 논문 발견 시 개별 태스크로 만들지 말고 샤드에 일괄 누적. 특별히 중요한 seminal은 `book-writer`에 담당 packet의 handoff 기록으로 알림.
+- **체크포인트**: 완료한 샤드와 미해결 경계 항목을 파일로 남긴다. 두 연구 task의 artifact 검증 후 controller가 critical-analysis와 병합 단계를 연다.
 
 ## 체크리스트 (자체 점검)
 

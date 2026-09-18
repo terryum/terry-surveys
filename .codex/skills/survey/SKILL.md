@@ -64,20 +64,28 @@ Read `references/orchestration-v2.md` for any book-scale run. Read
    slots, run no more than three workers at once.
    Cross-check each recorded ID against the runtime's actual spawn result;
    controller strings are an audit trail, not proof that a worker existed.
-5. Keep KO and EN for a chapter under the same writer. Stream image and
+5. Read `references/editorial-contract.md`. After research, run critical
+   analysis before the librarian produces source packets. Include the resulting
+   comparisons, counterevidence, judgments, and book-specific editorial contract
+   in every writer's packet. Write and independently review one representative
+   chapter before dispatching the remaining chapters; this is an automatic
+   editorial checkpoint, not an additional user approval step.
+6. Keep KO and EN for a chapter under the same writer. Stream image and
    fact-check work after that chapter is written. Reviewers never edit their own
-   reviewed artifact; they return evidence-backed defects to its owner.
-6. When QA artifacts exist, score and generate repair tasks:
+   reviewed artifact; they return evidence-backed defects to its owner. Each
+   chapter reviewer owns `_quality/chapters/chNN.json`; final `qa-book` owns the
+   book report and aggregate scores.
+7. When QA artifacts exist, score and generate repair tasks:
 
    ```bash
    python3 .codex/skills/survey/scripts/survey_harness.py score <slug> --profile full --write --record --plan-remediation
    ```
 
-7. If the score fails, run the emitted repair tasks and score again. Each stable
+8. If the score fails, run the emitted repair tasks and score again. Each stable
    failure gets at most three automatic repair passes. After that, leave a
    resumable `blocked` state with the exact failure IDs; do not call the survey
    complete.
-8. A full run that reaches `ready` defaults to the complete protected-preview
+9. A full run that reaches `ready` defaults to the complete protected-preview
    chain: local build, `<slug>-preview` Pages deployment after Access
    provisioning, private gallery registration, Workers deploy, private-R2 asset
    sync, text-only source push, KG candidate sync, and anonymous/member denial
@@ -102,6 +110,10 @@ Read `references/orchestration-v2.md` for any book-scale run. Read
 - Counts cannot override hard blockers. Repeated prose, unsupported claims,
   missing source packets, wall-text endings, broken references, missing image
   provenance, or an unready QA verdict block release.
+- Aim for about 4,000 rough words per language chapter. Length, table volume,
+  table count, and learning-outcome formatting are editorial signals, not
+  mandatory prose quotas. Review argument, useful comparison, justified author
+  judgment, and reader understanding; never add text only to satisfy a count.
 - Write Korean manuscripts in Korean ordinary prose. **통용 영어 용어는 영어로
   유지한다.** 한국 로보틱스·AI 실무자가 실제로 영어로 말하는 용어(`action head`,
   `diffusion policy`, `end-effector`, `sim-to-real`, `teacher-student`,
@@ -135,6 +147,11 @@ v2 state for an older survey without rewriting its content. Use
 a new book.
 
 After changing this skill, run the repository tests, skill quick validation,
-and `scripts/sync_installed.py --apply`. Do not hand-edit divergent thresholds in
+and `scripts/sync_installed.py --apply`, then `--check`. The installer backs up
+divergent project discovery copies and links `.agents/skills/{survey,tutorial}`
+to their canonical sources. `--archive-legacy` explicitly preserves and removes
+the superseded project orchestrators from active discovery. Use
+`scripts/audit-codex-harness.py --root <skill-container>` for a read-only audit of
+other skills, including paper/write. Do not hand-edit divergent thresholds in
 role templates or verifiers; `survey_harness/config/quality_profiles.yaml` is
 the single source of truth.

@@ -4,9 +4,9 @@
 
 ## 왜 템플릿인가
 
-- **에이전트 역할 = 공통, 도메인 = 고유**: v2 controller의 KG → source strategy → parallel research → evidence synthesis → bilingual writing → image/factcheck → independent QA 흐름은 모든 책이 공유한다.
+- **에이전트 역할 = 공통, 도메인 = 고유**: v2 controller의 KG → source strategy → parallel research → critical analysis/editorial contract → evidence synthesis → bilingual writing → image/factcheck → independent QA 흐름은 모든 책이 공유한다.
 - **한 곳에서 발전**: 팀이 집필 중 발견한 개선 사항(새 에러 케이스, 새 팀 통신 패턴)을 이 템플릿에 반영하면, 다음 새 책은 자동으로 최신 버전을 복사해간다.
-- **기존 책 sync는 선택**: `/survey --sync-agents <slug>` 호출 시에만 기존 책의 `.claude/agents/`와 diff를 보여주고 사용자 승인 후 동기화.
+- **기존 책 sync는 선택**: `/survey --sync-agents <slug>` 호출 시에만 기존 책의 `.claude/agents/`와 diff를 검토한 뒤 사용자가 요청한 범위 내에서 동기화.
 
 ## 포함 파일
 
@@ -15,7 +15,8 @@
 | `kg-mapper.md` | Terry KG · 기존 서베이 · exact link seed |
 | `deep-researcher.md` | foundations/frontier 연구 샤드 템플릿 |
 | `evidence-librarian.md` | 검색 프로토콜 · dedup · source/claim/chapter packet |
-| `book-writer.md` | 양국어 챕터 병행 집필 |
+| `critical-analyst.md` | 비교·상충 근거·해결/미해결 문제 |
+| `book-writer.md` | 책별 편집 계약·양국어 챕터 병행 집필 |
 | `image-curator.md` | 논문 원본 figure 우선 큐레이션 |
 | `fact-checker.md` | 인용 · 수치 · ID 정규화 |
 | `qa-reviewer.md` | 경계면 교차 검증 · 출시 관문 |
@@ -68,3 +69,5 @@ Placeholder가 포함된 영역은 **사용자 치환 가능 영역** — `/surv
 - 2026-04-23: 초기 템플릿 6종 생성 (deep-researcher, critical-analyst, book-writer, image-curator, fact-checker, qa-reviewer).
 - 2026-06-18: exhaustive depth and process gates strengthened; mutable thresholds moved to `survey_harness/config/quality_profiles.yaml`.
 - 2026-07-14: KG mapper와 evidence librarian을 추가하고 신규 생성 스펙을 v2 8-role controller에 맞춤.
+
+Codex reads the canonical templates through controller task packets. Runtime communication is optional; files, declared ownership, and actual execution receipts are the handoff contract. Legacy Claude files remain compatibility artifacts, not instructions to call unavailable APIs.

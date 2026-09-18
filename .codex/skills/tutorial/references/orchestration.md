@@ -19,6 +19,10 @@
 4. Keep no more than three workers active. A worker owns only its declared
    artifacts. The orchestrator owns repository gates, score, registry, deploy,
    and release receipts.
+   Every packet carries the goal, settled decisions, required guidance, input
+   fingerprints, owned outputs, and completion checks. Shared source/metadata
+   files have one owner; chapter workers edit only assigned records or return
+   proposed changes. An existing file does not prove that its consumer read it.
 5. Run `score --write`. Fix every hard blocker, then deploy preview and record it
    with `release <slug> preview released ...`.
 
@@ -36,6 +40,12 @@ reopen of affected chapters; never fold that expansion into the current run.
 result enters through `feedback --chapter N --result ... --environment-json ...
 --notes ...`; this appends `_tutorial/user_validation.jsonl` and starts a fresh
 chapter run. Preserve failure evidence instead of rewriting it as success.
+Resume also checks changed input, instruction, decision, and output
+fingerprints, reopens their consumers and downstream dependencies, and preserves
+unrelated valid work. Refresh packets before dispatch. Store shared ledger
+fingerprints per chapter and distinguish authorized downstream edits from
+external changes. Read older state for compatibility, but revalidate completion
+that lacks current evidence before trusting it.
 
 ## Durable chapter format
 

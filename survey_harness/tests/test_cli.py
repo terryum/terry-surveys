@@ -8,7 +8,7 @@ from io import StringIO
 from pathlib import Path
 
 from survey_harness.cli import _expected_kg_ids, _survey_visibility, main
-from survey_harness.state import load_state, save_state
+from survey_harness.state import load_state, save_state, ready_tasks, start_task, complete_task
 from survey_harness.tests.helpers import make_passing_mini
 
 
@@ -27,16 +27,23 @@ class CliIntegrationTests(unittest.TestCase):
             rc = main(["--repo-root", str(self.root), *args])
         return rc, json.loads(output.getvalue())
 
+    def complete_fixture(self):
+        """Exercise real controller transitions over synthetic test artifacts."""
+        state = load_state(self.root, "test-survey")
+        while ready_tasks(state):
+            task = ready_tasks(state)[0]
+            identity = "agent-reviewer-123" if task["owner"] == "qa_reviewer" else f"agent-{task['id']}"
+            start_task(state, task["id"], identity, root=self.root)
+            complete_task(self.root, state, task["id"])
+        self.assertTrue(all(task["status"] == "completed" for task in state["tasks"]))
+        save_state(self.root, state)
+
     def test_init_score_and_release_lifecycle(self):
         rc, initialized = self.run_cli("init", "test-survey", "--profile", "mini")
         self.assertEqual(rc, 0)
         self.assertEqual(initialized["ready_tasks"], ["kg-seed"])
 
-        state = load_state(self.root, "test-survey")
-        for task in state["tasks"]:
-            task["status"] = "completed"
-            task["agent_ids"] = ["agent-reviewer-123" if task["owner"] == "qa_reviewer" else f"agent-{task['id']}"]
-        save_state(self.root, state)
+        self.complete_fixture()
 
         rc, score = self.run_cli("score", "test-survey", "--profile", "mini", "--write", "--record")
         self.assertEqual(rc, 0, score.get("hard_blockers"))
@@ -52,6 +59,16 @@ class CliIntegrationTests(unittest.TestCase):
             rc = main(["--repo-root", str(self.root), "score", "test-survey", "--profile", "mini", "--record"])
         self.assertEqual(rc, 1)
         self.assertFalse((self.root / "surveys/test-survey/_quality/scorecard.json").exists())
+
+    def test_force_init_archives_previous_state_verbatim(self):
+        self.run_cli("init", "test-survey", "--profile", "mini")
+        from survey_harness.state import state_path
+        path = state_path(self.root, "test-survey")
+        old = path.read_bytes()
+        self.run_cli("init", "test-survey", "--profile", "mini", "--force")
+        archives = list((path.parent / "runs").glob("replaced-*.json"))
+        self.assertEqual(len(archives), 1)
+        self.assertEqual(archives[0].read_bytes(), old)
 
     def test_survey_visibility_reads_private_release_mode(self):
         survey_path = self.root / "surveys/test-survey/survey.json"
@@ -74,11 +91,7 @@ class CliIntegrationTests(unittest.TestCase):
 
     def test_release_reruns_quality_after_manuscript_changes(self):
         self.run_cli("init", "test-survey", "--profile", "mini")
-        state = load_state(self.root, "test-survey")
-        for task in state["tasks"]:
-            task["status"] = "completed"
-            task["agent_ids"] = ["agent-reviewer-123" if task["owner"] == "qa_reviewer" else f"agent-{task['id']}"]
-        save_state(self.root, state)
+        self.complete_fixture()
         rc, score = self.run_cli("score", "test-survey", "--profile", "mini", "--write", "--record")
         self.assertEqual(rc, 0, score.get("hard_blockers"))
         chapter = self.root / "surveys/test-survey/book/en/ch01.md"
@@ -87,15 +100,11 @@ class CliIntegrationTests(unittest.TestCase):
         with redirect_stderr(stderr):
             rc = main(["--repo-root", str(self.root), "release", "test-survey", "running"])
         self.assertEqual(rc, 1)
-        self.assertIn("fresh quality evaluation failed", stderr.getvalue())
+        self.assertIn("release blocked by invalid completed tasks", stderr.getvalue())
 
     def test_release_digest_detects_quality_equivalent_edits(self):
         self.run_cli("init", "test-survey", "--profile", "mini")
-        state = load_state(self.root, "test-survey")
-        for task in state["tasks"]:
-            task["status"] = "completed"
-            task["agent_ids"] = ["agent-reviewer-123" if task["owner"] == "qa_reviewer" else f"agent-{task['id']}"]
-        save_state(self.root, state)
+        self.complete_fixture()
         rc, score = self.run_cli("score", "test-survey", "--profile", "mini", "--write", "--record")
         self.assertEqual(rc, 0, score.get("hard_blockers"))
         chapter = self.root / "surveys/test-survey/book/en/ch01.md"
@@ -104,15 +113,11 @@ class CliIntegrationTests(unittest.TestCase):
         with redirect_stderr(stderr):
             rc = main(["--repo-root", str(self.root), "release", "test-survey", "running"])
         self.assertEqual(rc, 1)
-        self.assertIn("manuscript changed", stderr.getvalue())
+        self.assertIn("release blocked by invalid completed tasks", stderr.getvalue())
 
     def test_preview_and_production_require_the_same_digest(self):
         self.run_cli("init", "test-survey", "--profile", "mini")
-        state = load_state(self.root, "test-survey")
-        for task in state["tasks"]:
-            task["status"] = "completed"
-            task["agent_ids"] = ["agent-reviewer-123" if task["owner"] == "qa_reviewer" else f"agent-{task['id']}"]
-        save_state(self.root, state)
+        self.complete_fixture()
         self.run_cli("score", "test-survey", "--profile", "mini", "--write", "--record")
         preview = [
             "content_commit=abc", "framework_commit=def", "gallery_commit=ghi", "workflow_id=1",

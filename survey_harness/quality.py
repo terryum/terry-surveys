@@ -17,6 +17,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from .config import load_profile
 from .config import CONFIG_PATH
+from .editorial import book_review_errors, finding_failure, review_chapters
 from .schema_utils import validate_schema
 from .state import chapter_numbers, survey_dir
 
@@ -487,7 +488,7 @@ def content_digest(path: Path, config_path: Optional[Path] = None, evaluator_pat
             candidates.append(target)
     # Figure binaries live in private R2 and are intentionally absent from the
     # split content repository. Their committed manifests bind paths and hashes.
-    for directory in ("book", "_research", "_analysis"):
+    for directory in ("book", "_research", "_analysis", "_quality/chapters"):
         base = path / directory
         if base.is_dir():
             candidates.extend(item for item in base.rglob("*") if item.is_file())
@@ -497,7 +498,9 @@ def content_digest(path: Path, config_path: Optional[Path] = None, evaluator_pat
         hasher.update(target.read_bytes())
         hasher.update(b"\0")
     hasher.update((config_path or CONFIG_PATH).read_bytes())
-    hasher.update((evaluator_path or Path(__file__)).read_bytes())
+    evaluator = evaluator_path or Path(__file__)
+    hasher.update(evaluator.read_bytes())
+    hasher.update(evaluator.with_name("editorial.py").read_bytes())
     return hasher.hexdigest()
 
 
@@ -583,6 +586,8 @@ def evaluate(root: Path, slug: str, profile_name: str = "full") -> Dict[str, Any
     chapters = chapter_numbers(path)
     profile = load_profile(profile_name)
     failures: List[Dict[str, Any]] = []
+    warnings: List[Dict[str, Any]] = []
+    editorial_advisory = bool(profile.get("editorial_metrics_advisory", False))
     metrics: Dict[str, Any] = {"chapter_count": len(chapters)}
 
     title_style = title_style_metrics(path)
@@ -635,7 +640,6 @@ def evaluate(root: Path, slug: str, profile_name: str = "full") -> Dict[str, Any
     late_passes: List[float] = []
     gap_passes: List[float] = []
     parity_scores: List[float] = []
-    table_density_scores: List[float] = []
     referenced_local_image_paths = set()
     paragraph_norms: List[Tuple[str, str]] = []
     allowed_ko_latin_tokens = survey_metadata_latin_terms(path)
@@ -681,8 +685,6 @@ def evaluate(root: Path, slug: str, profile_name: str = "full") -> Dict[str, Any
             figure_ratios.append(min(1.0, len(figures) / min_figures) if min_figures else 1.0)
             late_passes.append(1.0 if last_fraction >= late_fraction else 0.0)
             gap_passes.append(1.0 if gap <= max_gap_target else max(0.0, max_gap_target / max(1, gap)))
-            if max_table_chars:
-                table_density_scores.append(min(1.0, max_table_chars / max(1, table_chars)))
             if words < min_words_with_tolerance:
                 add_failure(failures, f"depth-{lang}-ch{ch:02d}", "book_writer", f"{lang.upper()} chapter {ch} has {words} rough words; requires {min_words} with {word_tolerance_pct:g}% gate tolerance ({min_words_with_tolerance} minimum).", words, min_words_with_tolerance)
             if max_words and words > max_words:
@@ -739,6 +741,11 @@ def evaluate(root: Path, slug: str, profile_name: str = "full") -> Dict[str, Any
     metrics["chapters"] = chapter_metrics
 
     missing_contracts = [rel for rel in PROCESS_CONTRACTS if not (path / rel).exists()]
+    if profile.get("require_chapter_reviews", False):
+        missing_contracts.extend(
+            rel for rel in ("_analysis/gaps.md", "_analysis/novelty_matrix.md", "_analysis/positioning.md", "_analysis/editorial_contract.md")
+            if not (path / rel).is_file()
+        )
     missing_packets = [f"_analysis/chapter_source_packets/ch{ch:02d}.json" for ch in chapters if not (path / f"_analysis/chapter_source_packets/ch{ch:02d}.json").exists()]
     missing_contracts.extend(missing_packets)
     invalid_packets = []
@@ -766,6 +773,10 @@ def evaluate(root: Path, slug: str, profile_name: str = "full") -> Dict[str, Any
                 owner = "evidence_librarian"
             elif "image_plan" in rel:
                 owner = "image_curator"
+            elif Path(rel).name in {"gaps.md", "novelty_matrix.md", "positioning.md"}:
+                owner = "critical_analyst"
+            elif rel == "_analysis/editorial_contract.md":
+                owner = "book_writer"
             add_failure(failures, f"contract-{Path(rel).stem.replace('_', '-')}", owner, f"Missing required process contract: {rel}")
 
     claims, claim_errors = load_jsonl(path / "_analysis/claim_evidence.jsonl")
@@ -932,6 +943,20 @@ def evaluate(root: Path, slug: str, profile_name: str = "full") -> Dict[str, Any
         add_failure(failures, "reviewer-independence", "qa_reviewer", "The declared reviewer also performed a non-QA task in this harness run.", reviewer_id, "unique QA-only agent id")
     if reviewer_unbound:
         add_failure(failures, "reviewer-identity-binding", "qa_reviewer", "The declared reviewer ID does not match any QA task worker in this harness run.", reviewer_id, sorted(qa_worker_ids))
+    chapter_reviews: Dict[str, Any] = {}
+    if profile.get("require_chapter_reviews", False):
+        chapter_reviews, editorial_failures, editorial_warnings = review_chapters(path, chapters, profile, harness_state)
+        metrics["chapter_reviews"] = chapter_reviews
+        failures.extend(editorial_failures)
+        warnings.extend(editorial_warnings)
+        book_errors = book_review_errors(path, chapters, harness_state)
+        metrics["book_review_errors"] = book_errors
+        if book_errors:
+            add_failure(failures, "book-review-binding", "qa_reviewer", "Book review is stale, unbound, or not a current 2.1 review.", book_errors, "current independent book review")
+        else:
+            for finding in reviewer_data["findings"]:
+                target = failures if finding["severity"] == "blocker" else warnings
+                target.append(finding_failure(finding, "book"))
     build = load_json(path / "_quality/build_validation.json", {})
     build_passed = bool(isinstance(build, dict) and build.get("passed") is True)
     metrics["build_validation_passed"] = build_passed
@@ -947,14 +972,18 @@ def evaluate(root: Path, slug: str, profile_name: str = "full") -> Dict[str, Any
     research_contract_ratio = 1.0 - len([rel for rel in missing_contracts if rel.startswith(("_research/", "_analysis/"))]) / 4.0
     evidence_auto = 100.0 * (0.45 * min(1.0, corpus_count / max(1, corpus_floor)) + 0.35 * (sum(min(1.0, count / max(1, min_sources)) for count in sources.values()) / max(1, len(sources))) + 0.20 * clamp(research_contract_ratio, 0, 1))
     synthesis_auto = (
-        100.0 * sum(table_density_scores) / max(1, len(table_density_scores))
-        if max_table_chars
+        sum(review.get("score") or 0.0 for review in chapter_reviews.values()) / max(1, len(chapters))
+        if profile.get("require_chapter_reviews", False)
         else reviewers.get("synthesis", 72.0 if profile_name == "legacy_baseline" else 0.0)
     )
     accuracy_auto = 0.55 * claim_coverage + 0.45 * ref_verification
     visual_auto = 100.0 * (0.40 * (sum(figure_ratios) / max(1, len(figure_ratios))) + 0.25 * (sum(late_passes) / max(1, len(late_passes))) + 0.20 * (sum(gap_passes) / max(1, len(gap_passes))) + 0.15 * (provenance_coverage / 100.0 if images else (1.0 if profile_name == "legacy_baseline" else 0.0)))
     links_auto = 0.6 * link_coverage + 0.4 * min(100.0, ref_verification / 0.9 if refs else 0.0)
     bilingual_auto = 0.6 * (100.0 * sum(all_word_ratios) / max(1, len(all_word_ratios))) + 0.4 * (sum(parity_scores) / max(1, len(parity_scores)))
+    if editorial_advisory:
+        # Language length is useful diagnostic evidence, not proof of semantic
+        # parity or adequate explanation. Let the independent review judge it.
+        bilingual_auto = reviewers.get("bilingual", 0.0)
     release_auto = 100.0 if build_passed and qa_ready else (70.0 if profile_name == "legacy_baseline" else 0.0)
     auto_scores = {"evidence": evidence_auto, "synthesis": synthesis_auto, "accuracy": accuracy_auto, "visuals": visual_auto, "links": links_auto, "bilingual": bilingual_auto, "release": release_auto}
     dimensions = {}
@@ -962,9 +991,14 @@ def evaluate(root: Path, slug: str, profile_name: str = "full") -> Dict[str, Any
         auto = clamp(auto_scores[name])
         reviewer = reviewers.get(name)
         score = auto if reviewer is None else 0.65 * auto + 0.35 * reviewer
+        if name == "synthesis" and profile.get("require_chapter_reviews", False):
+            score = auto
         dimensions[name] = {"score": round(score, 1), "weight": spec["weight"], "owner": spec["owner"], "automatic": round(auto, 1), "reviewer": reviewer}
+        if name == "synthesis" and profile.get("require_chapter_reviews", False):
+            dimensions[name]["source"] = "independent_chapter_reviews"
         if score < float(profile["dimension_floor"]):
-            add_failure(failures, f"dimension-{name}", spec["owner"], f"{name} dimension is {score:.1f}; requires {profile['dimension_floor']}.", round(score, 1), profile["dimension_floor"])
+            owner = "qa_reviewer" if name == "synthesis" and profile.get("require_chapter_reviews", False) else spec["owner"]
+            add_failure(failures, f"dimension-{name}", owner, f"{name} dimension is {score:.1f}; requires {profile['dimension_floor']}.", round(score, 1), profile["dimension_floor"])
 
     override_passed = True
     for name, floor in profile.get("required_dimension_overrides", {}).items():
@@ -980,11 +1014,19 @@ def evaluate(root: Path, slug: str, profile_name: str = "full") -> Dict[str, Any
     # Preserve one failure per stable id so remediation attempts are deterministic.
     unique_failures = {failure["id"]: failure for failure in failures}
     failures = list(unique_failures.values())
+    if editorial_advisory:
+        advisory_prefixes = (
+            "title-part-length-", "title-chapter-length-", "title-chapter-median-",
+            "depth-", "bloat-", "structure-", "lexical-diversity-", "korean-language-",
+            "learning-outcomes-", "tables-", "apparatus-", "paragraph-p90-", "bilingual-parity-",
+        )
+        warnings.extend(failure for failure in failures if failure["id"].startswith(advisory_prefixes))
+        failures = [failure for failure in failures if not failure["id"].startswith(advisory_prefixes)]
     enforce_blockers = bool(profile.get("enforce_hard_blockers", True))
     hard_blockers = failures if enforce_blockers else []
     passed = weighted >= float(profile["release_score"]) and override_passed and not hard_blockers
     return {
-        "schema_version": "2.0",
+        "schema_version": "2.1",
         "slug": slug,
         "profile": profile_name,
         "score": round(weighted, 1),
@@ -994,6 +1036,7 @@ def evaluate(root: Path, slug: str, profile_name: str = "full") -> Dict[str, Any
         "content_digest": content_digest(path),
         "dimensions": dimensions,
         "hard_blockers": hard_blockers,
+        "warnings": warnings,
         "diagnostics": failures if not enforce_blockers else [],
         "metrics": metrics,
     }

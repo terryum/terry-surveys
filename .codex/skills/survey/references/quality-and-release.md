@@ -15,16 +15,30 @@ python3 .codex/skills/survey/scripts/survey_harness.py score <slug> --profile fu
 
 The scorecard combines evidence, synthesis, accuracy, visuals, links, bilingual
 quality, and release integrity. Release requires the configured total score,
-every dimension floor, and zero hard blockers. Reviewer scores supplement but
-cannot replace deterministic evidence.
+every dimension floor, and zero hard blockers. Synthesis is an evidence-backed
+editorial judgment, including a separate passing judgment for each chapter;
+table volume cannot stand in for it. Deterministic evidence still verifies
+claims, citations, provenance, artifacts, fingerprints, and release integrity.
+Word bands, table count/volume, and learning-outcome formatting produce editorial
+warnings rather than prose blockers. A warning requires review, not automatic
+padding, deletion, or another boilerplate section.
 
 ## Remediation
 
-The controller groups stable failures by owner. A repair worker receives only
-the failure IDs, current metric, threshold, and affected artifacts. It must
+The controller groups stable failures by owner. A repair worker receives the
+current editorial contract and refreshed input packet, stable failure IDs,
+affected artifact, location, excerpt, problem, reader impact, expected result,
+and action (`add`, `cut`, `rewrite`, `reorder`, `evidence`).
+Metrics can accompany a diagnosis; a low synthesis score alone cannot dispatch
+a prose repair. Ask the reviewer to diagnose it instead. The owner must
 record the specific changes and evidence, complete its repair task, then the
 orchestrator reruns the whole score. Never delete a failure from the scorecard or
 weaken a threshold to make the run pass.
+
+Chapter QA writes `_quality/chapters/chNN.json` independently and never
+overwrites the global review. Final `qa-book` checks the current chapter
+digests, real reviewer identities, cross-chapter argument, and integration.
+Old QA artifacts remain as history but cannot certify a changed manuscript.
 
 After three failed repair passes for the same failure ID, preserve all score
 history and stop in resumable blocked state. A later `--resume` may succeed after

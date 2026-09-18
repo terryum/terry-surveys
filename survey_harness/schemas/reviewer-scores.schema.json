@@ -1,34 +1,281 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Independent survey reviewer scores",
+  "title": "Independent survey reviewer scores (legacy readable, 2.1 release-bound)",
   "type": "object",
-  "required": ["reviewer_id", "independent", "dimensions"],
+  "required": [
+    "reviewer_id",
+    "independent",
+    "dimensions"
+  ],
   "properties": {
-    "reviewer_id": {"type": "string", "minLength": 8},
-    "independent": {"const": true},
+    "schema_version": {
+      "enum": [
+        "2.0",
+        "2.1"
+      ]
+    },
+    "reviewer_id": {
+      "type": "string",
+      "minLength": 8
+    },
+    "independent": {
+      "const": true,
+      "type": "boolean"
+    },
+    "manuscript_digests": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^ch[0-9]{2,}$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "ko",
+          "en"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "ko": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "en": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "severity",
+          "location",
+          "excerpt",
+          "problem",
+          "impact",
+          "expected",
+          "action"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+          },
+          "severity": {
+            "enum": [
+              "blocker",
+              "warning"
+            ]
+          },
+          "location": {
+            "type": "object",
+            "required": [
+              "path",
+              "anchor"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "anchor": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "excerpt": {
+            "type": "string",
+            "minLength": 1
+          },
+          "problem": {
+            "type": "string",
+            "minLength": 12
+          },
+          "impact": {
+            "type": "string",
+            "minLength": 12
+          },
+          "expected": {
+            "type": "string",
+            "minLength": 12
+          },
+          "action": {
+            "enum": [
+              "add",
+              "cut",
+              "rewrite",
+              "reorder",
+              "evidence"
+            ]
+          }
+        }
+      }
+    },
     "dimensions": {
       "type": "object",
-      "required": ["evidence", "synthesis", "accuracy", "visuals", "links", "bilingual", "release"],
+      "required": [
+        "evidence",
+        "synthesis",
+        "accuracy",
+        "visuals",
+        "links",
+        "bilingual",
+        "release"
+      ],
       "additionalProperties": false,
       "properties": {
-        "evidence": {"$ref": "#/$defs/score"},
-        "synthesis": {"$ref": "#/$defs/score"},
-        "accuracy": {"$ref": "#/$defs/score"},
-        "visuals": {"$ref": "#/$defs/score"},
-        "links": {"$ref": "#/$defs/score"},
-        "bilingual": {"$ref": "#/$defs/score"},
-        "release": {"$ref": "#/$defs/score"}
+        "evidence": {
+          "type": "object",
+          "required": [
+            "score",
+            "evidence"
+          ],
+          "properties": {
+            "score": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "evidence": {
+              "type": "string",
+              "minLength": 12
+            }
+          }
+        },
+        "synthesis": {
+          "type": "object",
+          "required": [
+            "score",
+            "evidence"
+          ],
+          "properties": {
+            "score": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "evidence": {
+              "type": "string",
+              "minLength": 12
+            }
+          }
+        },
+        "accuracy": {
+          "type": "object",
+          "required": [
+            "score",
+            "evidence"
+          ],
+          "properties": {
+            "score": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "evidence": {
+              "type": "string",
+              "minLength": 12
+            }
+          }
+        },
+        "visuals": {
+          "type": "object",
+          "required": [
+            "score",
+            "evidence"
+          ],
+          "properties": {
+            "score": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "evidence": {
+              "type": "string",
+              "minLength": 12
+            }
+          }
+        },
+        "links": {
+          "type": "object",
+          "required": [
+            "score",
+            "evidence"
+          ],
+          "properties": {
+            "score": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "evidence": {
+              "type": "string",
+              "minLength": 12
+            }
+          }
+        },
+        "bilingual": {
+          "type": "object",
+          "required": [
+            "score",
+            "evidence"
+          ],
+          "properties": {
+            "score": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "evidence": {
+              "type": "string",
+              "minLength": 12
+            }
+          }
+        },
+        "release": {
+          "type": "object",
+          "required": [
+            "score",
+            "evidence"
+          ],
+          "properties": {
+            "score": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "evidence": {
+              "type": "string",
+              "minLength": 12
+            }
+          }
+        }
       }
     }
   },
-  "$defs": {
-    "score": {
-      "type": "object",
-      "required": ["score", "evidence"],
-      "properties": {
-        "score": {"type": "number", "minimum": 0, "maximum": 100},
-        "evidence": {"type": "string", "minLength": 12}
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "schema_version"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": "2.1"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "manuscript_digests",
+          "findings"
+        ]
       }
     }
-  }
+  ]
 }

@@ -99,15 +99,15 @@ python3 build.py --refresh-refs {{SURVEY_SLUG}}
 ## 에러 핸들링
 
 - **arXiv ID 불명**: `_refs_extracted.json`에서 `arxiv_id: null`로 두고 `scholar_status: "missing"`. `_factcheck_report.md`의 "미해결" 섹션 기록.
-- **수치 검증 실패**: 본문 수치를 그 자리에서 수정하지 말고 book-writer에 SendMessage로 정정 제안. 오래 무응답이면 `_factcheck_report.md`에 "pending" 기록하고 일단 책에서 해당 수치 삭제 또는 "approximately" 같은 완화 표현으로 조정.
-- **중복 ref**: 같은 논문이 두 ref 번호로 등장 시 하나로 병합하고 다른 ref 번호는 삭제. 본문 인라인 인용도 일괄 업데이트.
+- **수치 검증 실패**: 본문 수치를 그 자리에서 수정하지 말고 book-writer에 담당 packet의 handoff 기록으로 정정 제안. 수정이 끝날 때까지 `_factcheck_report.md`에 "pending"으로 기록한다. 작성자 소유의 본문을 임의 수정하거나 근거 없이 "approximately"로 완화하지 않는다.
+- **중복 ref**: 같은 논문의 중복 reference와 본문 인용 위치를 기록하고 작성자에게 병합을 요청한다.
 - **상충 원본 버전**: arXiv v1과 v3의 결과가 다르면 가장 최신 v를 기본으로 하되 `_factcheck_report.md`에 version 기록.
 
 ## 팀 통신 프로토콜
 
 - **수신**: `book-writer` (ready-for-review 알림), `image-curator` (figure source bibtex_key 확인 요청)
 - **송신**: `book-writer` (수치·인용 정정 제안), `qa-reviewer` (팩트체크 완료 알림), `deep-researcher` (누락 논문 추가 조사 요청)
-- **TaskCreate**: 챕터별 "factcheck-chNN" 태스크. 챕터가 여러 개면 병렬 처리 가능.
+- **Controller packet**: 챕터별 "factcheck-chNN" 태스크. 챕터가 여러 개면 병렬 처리 가능.
 
 ### 인용 포맷 — 치명적 규칙 반전
 
@@ -128,7 +128,7 @@ python3 build.py --validate {{SURVEY_SLUG}} 2>&1 | grep "unresolved citation"
 ```
 
 각 unresolved 항목에 대해:
-1. **reference가 누락된 경우**: book-writer에 SendMessage로 reference 추가 요청. 본문 인용은 유지하되 ref 추가 완료까지 `_factcheck_report.md`의 "미해결" 섹션 기록.
+1. **reference가 누락된 경우**: book-writer에 담당 packet의 handoff 기록으로 reference 추가 요청. 본문 인용은 유지하되 ref 추가 완료까지 `_factcheck_report.md`의 "미해결" 섹션 기록.
 2. **reference는 있으나 포맷 불일치**: book-writer 템플릿의 "참고문헌 항목 — 링커 호환 4-패턴" 참조. 가장 빠른 수정은 reference 항목 끝에 `[X, YYYY]` 트레일링 태그를 추가하는 것 (인라인 인용 형태와 정확히 동일하게).
 3. **약어 매핑** (e.g., 본문 `[BCG, 2025]` ↔ reference `Boston Consulting Group, 2025`): reference 끝에 `[BCG, 2025]` 트레일링 태그.
 4. **연도 suffix 충돌** (e.g., 같은 저자 같은 연도 다중 출처): reference 연도를 `(2025a)`, `(2025b)`로 분기하고 본문 인용도 동일 suffix.

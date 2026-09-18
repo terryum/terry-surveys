@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Independent chapter editorial review 2.1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "chapter",
+    "reviewer_id",
+    "independent",
+    "manuscript_digests",
+    "synthesis",
+    "findings"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "2.1"
+    },
+    "chapter": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "reviewer_id": {
+      "type": "string",
+      "minLength": 8
+    },
+    "independent": {
+      "const": true,
+      "type": "boolean"
+    },
+    "manuscript_digests": {
+      "type": "object",
+      "required": [
+        "ko",
+        "en"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "ko": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "en": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "synthesis": {
+      "type": "object",
+      "required": [
+        "score",
+        "evidence"
+      ],
+      "properties": {
+        "score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "evidence": {
+          "type": "string",
+          "minLength": 12
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "severity",
+          "location",
+          "excerpt",
+          "problem",
+          "impact",
+          "expected",
+          "action"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+          },
+          "severity": {
+            "enum": [
+              "blocker",
+              "warning"
+            ]
+          },
+          "location": {
+            "type": "object",
+            "required": [
+              "path",
+              "anchor"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "anchor": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "excerpt": {
+            "type": "string",
+            "minLength": 1
+          },
+          "problem": {
+            "type": "string",
+            "minLength": 12
+          },
+          "impact": {
+            "type": "string",
+            "minLength": 12
+          },
+          "expected": {
+            "type": "string",
+            "minLength": 12
+          },
+          "action": {
+            "enum": [
+              "add",
+              "cut",
+              "rewrite",
+              "reorder",
+              "evidence"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

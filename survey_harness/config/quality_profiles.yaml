@@ -1,13 +1,34 @@
 {
-  "schema_version": "2.0",
+  "schema_version": "2.1",
   "dimensions": {
-    "evidence": {"weight": 25, "owner": "evidence_librarian"},
-    "synthesis": {"weight": 20, "owner": "book_writer"},
-    "accuracy": {"weight": 20, "owner": "fact_checker"},
-    "visuals": {"weight": 15, "owner": "image_curator"},
-    "links": {"weight": 10, "owner": "evidence_librarian"},
-    "bilingual": {"weight": 5, "owner": "book_writer"},
-    "release": {"weight": 5, "owner": "qa_reviewer"}
+    "evidence": {
+      "weight": 25,
+      "owner": "evidence_librarian"
+    },
+    "synthesis": {
+      "weight": 20,
+      "owner": "book_writer"
+    },
+    "accuracy": {
+      "weight": 20,
+      "owner": "fact_checker"
+    },
+    "visuals": {
+      "weight": 15,
+      "owner": "image_curator"
+    },
+    "links": {
+      "weight": 10,
+      "owner": "evidence_librarian"
+    },
+    "bilingual": {
+      "weight": 5,
+      "owner": "book_writer"
+    },
+    "release": {
+      "weight": 5,
+      "owner": "qa_reviewer"
+    }
   },
   "profiles": {
     "full": {
@@ -51,10 +72,16 @@
       "require_reviewer_scores": true,
       "require_claim_matrix": true,
       "require_image_plan": true,
-      "required_image_source_groups": [["paper_figure"]],
+      "required_image_source_groups": [
+        [
+          "paper_figure"
+        ]
+      ],
       "require_build_validation": true,
       "require_qa_ready": true,
-      "enforce_hard_blockers": true
+      "enforce_hard_blockers": true,
+      "editorial_metrics_advisory": true,
+      "require_chapter_reviews": true
     },
     "mini": {
       "deploy": "off",
@@ -91,7 +118,7 @@
       "min_research_shard_entries": 1,
       "min_research_rich_pct": 75,
       "min_figures_per_chapter": 2,
-      "late_visual_fraction": 0.50,
+      "late_visual_fraction": 0.5,
       "max_learning_aid_gap_words": 2000,
       "require_process_contracts": true,
       "require_reviewer_scores": true,
@@ -100,7 +127,9 @@
       "required_image_source_groups": [],
       "require_build_validation": true,
       "require_qa_ready": true,
-      "enforce_hard_blockers": true
+      "enforce_hard_blockers": true,
+      "editorial_metrics_advisory": true,
+      "require_chapter_reviews": true
     },
     "legacy_baseline": {
       "deploy": "off",
@@ -108,7 +137,9 @@
       "max_remediation_attempts": 0,
       "release_score": 72,
       "dimension_floor": 45,
-      "required_dimension_overrides": {"bilingual": 80},
+      "required_dimension_overrides": {
+        "bilingual": 80
+      },
       "min_words_per_language_chapter": 3000,
       "min_subsections_per_chapter": 0,
       "min_lexical_diversity": 0,
@@ -135,7 +166,7 @@
       "min_research_shard_entries": 0,
       "min_research_rich_pct": 0,
       "min_figures_per_chapter": 3,
-      "late_visual_fraction": 0.50,
+      "late_visual_fraction": 0.5,
       "max_learning_aid_gap_words": 1400,
       "require_process_contracts": false,
       "require_reviewer_scores": false,

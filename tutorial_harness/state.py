@@ -6,11 +6,14 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import tempfile
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
+
+from harness_runtime import ownership_conflicts, revalidate_inputs, snapshot_inputs
 
 STATE_REL = Path("_workspace/tutorial_harness_state.json")
 TASK_STATUSES = {"pending", "running", "completed", "blocked", "skipped"}
@@ -85,6 +88,7 @@ def _task(task_id: str, phase: str, owner: str, dependencies: Iterable[str], art
         "status": "pending",
         "dependencies": list(dependencies),
         "artifacts": list(artifacts),
+        "write_scopes": list(artifacts),
         "brief": brief,
         "attempt": 0,
         "agent_ids": [],
@@ -116,6 +120,13 @@ def build_tasks(chapters: Iterable[int]) -> list[dict[str, Any]]:
             _task(qa, "qa", "pedagogy_reviewer", [verify], [f"_quality/pedagogy/{suffix}.json"], f"Independently review action flow, cognitive load, translation parity, and transitions for chapter {chapter}."),
         ])
     tasks.append(_task("deploy-preview", "release", "release_orchestrator", qa_ids, ["_quality/releases/preview.json"], "Commit scoped source, deploy the Access-protected preview, update the private registry entry, and verify the access matrix."))
+    for task in tasks:
+        if task["phase"] == "lab":
+            task["write_scopes"].append(f"labs/{task['id'].rsplit('-', 1)[-1]}")
+        if task["phase"] == "write":
+            # Writers update readiness in one shared config: serialize those writes.
+            task["write_scopes"].append("survey.json")
+        task["inputs"] = _input_selectors(task)
     return tasks
 
 
@@ -129,7 +140,8 @@ def new_state(root: Path, slug: str, selected: Iterable[int] | None = None) -> d
         raise ValueError(f"unknown tutorial chapters: {unknown}")
     stamp = now()
     return {
-        "schema_version": "1.0",
+        "schema_version": "2.1",
+        "project_root": str(root.resolve()),
         "revision": 0,
         "run_id": str(uuid.uuid4()),
         "slug": slug,
@@ -155,7 +167,7 @@ def validate_state(state: dict[str, Any]) -> None:
     missing = required - set(state)
     if missing:
         raise ValueError(f"tutorial state missing fields: {sorted(missing)}")
-    if state["schema_version"] != "1.0":
+    if state["schema_version"] not in {"1.0", "2.0", "2.1"}:
         raise ValueError("unsupported tutorial state schema")
     ids = [task.get("id") for task in state["tasks"]]
     if len(ids) != len(set(ids)):
@@ -210,20 +222,101 @@ def ready_tasks(state: dict[str, Any], limit: int | None = None) -> list[dict[st
     capacity = max(0, int(state.get("max_parallel", 3)) - sum(task["status"] == "running" for task in state["tasks"]))
     if limit is not None:
         capacity = min(capacity, limit)
-    return [task for task in state["tasks"] if task["status"] == "pending" and set(task["dependencies"]) <= completed][:capacity]
+    running_scopes = [scope for task in state["tasks"] if task["status"] == "running" for scope in task.get("write_scopes", task["artifacts"])]
+    ready = []
+    for task in state["tasks"]:
+        if task["status"] != "pending" or not set(task["dependencies"]) <= completed:
+            continue
+        scopes = task.get("write_scopes", task["artifacts"])
+        if ownership_conflicts(scopes, running_scopes):
+            continue
+        ready.append(task)
+        running_scopes.extend(scopes)
+        if len(ready) >= capacity:
+            break
+    return ready if capacity else []
 
 
-def start_task(state: dict[str, Any], task_id: str, agent_id: str) -> None:
+def _input_selectors(task: dict[str, Any]) -> list[dict[str, Any]]:
+    content = lambda path, **extra: {"root": "content", "path": path, **extra}
+    selectors = [
+        {"root": "repo", "path": f".codex/skills/tutorial/{rel}"}
+        for rel in ("SKILL.md", "references/orchestration.md", "references/role-contracts.md")
+    ]
+    selectors.append(content("_workspace/decisions.md"))
+    phase = task["phase"]
+    if phase == "normalize":
+        selectors.extend([content("_workspace/inputs", exclude_paths=["input_manifest.md"]), content("_workspace/inputs/input_manifest.md")])
+    elif phase in {"roadmap", "research"}:
+        selectors.extend([content("_workspace/inputs/input_manifest.md"), content("survey.json", ignore_keys=["status"])])
+        if phase == "research":
+            selectors.append(content("_tutorial/roadmap.md"))
+    elif phase == "release":
+        selectors.extend([content("book"), content("survey.json"), content("_quality/pedagogy"), content("_quality/example_verification")])
+        selectors.append({"root": "repo", "path": ".codex/skills/tutorial/references/quality-and-release.md"})
+    else:
+        chapter = int(task["id"].rsplit("ch", 1)[1])
+        suffix = f"ch{chapter:02d}"
+        selectors.extend([content("survey.json", chapter=chapter, ignore_keys=["status"]), content("_tutorial/source_ledger.jsonl", chapter=chapter)])
+        if phase in {"lab", "verify"}:
+            selectors.append(content("_tutorial/environment_matrix.json"))
+        if phase == "lab":
+            selectors.append(content("_tutorial/roadmap.md"))
+        else:
+            selectors.append(content(f"_tutorial/chapter_packets/{suffix}.json"))
+            selectors.append(content(f"labs/{suffix}"))
+        if phase in {"verify", "qa"}:
+            selectors.extend(content(f"book/{lang}/{suffix}.md") for lang in ("ko", "en"))
+        if phase == "qa":
+            selectors.append(content(f"_quality/example_verification/{suffix}.json"))
+    return selectors
+
+
+def _output_selectors(task: dict[str, Any]) -> list[dict[str, Any]]:
+    paths = list(task["artifacts"])
+    if task["phase"] == "lab":
+        paths.append(f"labs/{task['id'].rsplit('-', 1)[-1]}")
+    return [
+        {"root": "content", "path": path, **({"ignore_keys": ["status"]} if path == "survey.json" else {})}
+        for path in paths
+    ]
+
+
+def start_task(state: dict[str, Any], task_id: str, agent_id: str, root: Path | None = None) -> None:
     task = _by_id(state, task_id)
     if task not in ready_tasks(state, limit=len(state["tasks"])):
         raise ValueError(f"task is not ready: {task_id}")
     if not agent_id.strip() or PLACEHOLDER_AGENT.search(agent_id.strip()):
         raise ValueError("a real agent id is required")
+    if any(item["status"] == "running" and agent_id in item.get("agent_ids", []) for item in state["tasks"]):
+        raise ValueError("one agent id cannot own simultaneous running tasks")
     if task["owner"] == "pedagogy_reviewer":
         chapter = task_id.rsplit("-", 1)[-1]
         writer_ids = set(_by_id(state, f"write-{chapter}").get("agent_ids", []))
         if agent_id in writer_ids:
             raise ValueError("pedagogy reviewer must be independent from the chapter writer")
+    root = Path(root or state.get("project_root") or Path.cwd()).resolve()
+    base = tutorial_dir(root, state["slug"])
+    verify_protected(base, state.get("protected_ready_chapters", {}))
+    roots = {"repo": root, "content": base}
+    ancestors = set(task["dependencies"])
+    pending = list(ancestors)
+    while pending:
+        for dependency in _by_id(state, pending.pop())["dependencies"]:
+            if dependency not in ancestors:
+                ancestors.add(dependency)
+                pending.append(dependency)
+    for predecessor in state["tasks"]:
+        if predecessor["status"] == "completed" and predecessor["id"] in ancestors:
+            stale = revalidate_inputs(roots, predecessor.get("input_snapshot")) + revalidate_inputs(roots, predecessor.get("output_snapshot"))
+            if stale or not predecessor.get("completed_by"):
+                raise ValueError("dependency is stale or unverified; resume before starting: " + predecessor["id"])
+        if predecessor["status"] == "completed" and predecessor.get("output_snapshot"):
+            overlaps = ownership_conflicts(task.get("write_scopes", task["artifacts"]), predecessor.get("write_scopes", predecessor["artifacts"]))
+            if overlaps and revalidate_inputs(roots, predecessor["output_snapshot"]):
+                raise ValueError("predecessor outputs changed; resume before starting: " + predecessor["id"])
+    task["input_snapshot"] = snapshot_inputs(roots, _input_selectors(task))
+    task["active_agent_id"] = agent_id
     task.update({"status": "running", "started_at": now(), "blocked_reason": None})
     task["attempt"] += 1
     task["agent_ids"].append(agent_id)
@@ -317,6 +410,12 @@ def complete_task(root: Path, state: dict[str, Any], task_id: str) -> None:
         raise ValueError(f"cannot complete task in status {task['status']}")
     base = tutorial_dir(root, state["slug"])
     verify_protected(base, state.get("protected_ready_chapters", {}))
+    if not task.get("active_agent_id") or task["active_agent_id"] != task.get("agent_ids", [None])[-1]:
+        raise ValueError("task completion requires the recorded active agent identity")
+    roots = {"repo": root, "content": base}
+    changed = revalidate_inputs(roots, task.get("input_snapshot"), task.get("write_scopes", task["artifacts"]))
+    if changed:
+        raise ValueError("task inputs changed while running: " + ", ".join(changed))
     missing = [rel for rel in task["artifacts"] if not (base / rel).exists()]
     if missing:
         raise ValueError(f"task artifacts missing: {', '.join(missing)}")
@@ -327,6 +426,11 @@ def complete_task(root: Path, state: dict[str, Any], task_id: str) -> None:
         if not expected or receipt.get("content_digest") != expected:
             raise ValueError("preview receipt is not bound to the approved content digest")
     task.update({"status": "completed", "completed_at": now(), "blocked_reason": None})
+    # The worker may normalize its own input or update readiness. Record that
+    # final authorized state, while changed read-only inputs were rejected above.
+    task["input_snapshot"] = snapshot_inputs(roots, _input_selectors(task))
+    task["output_snapshot"] = snapshot_inputs(roots, _output_selectors(task))
+    task["completed_by"] = task["active_agent_id"]
     if task_id == "deploy-preview":
         state["status"] = "preview_ready"
         state["release"]["preview"] = "released"
@@ -341,12 +445,32 @@ def block_task(state: dict[str, Any], task_id: str, reason: str) -> None:
 
 def resume_state(root: Path, state: dict[str, Any]) -> list[str]:
     base = tutorial_dir(root, state["slug"])
+    verify_protected(base, state.get("protected_ready_chapters", {}))
+    previous = state_path(root, state["slug"])
+    if previous.exists():
+        archive = base / "_workspace/state_history"
+        archive.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(previous, archive / f"tutorial-{state['run_id']}-r{state['revision']}-{uuid.uuid4().hex[:8]}.json")
+    state["schema_version"] = "2.1"
+    state["project_root"] = str(root.resolve())
+    contracts = {task["id"]: task for task in build_tasks(state["selected_chapters"])}
+    roots = {"repo": root, "content": base}
     reopened = []
     for task in state["tasks"]:
+        if task["id"] in contracts:
+            task["write_scopes"] = contracts[task["id"]]["write_scopes"]
+            task["inputs"] = contracts[task["id"]]["inputs"]
         missing = any(not (base / rel).exists() for rel in task["artifacts"])
-        if task["status"] in {"running", "blocked"} or (task["status"] == "completed" and missing):
+        stale = []
+        if task["status"] == "completed":
+            stale = revalidate_inputs(roots, task.get("input_snapshot")) + revalidate_inputs(roots, task.get("output_snapshot"))
+            if not task.get("completed_by") or task.get("completed_by") not in task.get("agent_ids", []):
+                stale.append("unverified completed agent identity")
+        if task["status"] in {"running", "blocked"} or (task["status"] == "completed" and (missing or stale)):
             task["status"] = "pending"
             task["blocked_reason"] = None
+            task["reopened_reason"] = stale or (["missing output"] if missing else ["interrupted task"])
+            task["completed_at"] = None
             reopened.append(task["id"])
     changed = True
     while changed:
@@ -355,9 +479,15 @@ def resume_state(root: Path, state: dict[str, Any]) -> list[str]:
         for task in state["tasks"]:
             if task["status"] == "completed" and not set(task["dependencies"]) <= completed:
                 task["status"] = "pending"
+                task["reopened_reason"] = ["dependency reopened"]
+                task["completed_at"] = None
                 reopened.append(task["id"])
                 changed = True
     state["status"] = "running"
+    if reopened:
+        state["quality"]["last_scorecard"] = None
+        state["release"]["preview"] = "pending"
+        state["release"]["blocked_reason"] = None
     return reopened
 
 

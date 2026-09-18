@@ -91,7 +91,7 @@ def command_next(args, root: Path) -> int:
 
 def command_start(args, root: Path) -> int:
     state = load_state(root, args.slug)
-    start_task(state, args.task, args.agent_id)
+    start_task(state, args.task, args.agent_id, root=root)
     save_state(root, state)
     emit({"task": args.task, "status": "running"})
     return 0
@@ -230,7 +230,7 @@ def command_release(args, root: Path) -> int:
         path.write_text(json.dumps(receipt, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         task = next(task for task in state["tasks"] if task["id"] == "deploy-preview")
         if task["status"] == "pending":
-            start_task(state, "deploy-preview", f"release-orchestrator-{state['run_id']}")
+            start_task(state, "deploy-preview", f"release-orchestrator-{state['run_id']}", root=root)
         complete_task(root, state, "deploy-preview")
     else:
         preview = base / "_quality/releases/preview.json"

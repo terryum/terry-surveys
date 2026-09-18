@@ -35,6 +35,7 @@ from .state import (
     save_state,
     start_task,
     state_path,
+    task_packet,
     summarize,
     update_release,
     validate_state,
@@ -116,10 +117,10 @@ def _committed_content_digest(root: Path, slug: str, content_commit: str, framew
         if framework_commit:
             archives = (
                 (content_repo_root(root), content_commit, [f"surveys/{slug}"], "content"),
-                (root, framework_commit, ["survey_harness/config/quality_profiles.yaml", "survey_harness/quality.py"], "framework"),
+                (root, framework_commit, ["survey_harness/config/quality_profiles.yaml", "survey_harness/quality.py", "survey_harness/editorial.py"], "framework"),
             )
         else:
-            archives = ((root, content_commit, [f"surveys/{slug}", "survey_harness/config/quality_profiles.yaml", "survey_harness/quality.py"], "legacy"),)
+            archives = ((root, content_commit, [f"surveys/{slug}", "survey_harness/config/quality_profiles.yaml", "survey_harness/quality.py", "survey_harness/editorial.py"], "legacy"),)
         for repository, commit, paths, label in archives:
             archive = temp / f"{label}.tar"
             command = ["git", "archive", "--format=tar", f"--output={archive}", commit, *paths]
@@ -245,11 +246,21 @@ def _verify_release_evidence(root: Path, slug: str, evidence: Dict[str, str], ex
     return str(receipt_path.relative_to(root / "surveys" / slug)), hashlib.sha256(payload).hexdigest()
 
 
+def _archive_replaced_state(path: Path) -> None:
+    if path.is_file():
+        archive_dir = path.parent / "runs"
+        archive_dir.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(prefix="replaced-", suffix=".json", dir=archive_dir, delete=False) as archived:
+            archived.write(path.read_bytes())
+
+
 def command_init(args, root: Path) -> int:
     path = state_path(root, args.slug)
     if path.exists() and not args.force:
         raise FileExistsError(f"state already exists: {path}; use --force to reinitialize")
     state = new_state(root, args.slug, args.profile, args.deploy)
+    if args.force:
+        _archive_replaced_state(path)
     save_state(root, state, replace=args.force)
     emit(summarize(state))
     return 0
@@ -263,13 +274,13 @@ def command_status(args, root: Path) -> int:
 def command_next(args, root: Path) -> int:
     state = load_state(root, args.slug)
     tasks = ready_tasks(state, args.limit)
-    emit({"slug": args.slug, "capacity": len(tasks), "tasks": tasks})
+    emit({"slug": args.slug, "capacity": len(tasks), "tasks": [task_packet(root, state, task) for task in tasks]})
     return 0
 
 
 def command_start(args, root: Path) -> int:
     state = load_state(root, args.slug)
-    start_task(state, args.task, args.agent_id)
+    start_task(state, args.task, args.agent_id, root=root)
     save_state(root, state)
     emit({"task": args.task, "status": "running"})
     return 0
@@ -351,6 +362,8 @@ def command_migrate(args, root: Path) -> int:
     if path.exists() and not args.force:
         raise FileExistsError(f"v2 state already exists: {path}; use --force to replace it")
     state = migrate_legacy_state(root, args.slug, args.profile)
+    if args.force:
+        _archive_replaced_state(path)
     save_state(root, state, replace=args.force)
     emit(summarize(state))
     return 0

@@ -14,6 +14,31 @@ def write_jsonl(path: Path, rows) -> None:
     path.write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows), encoding="utf-8")
 
 
+def write_current_reviews(survey: Path, chapters=(1,), write_state=False) -> None:
+    from survey_harness.editorial import manuscript_digests
+    reviewer = "agent-reviewer-123"
+    all_digests = {}
+    for chapter in chapters:
+        key = f"ch{chapter:02d}"
+        all_digests[key] = manuscript_digests(survey, chapter)
+        write_json(survey / f"_quality/chapters/{key}.json", {
+            "schema_version": "2.1", "chapter": chapter, "reviewer_id": reviewer,
+            "independent": True, "manuscript_digests": all_digests[key],
+            "synthesis": {"score": 92, "evidence": "Independent fixture review: clear thesis, comparison, limits and evidence-backed judgment."},
+            "findings": [],
+        })
+    write_json(survey / "_quality/reviewer_scores.json", {
+        "schema_version": "2.1", "reviewer_id": reviewer, "independent": True,
+        "manuscript_digests": all_digests, "findings": [],
+        "dimensions": {name: {"score": 92, "evidence": "Independent fixture review evidence"} for name in ("evidence", "synthesis", "accuracy", "visuals", "links", "bilingual", "release")},
+    })
+    if write_state:
+        write_json(survey / "_workspace/harness_state.json", {"tasks": [
+            {"id": task_id, "owner": "qa_reviewer", "agent_ids": [reviewer]}
+            for task_id in [*(f"qa-ch{chapter:02d}" for chapter in chapters), "qa-book"]
+        ]})
+
+
 def make_repo(root: Path, slug: str = "test-survey", chapters=(1,)) -> Path:
     (root / "build.py").write_text("# fixture\n", encoding="utf-8")
     survey = root / "surveys" / slug
@@ -55,6 +80,10 @@ def make_passing_mini(root: Path, slug: str = "test-survey") -> Path:
     write_json(survey / "_research/kg_seed.json", {"anchors": ["paper0"]})
     (survey / "_analysis/prior_survey_absorption.md").parent.mkdir(parents=True, exist_ok=True)
     (survey / "_analysis/prior_survey_absorption.md").write_text("Prior survey absorption and reusable KG evidence.\n", encoding="utf-8")
+    for name in ("gaps", "novelty_matrix", "positioning", "editorial_contract"):
+        (survey / f"_analysis/{name}.md").write_text(
+            "Fixture comparison of evidence, limits, audience and evidence-backed judgments.\n", encoding="utf-8"
+        )
     (survey / "_research/search_protocol.md").write_text("query families, inclusion, exclusion, snowballing, saturation\n", encoding="utf-8")
     for rel in ("_research/groups_foundations.md", "_research/timeline_foundations.md", "_research/groups_frontier.md", "_research/timeline_frontier.md"):
         (survey / rel).write_text("Fixture research grouping and timeline evidence.\n", encoding="utf-8")
@@ -75,7 +104,7 @@ def make_passing_mini(root: Path, slug: str = "test-survey") -> Path:
     write_json(survey / "_refs_extracted.json", refs)
     images = {"schema_version": "2.0", "survey": slug, "chapters": {"ch01": [{"figure_id": f"fig{i}", "path": f"assets/figures/{name}", "insertion_anchor": f"section-{i}", "source_type": "paper_figure", "source_url": f"https://arxiv.org/abs/2601.{i:05d}", "license_basis": "academic review", "status": "inserted"} for i, name in enumerate(("first.png", "late.png"))]}}
     write_json(survey / "_workspace/image_plan.json", images)
-    write_json(survey / "_quality/reviewer_scores.json", {"reviewer_id": "agent-reviewer-123", "independent": True, "dimensions": {name: {"score": 92, "evidence": "Independent fixture review evidence"} for name in ("evidence", "synthesis", "accuracy", "visuals", "links", "bilingual", "release")}})
+    write_current_reviews(survey)
     write_json(survey / "_quality/build_validation.json", {"passed": True, "commands": ["fixture"]})
     (survey / "_factcheck_report.md").write_text("# Factcheck\n\nChapter 1: primary-source verification passed.\n", encoding="utf-8")
     (survey / "_qa_report.md").write_text("# QA\n\nChapter 1: independent evidence review passed.\n\nREADY FOR RELEASE\n", encoding="utf-8")

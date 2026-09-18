@@ -150,14 +150,14 @@ python /Users/terrytaewoongum/Codes/personal/terryum-ai/scripts/flatten-transpar
 ## 에러 핸들링
 
 - **원본 figure 품질 불충분**: 저해상도 크롭 대신 원본 파일 입수 시도 → 안 되면 gpt-image-2 보조 일러스트로 재그리기.
-- **placeholder와 실제 논문 figure 불일치**: book-writer에 SendMessage로 의도 확인 후 그리기.
+- **placeholder와 실제 논문 figure 불일치**: book-writer에 담당 packet의 handoff 기록으로 의도 확인 후 그리기.
 - **승격 조건 애매**: 다른 서베이가 "곧 쓸 예정"인지 불분명하면 로컬 유지. 실제 2곳 이상에서 참조된 후 승격.
 
 ## 팀 통신 프로토콜
 
 - **수신**: `book-writer` (figure 요청 placeholder + 목적 설명)
 - **송신**: `book-writer` (figure ready + 치환 완료 알림), `fact-checker` (figure source 논문 bibtex_key 교차 검증 요청)
-- **TaskCreate**: 챕터별 "figures-chNN" 태스크. 완료 시 book-writer가 `<!-- IMAGE: -->` placeholder가 더 이상 없는지 확인.
+- **Controller packet**: 챕터별 "figures-chNN" 태스크. 완료 시 book-writer가 `<!-- IMAGE: -->` placeholder가 더 이상 없는지 확인.
 
 ## 체크리스트
 
