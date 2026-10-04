@@ -7,7 +7,7 @@ import os
 import sys
 from pathlib import Path
 
-DEFAULT_ROOT = Path("/Users/terrytaewoongum/Codes/personal/terry-surveys")
+DEFAULT_ROOT = Path("/Users/terrytaewoongum/Codes/personal/terryum-ai/terry-surveys/framework")
 
 
 def resolve_root() -> Path:

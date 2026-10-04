@@ -8,7 +8,7 @@ import json
 import sys
 from pathlib import Path
 
-DEFAULT_ROOT = Path("/Users/terrytaewoongum/Codes/personal/terry-surveys")
+DEFAULT_ROOT = Path("/Users/terrytaewoongum/Codes/personal/terryum-ai/terry-surveys/framework")
 if str(DEFAULT_ROOT) not in sys.path:
     sys.path.insert(0, str(DEFAULT_ROOT))
 

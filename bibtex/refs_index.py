@@ -41,7 +41,7 @@ SURVEYS_DIR = os.path.join(ROOT, 'surveys')
 INDEX_PATH = os.path.join(BIBTEX_DIR, 'refs_index.json')
 POSTS_INDEX_PATH = os.path.join(BIBTEX_DIR, 'posts_index.json')
 HOMEPAGE_POSTS_DIR = os.path.join(
-    os.path.dirname(ROOT), 'terryum-ai', 'posts', 'papers'
+    os.path.dirname(os.path.dirname(ROOT)), 'site', 'posts', 'papers'
 )
 
 # --------------------------------------------------------------------

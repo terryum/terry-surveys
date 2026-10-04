@@ -25,7 +25,7 @@ Cloudflare Pages Direct Upload로 배포한다. GitHub repo 연결 방식도 허
 Codex가 즉시 끝내야 하는 `$survey` 배포에서는 direct upload가 표준이다.
 
 ```bash
-cd /Users/terrytaewoongum/Codes/personal/terry-surveys
+cd /Users/terrytaewoongum/Codes/personal/terryum-ai/terry-surveys/framework
 python3 build.py <survey-dir>
 bash surveys/<survey-dir>/scripts/push.sh "deploy <survey-dir>"
 ```
@@ -132,10 +132,10 @@ python3 ~/.codex/skills/survey/scripts/validate_gallery_assets.py {slug}
 python3 ~/.claude/skills/image-gen/scripts/generate-image.py \
   "<v3 prompt — 아래 가이드>" \
   --style darkmode --ratio 1:1 --quality medium \
-  -o /Users/terrytaewoongum/Codes/personal/terryum-ai/public/images/projects/{slug}-cover.webp
+  -o /Users/terrytaewoongum/Codes/personal/terryum-ai/site/public/images/projects/{slug}-cover.webp
 
 # 2) utility가 cover를 표준 spec으로 압축 + og.png + thumb.webp 자동 파생
-cd /Users/terrytaewoongum/Codes/personal/terryum-ai
+cd /Users/terrytaewoongum/Codes/personal/terryum-ai/site
 node scripts/process-content-images.mjs --type=survey --slug={slug} --force
 
 # 3) 기존 survey gallery 스타일과 spec 검증
@@ -222,11 +222,11 @@ npm run build
 
 ```bash
 # 1) 대상 서베이 디렉토리 확인
-SURVEY_DIR=/Users/terrytaewoongum/Codes/personal/terry-surveys/surveys/<survey-slug-or-name>
+SURVEY_DIR=/Users/terrytaewoongum/Codes/personal/terryum-ai/terry-surveys/framework/surveys/<survey-slug-or-name>
 [ -d "$SURVEY_DIR" ] || { echo "not a terry-surveys book — skip"; exit 0; }
 
 # 2) terry-surveys로 이동 후 cite-post 스킬 호출
-cd /Users/terrytaewoongum/Codes/personal/terry-surveys
+cd /Users/terrytaewoongum/Codes/personal/terryum-ai/terry-surveys/framework
 ```
 
 그 다음 **`/cite-post <survey-name>`** 스킬을 호출한다. cite-post는:
@@ -362,7 +362,7 @@ node -e "const urls=[
 검증 실패 시 아래 순서로 처리한다.
 
 1. **현재 배포 Worker가 새 `surveys.json`을 포함했는지 확인**
-   - `/Users/terrytaewoongum/Codes/personal/terryum-ai/projects/surveys/surveys.json`
+   - `/Users/terrytaewoongum/Codes/personal/terryum-ai/site/projects/surveys/surveys.json`
      에 `$SLUG`가 있는지 확인한다.
    - `.open-next` 또는 `.next` 산출물에서 `$SLUG`를 `rg`로 확인한다.
    - `npx wrangler deployments status --name terry-artlab-homepage`로 현재
@@ -380,7 +380,7 @@ node -e "const urls=[
    - 최신 Worker 배포 직후 아래를 실행한다.
 
    ```bash
-   cd /Users/terrytaewoongum/Codes/personal/terryum-ai
+   cd /Users/terrytaewoongum/Codes/personal/terryum-ai/site
    node scripts/r2-cache-gc.mjs --dry-run --keep 1
    node scripts/r2-cache-gc.mjs --apply --keep 1
    ```

@@ -69,13 +69,13 @@ title, but do not leave the only copy in `/tmp`.
 ## Terry identifiers
 
 - Resolve `#S<number>` against
-  `../terryum-ai/projects/surveys/surveys.json`. Record the exact registry row,
+  `../../site/projects/surveys/surveys.json`. Record the exact registry row,
   public URL, and available local source path. Read relevant KO/EN chapters,
   `_research`, and evidence artifacts rather than relying on the gallery card.
 - Resolve a paper-summary post number against `paper_list[].post_number` in
-  `../terry-papers/knowledge-index.json`, then read the matching
-  `../terry-papers/papers/<slug>.json` and, when needed, the corresponding
-  `../terryum-ai/posts/papers/<slug>/` post. Record the KG slug, canonical paper
+  `../../terry-papers/knowledge-index.json`, then read the matching
+  `../../terry-papers/papers/<slug>.json` and, when needed, the corresponding
+  `../../site/posts/papers/<slug>/` post. Record the KG slug, canonical paper
   IDs, original source URL, and exact Terry KO/EN post links.
 - Treat a bare `#<number>` as ambiguous unless the surrounding text explicitly
   says survey or paper-summary post. Do not guess between `#S1` and paper `#1`.

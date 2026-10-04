@@ -182,7 +182,7 @@ jq '.candidate_index | {
   generated_at,
   total_candidates,
   surveys: (.by_survey | keys)
-}' /Users/terrytaewoongum/Codes/personal/terry-papers/knowledge-index.json
+}' /Users/terrytaewoongum/Codes/personal/terryum-ai/terry-papers/knowledge-index.json
 ```
 
 `generated_at` 이 최근이고 `surveys` 배열에 `terry-surveys/surveys/` 의 모든
@@ -191,10 +191,10 @@ jq '.candidate_index | {
 ### 재실행
 
 ```sh
-cd /Users/terrytaewoongum/Codes/personal/terryum-ai
+cd /Users/terrytaewoongum/Codes/personal/terryum-ai/site
 node scripts/sync-survey-candidates.mjs
 
-cd /Users/terrytaewoongum/Codes/personal/terry-papers
+cd /Users/terrytaewoongum/Codes/personal/terryum-ai/terry-papers
 git status   # knowledge-index.json 변경 확인
 git diff --stat
 git add knowledge-index.json
@@ -224,7 +224,7 @@ ref 가 1개뿐이고 metadata 가 비어 sync 필터가 candidate 로 채택하
 ```sh
 python3 build.py --refresh-refs microbiome-cosmetics-ai
 python3 build.py --index   # refs_index.json 갱신
-cd /Users/terrytaewoongum/Codes/personal/terryum-ai
+cd /Users/terrytaewoongum/Codes/personal/terryum-ai/site
 node scripts/sync-survey-candidates.mjs
 ```
 

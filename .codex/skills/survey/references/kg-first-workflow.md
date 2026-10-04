@@ -4,7 +4,7 @@ Always seed survey work from Terry's paper KG before web search.
 
 ## Inputs
 
-- `/Users/terrytaewoongum/Codes/personal/terry-papers/knowledge-index.json`
+- `/Users/terrytaewoongum/Codes/personal/terryum-ai/terry-papers/knowledge-index.json`
 - Confirmed `paper_list` nodes near the topic.
 - `candidate_index.candidates`, with rich metadata preferred over skeleton-only
   candidates.

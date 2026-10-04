@@ -182,7 +182,7 @@ bash surveys/<slug>/scripts/push.sh "deploy message"    # Cloudflare Pages (책 
 # Surveys candidate pool 재계산 — terry-papers/knowledge-index.json의
 # candidate_index 섹션을 갱신해 /paper-search next 모드 신선도 유지.
 # OPENAI_API_KEY가 환경에 있으면 새 candidate에 임베딩도 함께 생성.
-node /Users/terrytaewoongum/Codes/personal/terryum-ai/scripts/sync-survey-candidates.mjs --with-embeddings
+node /Users/terrytaewoongum/Codes/personal/terryum-ai/site/scripts/sync-survey-candidates.mjs --with-embeddings
 ```
 배포 후 MODE B로 자동 진입해 `surveys.json` 업데이트 (사용자 확인 후). MODE B는 Step 8+9에서 GHA 검증 + 라이브 노출 확인을 **반드시** 수행한다 — 책 사이트 배포 성공만으로는 홈페이지 갤러리 노출을 보장하지 않는다.
 
@@ -224,10 +224,10 @@ node /Users/terrytaewoongum/Codes/personal/terryum-ai/scripts/sync-survey-candid
 
 **실행**:
 ```bash
-python /Users/terrytaewoongum/Codes/personal/terryum-ai/scripts/flatten-transparent-figures.py \
+python /Users/terrytaewoongum/Codes/personal/terryum-ai/site/scripts/flatten-transparent-figures.py \
   surveys/<slug>/assets/
 # 공유 figure 디렉토리도 동일
-python /Users/terrytaewoongum/Codes/personal/terryum-ai/scripts/flatten-transparent-figures.py \
+python /Users/terrytaewoongum/Codes/personal/terryum-ai/site/scripts/flatten-transparent-figures.py \
   assets/figures/
 ```
 - 스크립트는 opaque 파일은 자동 skip, RGBA/LA/palette tRNS 세 종류 모두 처리 (idempotent).

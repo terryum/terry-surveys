@@ -82,7 +82,7 @@ model: inherit
 - PDF 페이지 본문, 주변 paragraph, 페이지 여백이 figure와 함께 크게 들어가면 실패다. 필요한 경우 paper HTML/source image를 우선 사용하고, PDF fallback은 `pdfimages` 또는 고해상도 page render 후 수동 crop한다.
 - 한쪽에 20% 이상 큰 blank margin이 있거나 반대쪽 edge에 내용이 닿아 있으면 crop 실패 후보로 보고 원본을 다시 확인한다.
 - 매우 tall/wide figure는 의도된 composite인지 확인한다. 의도된 경우 image-plan entry에 `crop_audit: intentional-wide` 또는 `intentional-tall`을 남긴다.
-- 저장 후 `scripts/audit_figure_crops.py --repo-root /Users/terrytaewoongum/Codes/personal/terry-surveys` 후보와 실제 이미지를 직접 확인한다. 자동 audit 통과만으로 완료 처리하지 않는다.
+- 저장 후 `scripts/audit_figure_crops.py --repo-root /Users/terrytaewoongum/Codes/personal/terryum-ai/terry-surveys/framework` 후보와 실제 이미지를 직접 확인한다. 자동 audit 통과만으로 완료 처리하지 않는다.
 
 ## Referenced-Figure Gate
 
@@ -137,10 +137,10 @@ unused files sitting in `assets/figures/`.
 
 **실행**:
 ```bash
-python /Users/terrytaewoongum/Codes/personal/terryum-ai/scripts/flatten-transparent-figures.py \
+python /Users/terrytaewoongum/Codes/personal/terryum-ai/site/scripts/flatten-transparent-figures.py \
   surveys/<slug>/assets/figures/
 # 필요 시 공유 레지스트리에도 동일 적용
-python /Users/terrytaewoongum/Codes/personal/terryum-ai/scripts/flatten-transparent-figures.py \
+python /Users/terrytaewoongum/Codes/personal/terryum-ai/site/scripts/flatten-transparent-figures.py \
   assets/figures/
 ```
 - 스크립트는 실제 투명 픽셀이 없는 파일은 자동 skip → 항상 호출해도 안전 (idempotent).

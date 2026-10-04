@@ -22,7 +22,7 @@ description: "새 논문 포스팅이 homepage에 추가된 뒤, Tier 1 exact ID
 ## Step 1) 인덱스 최신화
 
 ```bash
-cd /Users/terrytaewoongum/Codes/personal/terry-surveys
+cd /Users/terrytaewoongum/Codes/personal/terryum-ai/terry-surveys/framework
 python3 build.py --index       # refs_index.json (reverse_index 포함)
 python3 bibtex/refs_index.py build-posts  # posts_index.json
 ```

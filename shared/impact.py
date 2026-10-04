@@ -30,7 +30,7 @@ SURVEYS_DIR = os.path.join(ROOT, 'surveys')
 BIBTEX_DIR = os.path.join(ROOT, 'bibtex')
 REFS_INDEX = os.path.join(BIBTEX_DIR, 'refs_index.json')
 POSTS_INDEX = os.path.join(BIBTEX_DIR, 'posts_index.json')
-HOMEPAGE_POSTS = os.path.abspath(os.path.join(ROOT, '..', 'terryum-ai', 'posts', 'papers'))
+HOMEPAGE_POSTS = os.path.abspath(os.path.join(ROOT, '..', '..', 'site', 'posts', 'papers'))
 MASTER_BIB = os.path.join(BIBTEX_DIR, 'references.bib')
 
 # Tier 2 ranking thresholds.

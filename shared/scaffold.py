@@ -536,7 +536,7 @@ TMP_DIR="$(mktemp -d -t pages-deploy-XXXX)"
 trap "rm -rf '$TMP_DIR'" EXIT
 
 if [ "$CHANNEL" = "preview" ]; then
-  TERRYUM_AI="$(cd "$(dirname "${{BASH_SOURCE[0]}}")/../../../terryum-ai" 2>/dev/null && pwd || true)"
+  TERRYUM_AI="$(cd "$(dirname "${{BASH_SOURCE[0]}}")/../../../../site" 2>/dev/null && pwd || true)"
   if [ -z "$TERRYUM_AI" ] || [ ! -f "$TERRYUM_AI/scripts/provision-survey-preview-access.mjs" ]; then
     echo "ERROR: terryum-ai Access provisioner is required before preview upload" >&2
     exit 1

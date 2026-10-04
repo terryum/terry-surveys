@@ -39,7 +39,7 @@ shift 4
 VISIBILITY="private"
 GROUP=""
 DRY_RUN=""
-REPO_ROOT="/Users/terrytaewoongum/Codes/personal/terry-surveys"
+REPO_ROOT="/Users/terrytaewoongum/Codes/personal/terryum-ai/terry-surveys/framework"
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 while [ "$#" -gt 0 ]; do
   case "$1" in

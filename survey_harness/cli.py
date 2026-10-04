@@ -141,7 +141,7 @@ def _verify_release_evidence(root: Path, slug: str, evidence: Dict[str, str], ex
         raise ValueError(f"external release verification missing: {', '.join(missing)}")
     if not re.fullmatch(r"\d+", str(evidence["workflow_id"])):
         raise ValueError("workflow_id must be numeric before GitHub verification")
-    gallery_root = root.parent / "terryum-ai"
+    gallery_root = root.parent.parent / "site"
     if not (gallery_root / ".git").exists():
         raise ValueError(f"gallery repository unavailable for release verification: {gallery_root}")
     checks = []
@@ -207,7 +207,7 @@ def _verify_release_evidence(root: Path, slug: str, evidence: Dict[str, str], ex
             checks.append(iframe_check)
     asset_script = root / ".codex/skills/survey/scripts/validate_gallery_assets.py"
     checks.append(_checked([sys.executable, str(asset_script), slug, "--terryum-ai-root", str(gallery_root)], root, "asset-validation"))
-    kg_path = root.parent / "terry-papers" / "knowledge-index.json"
+    kg_path = root.parent.parent / "terry-papers" / "knowledge-index.json"
     try:
         kg_data = json.loads(kg_path.read_text(encoding="utf-8"))
         candidates = kg_data.get("candidate_index", {}).get("candidates", [])
@@ -390,7 +390,7 @@ def command_release(args, root: Path) -> int:
         key, value = item.split("=", 1)
         artifacts[key] = value
     if args.status == "running":
-        kg_path = root.parent / "terry-papers" / "knowledge-index.json"
+        kg_path = root.parent.parent / "terry-papers" / "knowledge-index.json"
         if not kg_path.is_file():
             raise ValueError(f"KG baseline unavailable: {kg_path}")
         artifacts["kg_baseline_sha256"] = hashlib.sha256(kg_path.read_bytes()).hexdigest()

@@ -101,10 +101,10 @@ model: opus
 
 **실행**:
 ```bash
-python /Users/terrytaewoongum/Codes/personal/terryum-ai/scripts/flatten-transparent-figures.py \
+python /Users/terrytaewoongum/Codes/personal/terryum-ai/site/scripts/flatten-transparent-figures.py \
   surveys/<slug>/assets/figures/
 # 필요 시 공유 레지스트리에도 동일 적용
-python /Users/terrytaewoongum/Codes/personal/terryum-ai/scripts/flatten-transparent-figures.py \
+python /Users/terrytaewoongum/Codes/personal/terryum-ai/site/scripts/flatten-transparent-figures.py \
   assets/figures/
 ```
 - 스크립트는 실제 투명 픽셀이 없는 파일은 자동 skip → 항상 호출해도 안전 (idempotent).

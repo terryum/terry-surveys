@@ -120,7 +120,7 @@ target_corpus = max(profile.corpus_floor_base, profile.corpus_floor_per_chapter 
 두 에이전트 모두 완료 신호 후 orchestrator가 실행:
 ```bash
 python3 ~/.codex/skills/survey/scripts/merge_research_shards.py {{SURVEY_SLUG}} \
-  --repo-root /Users/terrytaewoongum/Codes/personal/terry-surveys
+  --repo-root /Users/terrytaewoongum/Codes/personal/terryum-ai/terry-surveys/framework
 ```
 머지 스크립트 동작:
 - arxiv_id → doi → normalized_title 순 dedup

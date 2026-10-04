@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONTENTS_ROOT="$ROOT/../terry-surveys-contents"
-ENV_FILE="$ROOT/../terryum-ai/.env.local"
+ENV_FILE="$ROOT/../../site/.env.local"
 BUCKET="${SURVEY_R2_BUCKET_NAME:-terry-surveys-assets-private}"
 MODE="${1:-}"
 DRY_RUN=false

@@ -85,10 +85,10 @@
 python3 ~/.claude/skills/image-gen/scripts/generate-image.py \
   "<v3 prompt — 아래 가이드>" \
   --style darkmode --ratio 1:1 --quality medium \
-  -o /Users/terrytaewoongum/Codes/personal/terryum-ai/public/images/projects/{slug}-cover.webp
+  -o /Users/terrytaewoongum/Codes/personal/terryum-ai/site/public/images/projects/{slug}-cover.webp
 
 # 2) utility가 cover를 표준 spec으로 압축 + og.png + thumb.webp 자동 파생
-cd /Users/terrytaewoongum/Codes/personal/terryum-ai
+cd /Users/terrytaewoongum/Codes/personal/terryum-ai/site
 node scripts/process-content-images.mjs --type=survey --slug={slug} --force
 ```
 
@@ -172,11 +172,11 @@ npm run build
 
 ```bash
 # 1) 대상 서베이 디렉토리 확인
-SURVEY_DIR=/Users/terrytaewoongum/Codes/personal/terry-surveys/surveys/<survey-slug-or-name>
+SURVEY_DIR=/Users/terrytaewoongum/Codes/personal/terryum-ai/terry-surveys/framework/surveys/<survey-slug-or-name>
 [ -d "$SURVEY_DIR" ] || { echo "not a terry-surveys book — skip"; exit 0; }
 
 # 2) terry-surveys로 이동 후 cite-post 스킬 호출
-cd /Users/terrytaewoongum/Codes/personal/terry-surveys
+cd /Users/terrytaewoongum/Codes/personal/terryum-ai/terry-surveys/framework
 ```
 
 그 다음 **`/cite-post <survey-name>`** 스킬을 호출한다. cite-post는:

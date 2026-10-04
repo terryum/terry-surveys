@@ -16,7 +16,7 @@ from pathlib import Path
 from PIL import Image
 
 
-DEFAULT_TERRYUM_AI = Path("/Users/terrytaewoongum/Codes/personal/terryum-ai")
+DEFAULT_TERRYUM_AI = Path("/Users/terrytaewoongum/Codes/personal/terryum-ai/site")
 
 EXPECTED = {
     "cover": ("WEBP", (1200, 1200), "webp"),

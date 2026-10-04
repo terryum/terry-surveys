@@ -8,7 +8,7 @@ entry points.
 ## Required workspace
 
 ```bash
-cd /Users/terrytaewoongum/Codes/personal/terry-surveys
+cd /Users/terrytaewoongum/Codes/personal/terryum-ai/terry-surveys/framework
 bash scripts/setup-contents.sh --check
 gh repo view terryum/terry-surveys-contents --json visibility,isPrivate
 ```

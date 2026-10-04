@@ -13,7 +13,7 @@ import re
 import sys
 from pathlib import Path
 
-DEFAULT_REPO_ROOT = Path("/Users/terrytaewoongum/Codes/personal/terry-surveys")
+DEFAULT_REPO_ROOT = Path("/Users/terrytaewoongum/Codes/personal/terryum-ai/terry-surveys/framework")
 REQUIRED_AGENTS = [
     "deep_researcher_foundations",
     "deep_researcher_frontier",

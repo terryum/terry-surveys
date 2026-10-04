@@ -40,7 +40,7 @@ import json
 import hashlib
 from pathlib import Path
 
-DEFAULT_REPO_ROOT = Path("/Users/terrytaewoongum/Codes/personal/terry-surveys")
+DEFAULT_REPO_ROOT = Path("/Users/terrytaewoongum/Codes/personal/terryum-ai/terry-surveys/framework")
 REPO_ROOT = DEFAULT_REPO_ROOT
 SKILL_DIR = Path(__file__).resolve().parents[1]
 TEMPLATE_DIR = SKILL_DIR / "references/agent-template"

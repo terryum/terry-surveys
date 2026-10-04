@@ -34,7 +34,7 @@ def emit(value: Any) -> None:
 
 
 def _next_tutorial_number(root: Path) -> int:
-    registry = root.parent / "terryum-ai/projects/surveys/surveys.json"
+    registry = root.parent.parent / "site/projects/surveys/surveys.json"
     if registry.is_file():
         try:
             value = json.loads(registry.read_text(encoding="utf-8")).get("next_tutorial_number")
