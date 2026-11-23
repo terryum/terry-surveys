@@ -39,7 +39,7 @@ shift 4
 VISIBILITY="private"
 GROUP=""
 DRY_RUN=""
-REPO_ROOT="/Users/terrytaewoongum/Codes/personal/terryum-ai/terry-surveys/framework"
+REPO_ROOT="/Users/terrytaewoongum/Codes/personal/terryum-ai/surveys/framework"
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -183,7 +183,7 @@ cat <<EOF
      (the symlink writes to terry-surveys-contents/surveys/$SLUG/)
   2) Run the v2 controller loop: /survey --orchestrate $SLUG
   3) Use /survey --sync-agents $SLUG only when refreshing generated role context
-  4) Commit + push: cd ../terry-surveys-contents && git add surveys/$SLUG/ && git commit && git push
+  4) Commit + push: cd ../contents && git add surveys/$SLUG/ && git commit && git push
   5) After deploy, register the private preview; publish only on an explicit /survey --publish
 
 EOF

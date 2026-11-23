@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Independent chapter editorial review 2.1",
+  "title": "Independent chapter editorial review 2.2",
   "type": "object",
   "required": [
     "schema_version",
@@ -9,11 +9,12 @@
     "independent",
     "manuscript_digests",
     "synthesis",
-    "findings"
+    "findings",
+    "judgments"
   ],
   "properties": {
     "schema_version": {
-      "const": "2.1"
+      "const": "2.2"
     },
     "chapter": {
       "type": "integer",
@@ -130,6 +131,54 @@
               "evidence"
             ]
           }
+        }
+      }
+    },
+    "judgments": {
+      "type": "object",
+      "required": [
+        "korean_prose",
+        "explanation_flow",
+        "visual_placement"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "korean_prose": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object"
+          }
+        },
+        "explanation_flow": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "object"
+          }
+        },
+        "visual_placement": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "editorial_principles": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object"
+      }
+    },
+    "rechecks": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "object"
         }
       }
     }

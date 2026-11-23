@@ -14,7 +14,7 @@ import re
 import sys
 from pathlib import Path
 
-DEFAULT_REPO_ROOT = Path("/Users/terrytaewoongum/Codes/personal/terryum-ai/terry-surveys/framework")
+DEFAULT_REPO_ROOT = Path("/Users/terrytaewoongum/Codes/personal/terryum-ai/surveys/framework")
 REQUIRED_FILES = [
     "_research/papers_foundations.json",
     "_research/groups_foundations.md",

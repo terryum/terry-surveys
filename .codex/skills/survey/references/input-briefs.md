@@ -73,8 +73,8 @@ title, but do not leave the only copy in `/tmp`.
   public URL, and available local source path. Read relevant KO/EN chapters,
   `_research`, and evidence artifacts rather than relying on the gallery card.
 - Resolve a paper-summary post number against `paper_list[].post_number` in
-  `../../terry-papers/knowledge-index.json`, then read the matching
-  `../../terry-papers/papers/<slug>.json` and, when needed, the corresponding
+  `../../papers/knowledge-index.json`, then read the matching
+  `../../papers/papers/<slug>.json` and, when needed, the corresponding
   `../../site/posts/papers/<slug>/` post. Record the KG slug, canonical paper
   IDs, original source URL, and exact Terry KO/EN post links.
 - Treat a bare `#<number>` as ambiguous unless the surrounding text explicitly

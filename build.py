@@ -35,7 +35,7 @@ def require_contents_workspace():
     """Refuse content operations unless the private sibling is linked."""
     if not os.path.islink(SURVEYS_DIR) or not os.path.isdir(SURVEYS_DIR):
         print("ERROR: private survey contents are not linked.", file=sys.stderr)
-        print("Run: gh repo clone terryum/terry-surveys-contents ../terry-surveys-contents", file=sys.stderr)
+        print("Run: gh repo clone terryum/terry-surveys-contents ../contents", file=sys.stderr)
         print("Then: bash scripts/setup-contents.sh --check", file=sys.stderr)
         sys.exit(1)
     contents_root = os.path.dirname(os.path.realpath(SURVEYS_DIR))

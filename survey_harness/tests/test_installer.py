@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import json
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
+from survey_harness.state import new_state, save_state
+from survey_harness.tests.helpers import make_repo
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / ".codex/skills/survey/scripts/sync_installed.py"
@@ -33,6 +37,24 @@ class InstallerTests(unittest.TestCase):
             wrapper = subprocess.run(["python3", str(installed / "scripts/survey_harness.py"), "--help"], cwd=ROOT, env=wrapper_env, capture_output=True, text=True)
             self.assertEqual(wrapper.returncode, 0, wrapper.stderr)
             self.assertIn("survey v2 harness", wrapper.stdout)
+            framework = project / "surveys/framework"
+            framework.mkdir(parents=True)
+            make_repo(framework, "default-survey")
+            save_state(framework, new_state(framework, "default-survey", "mini"))
+            shutil.copytree(ROOT / "survey_harness", framework / "survey_harness",
+                            ignore=shutil.ignore_patterns("__pycache__", "tests"))
+            shutil.copyfile(ROOT / "harness_runtime.py", framework / "harness_runtime.py")
+            args = ["python3", str(installed / "scripts/survey_harness.py")]
+            default = subprocess.check_output(args + ["next", "default-survey"], cwd=project, env=wrapper_env)
+            self.assertEqual(json.loads(default)["tasks"][0]["id"], "kg-seed")
+            other = Path(tmp) / "explicit"
+            other.mkdir()
+            make_repo(other, "explicit-survey")
+            save_state(other, new_state(other, "explicit-survey", "mini"))
+            explicit = subprocess.check_output(
+                args + ["--repo-root", str(other), "next", "explicit-survey"], cwd=project, env=wrapper_env,
+            )
+            self.assertEqual(json.loads(explicit)["slug"], "explicit-survey")
             tutorial_wrapper = subprocess.run(["python3", str(tutorial / "scripts/tutorial_harness.py"), "--help"], cwd=ROOT, env=wrapper_env, capture_output=True, text=True)
             self.assertEqual(tutorial_wrapper.returncode, 0, tutorial_wrapper.stderr)
             self.assertIn("action-first tutorial harness", tutorial_wrapper.stdout)

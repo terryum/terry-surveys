@@ -98,7 +98,7 @@ def build_tasks(chapters: Iterable[int]) -> List[Dict[str, Any]]:
         _task("critical-analysis", "synthesize", "critical_analyst", ["research-foundations", "research-frontier"], ["_analysis/gaps.md", "_analysis/novelty_matrix.md", "_analysis/positioning.md"], "Compare methods and conflicting primary evidence; explain solved and open questions, limits, and evidence-backed judgments for each chapter. These are research inputs, not manuscript checklists."),
         _task("evidence-synthesis", "synthesize", "evidence_librarian", ["critical-analysis", "editorial-contract"], ["_research/papers.json", "_research/source_ledger.jsonl", "_analysis/claim_evidence.jsonl"], "Merge sources and critical analysis into the claim ledger and chapter source packets. Include argument, comparison axes, counterevidence and limitations, not abstract collections."),
     ]
-    tasks.append(_task("editorial-contract", "synthesize", "book_writer", ["critical-analysis"], ["_analysis/editorial_contract.md"], "Record audience, central question, voice, depth, terminology, and short grounded S1/S4 reference excerpts with paths. Read the authoring prompt and critical analysis. Use the configured word target as guidance; write an argument for a reader, not audit procedure."))
+    tasks.append(_task("editorial-contract", "synthesize", "book_writer", ["critical-analysis"], ["_analysis/editorial_contract.md"], "Compare rendered KO/EN index and representative chapter pages from S1 and S4. Record the book's index, heading, argument, Korean prose, and companion navigation choices, with source paths and reasons for user-requested differences. Read the authoring prompt and critical analysis."))
     first = chapters[0] if chapters else None
     for ch in chapters:
         packet = f"_analysis/chapter_source_packets/ch{ch:02d}.json"
@@ -114,7 +114,9 @@ def build_tasks(chapters: Iterable[int]) -> List[Dict[str, Any]]:
         ])
         if ch != first:
             tasks[-4]["acceptance_dependencies"] = [f"qa-ch{first:02d}"]
-    tasks.append(_task("qa-book", "qa", "qa_reviewer", [f"qa-ch{ch:02d}" for ch in chapters], ["_quality/reviewer_scores.json", "_quality/build_validation.json", "_qa_report.md"], "Review the complete book for cross-chapter repetition, contradictions, argument continuity, bilingual meaning and build integrity. Aggregate chapter reviews, bind all manuscript digests, and record actual checks. Do not edit manuscripts.", ["qa-report", "reviewer-scores"]))
+    chapter_reviews = [f"qa-ch{ch:02d}" for ch in chapters]
+    tasks.append(_task("qa-book", "qa", "qa_reviewer", chapter_reviews, ["_quality/reviewer_scores.json", "_quality/build_validation.json", "_qa_report.md"], "Review cross-chapter repetition, contradictions, argument continuity, and bilingual meaning. Run the deployment build command locally, compare the rendered KO/EN indexes with S1/S4 and the editorial contract, and record actual checks. Aggregate chapter reviews and bind all manuscript digests. Do not edit manuscripts.", ["qa-report", "reviewer-scores"]))
+    tasks[-1]["acceptance_dependencies"] = chapter_reviews
     _configure_packets(tasks, chapters)
     return tasks
 
@@ -124,6 +126,16 @@ def _selector(path: str, chapter: int | None = None, root: str = "content") -> D
     if chapter is not None:
         result["chapter"] = chapter
     return result
+
+
+def _build_review_inputs() -> List[Dict[str, Any]]:
+    return [
+        _selector("survey.json"),
+        _selector("scripts/build_book.py"),
+        _selector("scripts/push.sh"),
+        *[_selector(rel, root="repo") for rel in ("build.py", "shared/build_site.py", "shared/validate.py", "shared/css", "shared/js")],
+        _selector(".codex/skills/survey/references/quality-and-release.md", root="repo"),
+    ]
 
 
 def _configure_packets(tasks: List[Dict[str, Any]], chapters: Iterable[int]) -> None:
@@ -168,14 +180,21 @@ def _configure_packets(tasks: List[Dict[str, Any]], chapters: Iterable[int]) -> 
             inputs += [_selector(f"_analysis/{name}.md") for name in ("gaps", "novelty_matrix", "positioning")]
         elif chapter is not None:
             inputs += [_selector(f"_analysis/chapter_source_packets/ch{chapter:02d}.json"), _selector("_analysis/editorial_contract.md")]
+            if task_id.startswith("write-") and chapter_list and chapter != chapter_list[0]:
+                inputs += [_selector(f"_quality/chapters/ch{chapter_list[0]:02d}.json")]
+                task["brief"] += " Read the accepted representative chapter review and apply its editorial_principles where relevant."
             if not task_id.startswith("write-"):
                 inputs += [_selector(f"book/{lang}/ch{chapter:02d}.md") for lang in ("ko", "en")]
             if task_id.startswith(("factcheck-", "qa-")):
                 inputs += [_selector("_analysis/claim_evidence.jsonl", chapter), _selector("_workspace/image_plan.json", chapter)]
+            if chapter_list and task_id == f"qa-ch{chapter_list[0]:02d}":
+                inputs += _build_review_inputs()
+                task["brief"] += " Inspect the rendered KO/EN section navigation and record reusable examples from actual passages and visible headings."
             if task_id.startswith("image-"):
                 owns += [f"book/{lang}/ch{chapter:02d}.md" for lang in ("ko", "en")]
         elif task_id == "qa-book":
             inputs += [_selector("_quality/chapters"), _selector("book"), _selector("_analysis/editorial_contract.md")]
+            inputs += _build_review_inputs()
         if task["owner"] == "book_writer":
             inputs += [_selector(".codex/skills/survey/references/editorial-contract.md", root="repo")]
         if task["owner"] == "qa_reviewer":
@@ -191,6 +210,9 @@ def _roots(root: Path, state: Dict[str, Any]) -> Dict[str, Path]:
 
 def _task_contract(task: Dict[str, Any]) -> str:
     payload = {key: task.get(key) for key in ("owner", "dependencies", "inputs", "ownership", "artifacts", "brief", "decisions", "acceptance_dependencies")}
+    for key in ("repair_requests", "pending_diagnosis", "review_findings"):
+        if key in task:
+            payload[key] = task[key]
     return hashlib.sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
 
@@ -208,8 +230,9 @@ def _output_selectors(task: Dict[str, Any]) -> List[Dict[str, Any]]:
     chapter = int(match.group(1)) if match else None
     # Shared JSON ledgers bind only this task's chapter. Markdown aggregate
     # reports are checked structurally; the last authorized owner binds the file.
+    outputs = task["artifacts"] if task.get("revision_check") else task.get("ownership", []) + task["artifacts"]
     return [_selector(rel, chapter if chapter and rel in {"_workspace/image_plan.json", "_analysis/claim_evidence.jsonl", "_refs_extracted.json"} else None)
-            for rel in dict.fromkeys(task.get("ownership", []) + task["artifacts"])]
+            for rel in dict.fromkeys(outputs)]
 
 
 def task_packet(root: Path, state: Dict[str, Any], task: Dict[str, Any]) -> Dict[str, Any]:
@@ -219,6 +242,13 @@ def task_packet(root: Path, state: Dict[str, Any], task: Dict[str, Any]) -> Dict
     packet["current_inputs"] = snapshot_inputs(_roots(root, state), task.get("inputs", []))
     packet["dependencies_evidence"] = [{"task": prior["id"], "artifacts": prior["artifacts"], "accepted": prior.get("accepted"), "snapshot": prior.get("output_snapshot")}
                                        for prior in state["tasks"] if prior["id"] in task["dependencies"]]
+    if task.get("pending_diagnosis"):
+        packet["brief"] += " Revisit the previous low score. Identify passage-level blocking findings or explain the judgment with grounded evidence."
+    if task.get("repair_requests"):
+        packet["brief"] += " Independently recheck each listed failure ID against the current passages and report it in rechecks."
+        packet["review_findings"] = {
+            repair_id: _by_id(state, repair_id)["review_findings"] for repair_id in task["repair_requests"]
+        }
     return packet
 
 
@@ -338,11 +368,32 @@ def ready_tasks(state: Dict[str, Any], limit: int | None = None) -> List[Dict[st
     held = {lock for task in state["tasks"] if task["status"] == "running" for lock in task.get("resource_locks", [])}
     selected = []
     owners = [task for task in state["tasks"] if task["status"] == "running"]
+    manuscript_repairs = [
+        task for task in state["tasks"]
+        if task["phase"] == "remediate" and task["status"] in {"pending", "running", "blocked"}
+        and any(rel.startswith("book/") for rel in task.get("ownership", []))
+    ]
+    chapters_accepted = state.get("schema_version") == "2.0" or all(
+        task.get("accepted") for task in state["tasks"] if task["id"].startswith("qa-ch")
+    )
     for task in state["tasks"]:
+        if task["status"] != "pending":
+            continue
+        book_review = task["id"] == "qa-book" or "_quality/reviewer_scores.json" in task.get("ownership", [])
+        if book_review and (manuscript_repairs or not chapters_accepted):
+            continue
+        if task["id"].startswith(("qa-ch", "image-ch", "factcheck-ch", "write-ch")):
+            manuscripts = [item["path"] for item in task.get("inputs", []) if item["path"].startswith("book/")]
+            manuscripts.extend(rel for rel in task["artifacts"] if rel.startswith("book/"))
+            if any(ownership_conflicts(manuscripts, repair["ownership"]) for repair in manuscript_repairs):
+                continue
+        if task in manuscript_repairs:
+            if any(ownership_conflicts(task["ownership"], [item["path"] for item in prior.get("inputs", []) if item["root"] == "content"]) for prior in owners):
+                continue
         locks = set(task.get("resource_locks", []))
         accepted = all(_by_id(state, dependency).get("accepted") is True for dependency in task.get("acceptance_dependencies", []))
         conflict = any(ownership_conflicts(task.get("ownership", []), other.get("ownership", [])) for other in owners + selected)
-        if task["status"] == "pending" and set(task["dependencies"]) <= completed and accepted and not conflict and not locks.intersection(held):
+        if set(task["dependencies"]) <= completed and accepted and not conflict and not locks.intersection(held):
             selected.append(task)
             held.update(locks)
             if len(selected) >= capacity:
@@ -350,11 +401,24 @@ def ready_tasks(state: Dict[str, Any], limit: int | None = None) -> List[Dict[st
     return selected
 
 
+def _release_role_ids(state: Dict[str, Any]) -> Dict[str, set[str]]:
+    roles = {"kg_mapper", "evidence_librarian", "deep_researcher_foundations", "deep_researcher_frontier", "book_writer", "image_curator", "fact_checker", "qa_reviewer"}
+    if state.get("schema_version") == "2.1":
+        roles.add("critical_analyst")
+    identities: Dict[str, set[str]] = {role: set() for role in roles}
+    for task in state["tasks"]:
+        owner = task.get("owner")
+        if task.get("phase") != "remediate" and owner in identities:
+            identities[owner].update(str(item) for item in task.get("agent_ids", []) if item)
+    return identities
+
+
 def start_task(state: Dict[str, Any], task_id: str, agent_id: str, root: Path | None = None) -> None:
     task = _by_id(state, task_id)
     if task not in ready_tasks(state, limit=len(state["tasks"])):
         raise ValueError(f"task is not ready: {task_id}")
-    if not agent_id.strip() or PLACEHOLDER_AGENT.search(agent_id.strip()):
+    agent_id = agent_id.strip()
+    if not agent_id or PLACEHOLDER_AGENT.search(agent_id):
         raise ValueError("a real worker agent id is required")
     if any(other["status"] == "running" and agent_id in other.get("agent_ids", []) for other in state["tasks"]):
         raise ValueError("one agent id cannot own simultaneous running tasks")
@@ -362,6 +426,12 @@ def start_task(state: Dict[str, Any], task_id: str, agent_id: str, root: Path | 
         raise ValueError("reviewer must be independent from all production tasks")
     if task["owner"] != "qa_reviewer" and any(agent_id in other.get("agent_ids", []) for other in state["tasks"] if other["owner"] == "qa_reviewer"):
         raise ValueError("production worker cannot reuse a reviewer identity")
+    if state.get("profile") == "full" and state.get("release", {}).get("policy") == "auto" and task["phase"] != "remediate":
+        identities = _release_role_ids(state)
+        owner = task["owner"]
+        other_roles = sorted(role for role, ids in identities.items() if role != owner and agent_id in ids)
+        if owner in identities and other_roles:
+            raise ValueError(f"release requires distinct role workers; {agent_id} already assigned to {', '.join(other_roles)} and cannot start {task_id} as {owner}")
     root = root or (Path(state["project_root"]) if state.get("project_root") else None)
     if state.get("schema_version") == "2.1":
         if root is None:
@@ -380,16 +450,21 @@ def start_task(state: Dict[str, Any], task_id: str, agent_id: str, root: Path | 
         predecessors = []
         for prior in state["tasks"]:
             if prior["status"] == "completed" and ownership_conflicts(task.get("ownership", []), prior.get("ownership", [])):
-                changes = revalidate_inputs(roots, prior.get("output_snapshot"))
+                resumed_scopes = _successor_scopes(prior, task) if prior["id"] in task.get("authorized_predecessors", []) and task.get("manuscript_before") else []
+                changes = revalidate_inputs(roots, prior.get("output_snapshot"), resumed_scopes)
                 if changes:
                     raise ValueError(f"stale predecessor {prior['id']}; resume before handoff: {changes}")
                 predecessors.append(prior["id"])
         task["authorized_predecessors"] = predecessors
         task["input_snapshot"] = snapshot_inputs(roots, task.get("inputs", []))
+        if task["phase"] == "remediate" and task["owner"] == "book_writer" and not task.get("manuscript_before"):
+            task["manuscript_before"] = snapshot_inputs(roots, [
+                _selector(rel) for rel in task["ownership"] if re.fullmatch(r"book/(ko|en)/ch\d+\.md", rel)
+            ])
         task["contract_snapshot"] = _task_contract(task)
     task["status"] = "running"
     task["attempt"] = int(task.get("attempt", 0)) + 1
-    task.setdefault("agent_ids", []).append(agent_id.strip())
+    task.setdefault("agent_ids", []).append(agent_id)
     task["started_at"] = now()
     task["blocked_reason"] = None
 
@@ -419,6 +494,19 @@ def complete_task(root: Path, state: Dict[str, Any], task_id: str, extra_artifac
             if changes:
                 raise ValueError(f"{task_id} changed another chapter or undeclared predecessor output: {changes}")
     _validate_task_content(base, state, task)
+    if task.get("manuscript_before", {}).get("entries"):
+        evidence = json.loads((base / task["artifacts"][0]).read_text(encoding="utf-8"))
+        before = {entry["selector"]["path"]: entry["digest"] for entry in task["manuscript_before"]["entries"]}
+        after_snapshot = snapshot_inputs(_roots(root, state), [_selector(rel) for rel in before])
+        after = {entry["selector"]["path"]: entry["digest"] for entry in after_snapshot["entries"]}
+        changed = {rel for rel in before if before[rel] != after[rel] and after[rel] != "missing"}
+        deleted = {rel for rel in before if before[rel] != "missing" and after[rel] == "missing"}
+        if not changed or changed != set(evidence["changed_artifacts"]) or deleted:
+            raise ValueError(f"{task_id}: changed_artifacts must match actual manuscript changes without deletions")
+        task["revision_check"] = {
+            "status": "passed", "required": True, "before": before, "after": after,
+            "changed_artifacts": sorted(changed), "report": evidence,
+        }
     if state.get("schema_version") == "2.1":
         task["contract_snapshot"] = _task_contract(task)
         task["input_snapshot"] = refresh_owned_inputs(roots, task["input_snapshot"], task.get("ownership", []))
@@ -445,8 +533,28 @@ def complete_task(root: Path, state: Dict[str, Any], task_id: str, extra_artifac
         attempts = state["quality"].setdefault("remediation_attempts", {})
         for failure_id in task.get("failure_ids", []):
             attempts[failure_id] = int(attempts.get(failure_id, 0)) + 1
+        if task.get("review_findings"):
+            chapter = re.search(r"ch(\d+)", task_id).group()
+            review = _by_id(state, f"qa-{chapter}")
+            history = review.get("review_history", [])
+            reviewed = history[-1]["review"].get("rechecks", {}) if history else {}
+            previous = [repair_id for repair_id in review.get("repair_requests", []) if repair_id not in reviewed]
+            review["repair_requests"] = [*previous, task_id]
+            review["dependencies"] = list(dict.fromkeys([*review["dependencies"], task_id]))
+            review["inputs"].append(_selector(task["artifacts"][0]))
         _reopen_invalid(root, state)
     if task_id.startswith("qa-ch") and state.get("schema_version") == "2.1":
+        task.setdefault("review_history", []).append({
+            "run_id": state["run_id"], "attempt": task["attempt"],
+            "diagnosis": task.get("pending_diagnosis"),
+            "review": json.loads((base / task["artifacts"][0]).read_text(encoding="utf-8")),
+            "output_snapshot": deepcopy(task["output_snapshot"]),
+        })
+        if failure_id := task.get("pending_diagnosis"):
+            attempts = state["quality"]["remediation_attempts"]
+            attempts[failure_id] = int(attempts.get(failure_id, 0)) + 1
+            del task["pending_diagnosis"]
+            task["contract_snapshot"] = _task_contract(task)
         _refresh_chapter_acceptance(base, state)
 
 
@@ -511,11 +619,11 @@ def _validate_task_content(base: Path, state: Dict[str, Any], task: Dict[str, An
                 raise ValueError(f"{rel} missing fields: {', '.join(missing)}")
             if len(packet.get("sources", [])) < minimum:
                 raise ValueError(f"{rel} has {len(packet.get('sources', []))} sources; requires {minimum}")
-    if task.get("phase") == "remediate":
+    if task.get("phase") == "remediate" and not task.get("revision_check"):
         evidence_path = base / f"_quality/remediation/{task_id}.json"
         evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
         required = ("failure_ids", "before", "after", "changed_artifacts", "evidence")
-        missing = [field for field in required if not evidence.get(field)]
+        missing = [field for field in required if field not in evidence or evidence[field] in (None, "", [], {})]
         if missing:
             raise ValueError(f"{task_id} remediation evidence missing: {', '.join(missing)}")
         if sorted(evidence["failure_ids"]) != sorted(task.get("failure_ids", [])):
@@ -604,10 +712,19 @@ def plan_remediation(state: Dict[str, Any], failures: List[Dict[str, Any]]) -> L
     attempts = state["quality"].setdefault("remediation_attempts", {})
     grouped: Dict[tuple[str, str], List[Dict[str, Any]]] = {}
     exhausted = []
+    created = []
+    active_writer_chapters = {
+        match.group() for task in state["tasks"] if task["phase"] == "remediate"
+        and task["owner"] == "book_writer" and task["status"] in {"pending", "running", "blocked"}
+        and (match := re.search(r"ch\d+$", task["id"].split("-r")[0]))
+    }
+    concrete_chapters = {
+        Path(failure["finding"]["location"]["path"]).stem for failure in failures if failure.get("finding")
+    }
     active_failure_ids = {
         failure_id
         for task in state["tasks"]
-        if task.get("phase") == "remediate" and task.get("status") in {"pending", "running"}
+        if task.get("phase") == "remediate" and task.get("status") in {"pending", "running", "blocked"}
         for failure_id in task.get("failure_ids", [])
     }
     for failure in failures:
@@ -615,18 +732,36 @@ def plan_remediation(state: Dict[str, Any], failures: List[Dict[str, Any]]) -> L
         if failure.get("severity") == "warning":
             continue
         if failure["id"] == "dimension-synthesis" and not failure.get("finding"):
+            if concrete_chapters or active_writer_chapters or any(item["id"].startswith("chapter-synthesis-") for item in failures):
+                continue
             failure = dict(failure, owner="qa_reviewer", action="evidence", message="Diagnose synthesis with located manuscript defects; do not ask a writer to increase a number.")
         gate = failure["id"]
         if gate in active_failure_ids:
+            continue
+        chapter_match = re.search(r"(?:^|-)ch(\d+)(?:$|-)", gate)
+        chapter_key = f"ch{chapter_match.group(1)}" if chapter_match else "global"
+        if failure.get("finding"):
+            chapter_key = Path(failure["finding"]["location"]["path"]).stem
+        if gate.startswith("chapter-synthesis-"):
+            if chapter_key in concrete_chapters or chapter_key in active_writer_chapters:
+                continue
+            review = _by_id(state, f"qa-{chapter_key}")
+            if review["status"] != "completed":
+                continue
+            if int(attempts.get(gate, 0)) >= max_attempts:
+                exhausted.append(gate)
+                continue
+            review.update(status="pending", accepted=False, completed_at=None, pending_diagnosis=gate)
+            book = _by_id(state, "qa-book")
+            if book["status"] == "completed":
+                book.update(status="pending", completed_at=None)
+            created.append(review)
             continue
         count = int(attempts.get(gate, 0))
         if count >= max_attempts:
             exhausted.append(gate)
             continue
-        chapter_match = re.search(r"(?:^|-)ch(\d{2})(?:$|-)", gate)
-        chapter_key = f"ch{chapter_match.group(1)}" if chapter_match else "global"
         grouped.setdefault((failure["owner"], chapter_key), []).append(failure)
-    created = []
     round_number = len(state["quality"].get("history", []))
     cut_prefixes = (
         "apparatus-", "bloat-", "dimension-synthesis", "paragraph-p90-",
@@ -686,7 +821,20 @@ def plan_remediation(state: Dict[str, Any], failures: List[Dict[str, Any]]) -> L
             task["ownership"].extend(["_research", "_analysis/chapter_source_packets", "_analysis/claim_evidence.jsonl"])
         if owner == "qa_reviewer" and chapter_key == "global":
             task["ownership"].extend(["_quality/reviewer_scores.json", "_quality/build_validation.json", "_qa_report.md"])
+            task["inputs"].extend(_build_review_inputs())
         task["ownership"] = sorted(set(task["ownership"]))
+        if task["findings"]:
+            task["review_findings"] = {item["id"]: item["finding"] for item in items if item.get("finding")}
+            review = _by_id(state, f"qa-{chapter_key}")
+            for rel in review["artifacts"]:
+                task["inputs"].append(_selector(rel))
+            if any(failure_id.startswith("editorial-book-") for failure_id in task["review_findings"]):
+                task["inputs"].append(_selector("_quality/reviewer_scores.json"))
+            review["accepted"] = False
+            book = _by_id(state, "qa-book")
+            if book["status"] == "completed":
+                book.update(status="pending", completed_at=None)
+            task["brief"] += "\nList the manuscript files that actually changed. Independent chapter QA will recheck each original finding after fact-checking."
         # Repeated no-progress attempts require a revised diagnosis, not a
         # verbatim replay of the same instruction against the same input.
         diagnosis = hashlib.sha256(json.dumps(items, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
@@ -715,7 +863,20 @@ def completed_task_errors(root: Path, state: Dict[str, Any], task_ids: Iterable[
             _validate_task_content(base, state, task)
             if state.get("schema_version") == "2.1":
                 roots = _roots(root, state)
-                changes = revalidate_inputs(roots, task.get("input_snapshot")) + revalidate_inputs(roots, task.get("output_snapshot"))
+                # An interrupted writer keeps its original baseline and sole
+                # ownership. Its partial edits are checked at completion.
+                resumed_scopes = [
+                    scope for repair in state["tasks"] if repair["status"] in {"pending", "running", "blocked"}
+                    and repair.get("manuscript_before") and task["id"] in repair.get("authorized_predecessors", [])
+                    for scope in _successor_scopes(task, repair)
+                ]
+                changes = revalidate_inputs(roots, task.get("output_snapshot"), resumed_scopes)
+                if not task.get("revision_check"):
+                    shared_scopes = [
+                        scope for scope in resumed_scopes
+                        if ownership_conflicts([scope], task.get("ownership", []))
+                    ]
+                    changes += revalidate_inputs(roots, task.get("input_snapshot"), shared_scopes)
                 if task.get("contract_snapshot") != _task_contract(task):
                     changes.append("task contract")
                 if changes:
@@ -731,7 +892,7 @@ def _refresh_chapter_acceptance(base: Path, state: Dict[str, Any]) -> None:
     from .editorial import review_chapters
     profile = load_profile(state["profile"])
     failures = []
-    for task in state["tasks"]:
+    for task in list(state["tasks"]):
         if task["status"] != "completed" or not task["id"].startswith("qa-ch"):
             continue
         chapter = int(task["id"].removeprefix("qa-ch"))
@@ -823,6 +984,17 @@ def resume_state(root: Path, state: Dict[str, Any]) -> Dict[str, str]:
             task["blocked_reason"] = "2.0 result preserved in prior run; fresh input and editorial evidence required"
         state["schema_version"] = "2.1"
         state["quality"]["last_scorecard"] = None
+    else:
+        # Refresh changed contracts while retaining the evidence for revalidation.
+        chapters = chapter_numbers(survey_dir(root, state["slug"]))
+        base_tasks = {task["id"]: task for task in build_tasks(chapters)}
+        for task in state["tasks"]:
+            canonical = base_tasks.get(task["id"], {})
+            if task["id"] == "qa-book" or canonical.get("acceptance_dependencies"):
+                task["acceptance_dependencies"] = canonical["acceptance_dependencies"]
+            if canonical and (task["id"].startswith("write-ch") or task["id"] in {"editorial-contract", "qa-book", f"qa-ch{chapters[0]:02d}"}):
+                task["inputs"] = canonical["inputs"]
+                task["brief"] = canonical["brief"]
     for task in state["tasks"]:
         if task["status"] in {"running", "blocked"}:
             task["status"] = "pending"
@@ -887,19 +1059,12 @@ def update_release(state: Dict[str, Any], status: str, reason: str | None = None
         unassigned = [task["id"] for task in state["tasks"] if task["status"] == "completed" and not task.get("agent_ids")]
         if unassigned:
             raise ValueError(f"release blocked by completed tasks without worker identity: {', '.join(unassigned[:12])}")
-        role_identities: Dict[str, set] = {}
-        for task in state["tasks"]:
-            if task.get("phase") == "remediate":
-                continue
-            role_identities.setdefault(str(task.get("owner")), set()).update(str(item) for item in task.get("agent_ids", []) if item)
-        required_roles = {"kg_mapper", "evidence_librarian", "deep_researcher_foundations", "deep_researcher_frontier", "book_writer", "image_curator", "fact_checker", "qa_reviewer"}
-        if state.get("schema_version") == "2.1":
-            required_roles.add("critical_analyst")
-        missing_roles = sorted(role for role in required_roles if not role_identities.get(role))
+        role_identities = _release_role_ids(state)
+        missing_roles = sorted(role for role, ids in role_identities.items() if not ids)
         if missing_roles:
             raise ValueError(f"release blocked by missing role worker identities: {', '.join(missing_roles)}")
         overlaps = []
-        role_names = sorted(required_roles)
+        role_names = sorted(role_identities)
         for index, left in enumerate(role_names):
             for right in role_names[index + 1:]:
                 shared = role_identities[left].intersection(role_identities[right])

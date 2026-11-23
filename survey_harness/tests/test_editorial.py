@@ -42,6 +42,29 @@ class EditorialReviewTests(unittest.TestCase):
         self.assertEqual(book_review_errors(self.survey, [1], self.state), [])
         self.assertEqual(set(manuscript_digests(self.survey, 1)), {"ko", "en"})
 
+    def test_generic_praise_cannot_substitute_for_judgments(self):
+        self.review["synthesis"] = {"score": 95, "evidence": "Readers can follow the argument."}
+        self.review.pop("judgments")
+        self.save_review()
+        self.assertIn("judgments", " ".join(chapter_review_errors(self.survey, 1, self.state)))
+
+    def test_judgments_bind_each_language_and_need_grounded_reasons(self):
+        flow = self.review["judgments"]["explanation_flow"]
+        for changes in ({"excerpt": "This phrase is not in the manuscript."},
+                        {"path": "book/ko/ch01.md", "excerpt": "근거를 비교할 수 있다."},
+                        {"reason": " " * 20}, {"verdict": "needs_revision"}):
+            with self.subTest(changes=changes):
+                original = flow[1]
+                flow[1] = dict(original, **changes)
+                self.save_review()
+                self.assertTrue(chapter_review_errors(self.survey, 1, self.state))
+                flow[1] = original
+
+    def test_representative_review_needs_grounded_principles(self):
+        self.review.pop("editorial_principles")
+        self.save_review()
+        self.assertIn("editorial_principles", " ".join(chapter_review_errors(self.survey, 1, self.state)))
+
     def test_any_manuscript_change_invalidates_chapter_and_book_review(self):
         chapter = self.survey / "book/en/ch01.md"
         chapter.write_text(chapter.read_text() + "\n")

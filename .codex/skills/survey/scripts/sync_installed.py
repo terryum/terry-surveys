@@ -15,7 +15,7 @@ import time
 from pathlib import Path
 
 _SOURCE_PROJECT = Path(__file__).resolve().parents[4]
-PROJECT_ROOT = Path(os.environ.get("TERRY_SURVEYS_ROOT", _SOURCE_PROJECT if (_SOURCE_PROJECT / "survey_harness").is_dir() else "/Users/terrytaewoongum/Codes/personal/terryum-ai/terry-surveys/framework")).expanduser().resolve()
+PROJECT_ROOT = Path(os.environ.get("TERRY_SURVEYS_ROOT", _SOURCE_PROJECT if (_SOURCE_PROJECT / "survey_harness").is_dir() else "/Users/terrytaewoongum/Codes/personal/terryum-ai/surveys/framework")).expanduser().resolve()
 CANONICAL_ROOT = PROJECT_ROOT / ".codex/skills"
 DEFAULT_DEST_ROOT = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")) / "skills"
 LEGACY_ORCHESTRATORS = ("tactile-book-orchestrator", "research-book-orchestrator", "survey-lite")

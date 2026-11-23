@@ -18,11 +18,28 @@ only the report artifacts declared by the packet.
 `survey_harness/schemas/chapter-review.schema.json` (and the controller's
 current schema validation), with:
 
-- `schema_version: "2.1"`, `chapter`, actual `reviewer_id`, `independent: true`.
+- `schema_version: "2.2"`, `chapter`, actual `reviewer_id`, `independent: true`.
 - `manuscript_digests: {ko, en}` containing SHA-256 of the current raw files.
 - `synthesis: {score, evidence}` with a score from 0 to 100 and passage-grounded
   explanation of argument, valid comparison, justified author judgment, and
   reader understanding.
+- `judgments` contains three arrays. Each entry gives the manuscript `path`,
+  a verbatim `excerpt`, the `reason` for the judgment, and a `verdict` of
+  `pass` or `needs_revision`. Add the blocking `finding_id` to a
+  `needs_revision` entry. In `korean_prose`, cite KO prose and explain how
+  particles, sentence rhythm, translationese, and established technical terms
+  affect readability. In `explanation_flow`, cite KO and EN and explain how
+  each passage develops causal reasoning or makes comparison conditions clear.
+  In `visual_placement`, cite both languages and explain what a figure or table
+  helps the reader understand at that point in the argument.
+- The representative review supplies `editorial_principles` entries with
+  `principle`, `path`, `excerpt`, and `reason`. State guidance a later writer
+  can apply to a different chapter and show where it worked. Open the rendered
+  KO and EN chapter pages and verify the section labels, numbering, and anchors.
+  Use the book's partial build when available, or render the representative
+  chapter in a temporary copy with that chapter selected. Cite an actual
+  manuscript heading in an `editorial_principles` entry and explain what the
+  rendered navigation showed and what later writers should do.
 - `findings`, each with stable `id`, `severity` (`blocker` or `warning`),
   `location: {path, anchor}`, `excerpt`, `problem`, `impact`, `expected`, and
   `action` (`add`, `cut`, `rewrite`, `reorder`, or `evidence`). `path` names the
@@ -48,6 +65,16 @@ reviewer identities, and checks cross-chapter repetition, contradictions,
 progression, missing prerequisites, duplicated examples, and bilingual meaning.
 Own `_quality/reviewer_scores.json`, `_quality/build_validation.json`, and
 `_qa_report.md`. Do not overwrite these from a chapter task.
+
+Run the exact local build command used by the deployment workflow, including a
+survey-specific builder when configured. Open both generated indexes and
+compare them with the rendered S1/S4 references and the editorial contract.
+Follow the reading link, inspect the cover, introduction and chapter cards,
+verify glossary and bibliography links, and follow the recorded entry routes to
+companion materials. Check both a desktop and a mobile viewport. In
+`_quality/build_validation.json`, record the command, working directory, exit
+code, and the observed index results and any discrepancies for each language.
+Use `references/quality-and-release.md` for the evidence format.
 
 The aggregate score file retains the dimension structure, with version 2.1,
 `manuscript_digests: {chNN: {ko, en}}`, and structured `findings`. Explain every
@@ -77,7 +104,10 @@ factual/provenance/build blocker.
 ## Repair and stopping
 
 Return structured defects to the artifact owner through the controller. Recheck
-repairs under new raw-file digests. A failed check must not become a pass by
-changing thresholds or dropping the finding. Keep its stable ID while the same
-underlying defect remains. After three failed repair attempts, preserve the
-history and checkpoint as blocked. Do not publish a blocked draft as ready.
+repairs under new raw-file digests. For every repair task and failure ID in the
+QA packet, write `rechecks[repair_task_id][failure_id]` with `status` (`resolved`
+or `open`), `path`, a current `excerpt`, and a `reason`. Use the original
+finding ID on the current blocking finding if the defect remains. Explain how
+the edit affected the original reader problem and recheck claim conditions and
+bilingual meaning. Keep the review evidence when the profile's repair limit is
+reached and checkpoint the run as blocked.

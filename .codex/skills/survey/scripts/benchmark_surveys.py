@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Optional
 
 
-DEFAULT_REPO_ROOT = Path("/Users/terrytaewoongum/Codes/personal/terryum-ai/terry-surveys/framework")
+DEFAULT_REPO_ROOT = Path("/Users/terrytaewoongum/Codes/personal/terryum-ai/surveys/framework")
 if str(DEFAULT_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(DEFAULT_REPO_ROOT))
 

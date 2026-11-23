@@ -90,8 +90,10 @@ Apply these prose criteria:
   ownership, permission, or "gate to close" language the default grammar of the
   narrative.
 
-Before prose drafting, audit the complete KO/EN part and chapter title set
-against S1/S4. Use concise noun phrases for parts and a shared `core topic —
+Before prose drafting, compare rendered S1/S4 KO/EN indexes and representative
+chapters. Record the planned index, companion routes, headings, prose
+progression, and Korean style in the editorial contract. Audit the complete
+KO/EN part and chapter title set. Use concise noun phrases for parts and a shared `core topic —
 scope/payoff` grammar for chapters. Put lists, method catalogs, and explanatory
 clauses in chapter summaries, not headings. Keep `survey.json`, manuscript
 frontmatter, and visible H1 headings exactly synchronized.
@@ -120,11 +122,16 @@ Send corrections to the writer; do not merely label an incorrect statement.
 Do not edit reviewed chapters. Inspect evidence coverage, argument and
 originality, factual support, visual pedagogy and pacing, crosslinks, bilingual
 parity, and build integrity. A chapter reviewer owns only
-`_quality/chapters/chNN.json`, identifying chapter, current manuscript digest,
-real reviewer ID, dimension scores, and structured defects. `qa-book` consumes
+`_quality/chapters/chNN.json`, identifying chapter, current manuscript digests,
+real reviewer ID, synthesis score, passage-backed editorial judgments, and
+structured defects. Representative QA verifies the rendered section navigation
+in both languages and records reusable examples from actual passages and
+headings. `qa-book` consumes
 all current chapter reviews, checks repetition/contradictions/transitions across
 chapters, and owns `_quality/reviewer_scores.json`,
-`_quality/build_validation.json`, and `_qa_report.md`. The final report ends in
+`_quality/build_validation.json`, and `_qa_report.md`. It runs the deployment
+build command locally and records the comparison of its rendered KO/EN indexes
+with S1/S4 and the editorial contract. The final report ends in
 exactly `READY FOR RELEASE` or `BLOCKED: <reason>`.
 
 Score synthesis from the argument, valid comparison, justified author judgment,
@@ -140,5 +147,5 @@ Every defect needs a stable ID, owner, location, excerpt, problem, reader impact
 expected result, and repair action (`add`, `cut`, `rewrite`, `reorder`, or
 `evidence`). A vague low score returns to the reviewer for diagnosis,
 not to the writer as an invitation to pad text. Recheck repaired passages under
-a fresh manuscript digest. Stop after three failed repairs of the same stable
-defect and preserve the evidence.
+a fresh manuscript digest. Preserve each attempt's evidence and stop at the
+profile's retry limit for the same stable defect.

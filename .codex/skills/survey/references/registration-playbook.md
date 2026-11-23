@@ -25,7 +25,7 @@ Cloudflare Pages Direct Upload로 배포한다. GitHub repo 연결 방식도 허
 Codex가 즉시 끝내야 하는 `$survey` 배포에서는 direct upload가 표준이다.
 
 ```bash
-cd /Users/terrytaewoongum/Codes/personal/terryum-ai/terry-surveys/framework
+cd /Users/terrytaewoongum/Codes/personal/terryum-ai/surveys/framework
 python3 build.py <survey-dir>
 bash surveys/<survey-dir>/scripts/push.sh "deploy <survey-dir>"
 ```
@@ -222,11 +222,11 @@ npm run build
 
 ```bash
 # 1) 대상 서베이 디렉토리 확인
-SURVEY_DIR=/Users/terrytaewoongum/Codes/personal/terryum-ai/terry-surveys/framework/surveys/<survey-slug-or-name>
+SURVEY_DIR=/Users/terrytaewoongum/Codes/personal/terryum-ai/surveys/framework/surveys/<survey-slug-or-name>
 [ -d "$SURVEY_DIR" ] || { echo "not a terry-surveys book — skip"; exit 0; }
 
 # 2) terry-surveys로 이동 후 cite-post 스킬 호출
-cd /Users/terrytaewoongum/Codes/personal/terryum-ai/terry-surveys/framework
+cd /Users/terrytaewoongum/Codes/personal/terryum-ai/surveys/framework
 ```
 
 그 다음 **`/cite-post <survey-name>`** 스킬을 호출한다. cite-post는:

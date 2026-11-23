@@ -4,7 +4,7 @@
 
 ## 선행 조건
 
-- cwd가 `/Users/terrytaewoongum/Codes/personal/terryum-ai/terry-surveys/framework` 내부이고
+- cwd가 `/Users/terrytaewoongum/Codes/personal/terryum-ai/surveys/framework` 내부이고
   `bash scripts/setup-contents.sh --check`가 통과.
 - Python 3, `python3 build.py --help`가 응답.
 - Codex skill의 `references/agent-template/` 디렉토리와 그 하위 6개 템플릿 md + README 존재. deep-researcher 템플릿은 bootstrap 시 foundations/frontier 2개 에이전트로 확장된다.
@@ -59,13 +59,13 @@ python3 build.py --new <slug>
 ```bash
 mkdir -p surveys/<slug>/.claude/agents
 python3 ~/.codex/skills/survey/scripts/sync_agents.py <slug> --retrofit --apply \
-  --repo-root /Users/terrytaewoongum/Codes/personal/terryum-ai/terry-surveys/framework \
+  --repo-root /Users/terrytaewoongum/Codes/personal/terryum-ai/surveys/framework \
   --skill-dir ~/.codex/skills/survey
 ```
 
 **또는** `scripts/bootstrap.sh <slug> <title_ko> <title_en> <domain> [--visibility=group --group=<grp>] [--repo-root=<path>] [--skill-dir=<path>]`으로 위 전 과정 한 번에 실행.
 
-Codex skill에서 실행할 때는 skill이 repo 밖(`~/.codex/skills/survey`)에 있으므로 `--repo-root=/Users/terrytaewoongum/Codes/personal/terryum-ai/terry-surveys/framework`를 명시해도 된다. 스크립트는 KG mapper, evidence librarian, foundations/frontier researchers, writer, image curator, fact checker, QA reviewer의 v2 역할 파일 8개를 만든다.
+Codex skill에서 실행할 때는 skill이 repo 밖(`~/.codex/skills/survey`)에 있으므로 `--repo-root=/Users/terrytaewoongum/Codes/personal/terryum-ai/surveys/framework`를 명시해도 된다. 스크립트는 KG mapper, evidence librarian, foundations/frontier researchers, writer, image curator, fact checker, QA reviewer의 v2 역할 파일 8개를 만든다.
 
 ### Reader visibility 분기 (private preview vs group)
 
@@ -111,7 +111,7 @@ python3 build.py --validate <slug>
 ### Step 7. Git 초기 커밋 (선택, 사용자 확인 후)
 
 ```bash
-cd ../terry-surveys-contents
+cd ../contents
 git add surveys/<slug>/ bibtex/refs_index.json
 git commit -m "feat(<slug>): bootstrap survey scaffold + agents"
 ```

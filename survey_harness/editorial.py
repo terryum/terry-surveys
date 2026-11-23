@@ -74,6 +74,20 @@ def _finding_errors(path: Path, findings: List[Dict[str, Any]], chapters: Iterab
     return errors
 
 
+def _passage_errors(row: Dict[str, Any], manuscripts: Dict[str, str], label: str) -> List[str]:
+    location = row.get("path")
+    excerpt = row.get("excerpt")
+    reason = row.get("reason")
+    if not isinstance(location, str) or location not in manuscripts:
+        return [f"{label}: path must name a reviewed manuscript"]
+    errors = []
+    if not isinstance(excerpt, str) or len(" ".join(excerpt.split())) < 12 or " ".join(excerpt.split()) not in manuscripts[location]:
+        errors.append(f"{label}: cite a real passage from {location}")
+    if not isinstance(reason, str) or len(reason.strip()) < 12:
+        errors.append(f"{label}: explain the judgment about the cited passage")
+    return errors
+
+
 def chapter_review_errors(path: Path, chapter: int, state: Dict[str, Any]) -> List[str]:
     """Validate one review without requiring other chapters or a passing verdict."""
     data = _read(path / f"_quality/chapters/ch{chapter:02d}.json")
@@ -89,6 +103,64 @@ def chapter_review_errors(path: Path, chapter: int, state: Dict[str, Any]) -> Li
         errors.append("manuscript_digests do not match the current KO/EN manuscript bytes")
     errors.extend(_identity_errors(data, f"qa-ch{chapter:02d}", state))
     errors.extend(_finding_errors(path, data["findings"], [chapter]))
+    manuscripts = {}
+    for lang in expected:
+        rel = f"book/{lang}/ch{chapter:02d}.md"
+        text = (path / rel).read_text(encoding="utf-8")
+        # Editorial evidence comes from reader-visible passages.
+        text = re.sub(r"\A---\s*\n.*?\n---\s*\n", "", text, count=1, flags=re.S)
+        text = re.sub(r"<!--.*?-->", "", text, flags=re.S)
+        manuscripts[rel] = " ".join(text.split())
+    blockers = {finding["id"]: finding for finding in data["findings"] if finding["severity"] == "blocker"}
+    for name, rows in data["judgments"].items():
+        paths = {f"book/ko/ch{chapter:02d}.md"} if name == "korean_prose" else set(manuscripts)
+        covered = set()
+        for index, row in enumerate(rows):
+            label = f"{name}[{index}]"
+            errors.extend(_passage_errors(row, {key: manuscripts[key] for key in paths if key in manuscripts}, label))
+            location = row.get("path")
+            if isinstance(location, str) and location in paths:
+                covered.add(location)
+            if row.get("verdict") == "needs_revision":
+                finding_id = row.get("finding_id")
+                if not isinstance(finding_id, str) or blockers.get(finding_id, {}).get("location", {}).get("path") != location:
+                    errors.append(f"{label}: needs_revision requires a blocking finding in the same manuscript")
+            elif row.get("verdict") != "pass":
+                errors.append(f"{label}: verdict must be pass or needs_revision")
+        if paths != covered:
+            errors.append(f"{name}: cite passages from {', '.join(sorted(paths - covered))}")
+    tasks = [task for task in state.get("tasks", []) if isinstance(task, dict) and isinstance(task.get("id"), str)]
+    chapter_tasks = [task for task in tasks if re.fullmatch(r"qa-ch\d+", task["id"])]
+    review_task = next((task for task in chapter_tasks if task["id"] == f"qa-ch{chapter:02d}"), {})
+    if chapter_tasks and review_task is min(chapter_tasks, key=lambda task: int(task["id"][5:])) and not data.get("editorial_principles"):
+        errors.append("representative review requires reusable editorial_principles")
+    for index, row in enumerate(data.get("editorial_principles", [])):
+        label = f"editorial_principles[{index}]"
+        errors.extend(_passage_errors(row, manuscripts, label))
+        if not isinstance(row.get("principle"), str) or len(row["principle"].strip()) < 12:
+            errors.append(f"{label}: state a reusable editorial principle")
+    requested = set(review_task.get("repair_requests", []))
+    repairs = {task["id"]: task for task in tasks if task["id"] in requested}
+    if requested != repairs.keys():
+        errors.append("requested repair task is missing from the current run")
+    rechecks = data.get("rechecks", {})
+    if rechecks.keys() != repairs.keys():
+        errors.append("rechecks must match the requested repair task IDs")
+    for repair_id, repair in repairs.items():
+        outcomes = rechecks.get(repair_id, {})
+        findings = repair["review_findings"]
+        if outcomes.keys() != findings.keys():
+            errors.append(f"{repair_id}: rechecks must cover each original failure ID")
+        for failure_id, finding in findings.items():
+            if failure_id not in outcomes:
+                continue
+            row = outcomes[failure_id]
+            label = f"{repair_id}/{failure_id}"
+            location = finding["location"]["path"]
+            errors.extend(_passage_errors(row, {location: manuscripts[location]} if location in manuscripts else {}, label))
+            expected_status = "open" if finding["id"] in blockers else "resolved"
+            if row.get("status") != expected_status:
+                errors.append(f"{label}: status must be {expected_status} given the current blocking findings")
     return errors
 
 
@@ -136,9 +208,18 @@ def review_chapters(path: Path, chapters: Iterable[int], profile: Dict[str, Any]
         score = float(data["synthesis"]["score"])
         metrics[key].update({"score": score, "evidence": data["synthesis"]["evidence"], "findings": data["findings"]})
         blocking = [finding for finding in data["findings"] if finding["severity"] == "blocker"]
-        failures.extend(finding_failure(finding, key) for finding in blocking)
+        repair_ids = {
+            failure_id for outcomes in data.get("rechecks", {}).values()
+            for failure_id, outcome in outcomes.items() if outcome["status"] == "open"
+        }
+        for finding in blocking:
+            failure = finding_failure(finding, key)
+            # A book finding rechecked in its chapter retains the original retry budget.
+            failure["id"] = next((failure_id for failure_id in sorted(repair_ids)
+                                  if failure_id == f"editorial-book-{finding['id']}"), failure["id"])
+            failures.append(failure)
         warnings.extend(finding_failure(finding, key) for finding in data["findings"] if finding["severity"] == "warning")
-        if score < float(profile["dimension_floor"]):
+        if not blocking and score < float(profile["dimension_floor"]):
             failures.append({
                 "id": f"chapter-synthesis-{key}", "owner": "qa_reviewer",
                 "message": "Chapter synthesis is below the required floor; return concrete located defects before assigning a writer repair.",

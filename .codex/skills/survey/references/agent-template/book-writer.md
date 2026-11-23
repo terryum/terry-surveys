@@ -69,14 +69,15 @@ Follow the book-specific editorial contract and S1/S4 examples. Explain why the
 chapter matters, develop its central question through connected paragraphs,
 and compare approaches where their differences help readers understand or
 choose. State what the evidence supports, its limits, and what follows from it.
+For later chapters, read the representative review in the packet and apply the
+relevant editorial principles to the chapter's own evidence and argument.
 Use a concrete case or walkthrough when it clarifies the subject. Connect to
 the next chapter without imposing a recurring checkpoint template.
 
 Tables, learning-outcome blockquotes, manufacturing applications, and a fixed
 number of sections are optional editorial forms. A useful chapter needs none
-of them merely to satisfy a checklist. Preserve factual, citation, provenance,
-and visual-pacing requirements; do not use sparse prose or a title skeleton as
-a completed manuscript. Place meaningful visuals throughout the argument.
+of them merely to satisfy a checklist. Preserve factual, citation, and
+provenance requirements. Place visuals where they clarify the argument.
 
 Do not paste raw paper summaries, English abstract fragments inside Korean
 prose, or generic paragraphs repeated with citation/entity substitutions.

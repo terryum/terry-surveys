@@ -7,8 +7,9 @@ from pathlib import Path
 
 from survey_harness.state import (
     block_task, build_tasks, complete_task, completed_task_errors, new_state, plan_remediation,
-    ready_tasks, resume_state, save_state, start_task,
+    ready_tasks, resume_state, save_state, start_task, task_packet,
 )
+from survey_harness.editorial import manuscript_digests
 from survey_harness.tests.helpers import make_passing_mini, write_current_reviews
 
 
@@ -37,6 +38,8 @@ class SurveyFreshnessTests(unittest.TestCase):
         self.assertIn("critical-analysis", tasks["editorial-contract"]["dependencies"])
         self.assertIn("editorial-contract", tasks["evidence-synthesis"]["dependencies"])
         self.assertIn("packet-ch02", tasks["write-ch02"]["dependencies"])
+        self.assertIn({"root": "content", "path": "_quality/chapters/ch01.json"}, tasks["write-ch02"]["inputs"])
+        self.assertEqual(tasks["qa-book"]["acceptance_dependencies"], ["qa-ch01", "qa-ch02"])
         self.assertEqual(tasks["write-ch02"]["acceptance_dependencies"], ["qa-ch01"])
         self.assertEqual(tasks["qa-ch01"]["artifacts"], ["_quality/chapters/ch01.json"])
         self.assertNotEqual(tasks["qa-ch01"]["artifacts"], tasks["qa-ch02"]["artifacts"])
@@ -86,6 +89,24 @@ class SurveyFreshnessTests(unittest.TestCase):
         metadata["audience"] = "Changed intended reader"
         path.write_text(json.dumps(metadata))
         self.assertIn("editorial-contract", completed_task_errors(self.root, self.state))
+
+    def test_index_and_renderer_changes_invalidate_book_review(self):
+        self.until()
+        path = self.base / "survey.json"
+        metadata = json.loads(path.read_text())
+        metadata["cover"] = "assets/cover.png"
+        path.write_text(json.dumps(metadata))
+        custom_build = self.base / "scripts/build_book.py"
+        custom_build.parent.mkdir()
+        custom_build.write_text("# Add a custom deployment builder.\n")
+        renderer = self.root / "shared/build_site.py"
+        renderer.parent.mkdir()
+        renderer.write_text("# Change the index renderer.\n")
+
+        errors = completed_task_errors(self.root, self.state)["qa-book"]
+        for selector in ("content:survey.json", "content:scripts/build_book.py", "repo:shared/build_site.py"):
+            with self.subTest(selector=selector):
+                self.assertIn(selector, errors)
 
     def test_changed_skill_invalidates_consumer_without_research_rerun(self):
         self.until()
@@ -139,7 +160,6 @@ class SurveyFreshnessTests(unittest.TestCase):
         self.assertEqual(completed_task_errors(self.root, self.state), {})
         self.assertEqual(resume_state(self.root, self.state), {})
         self.assertEqual(repair["status"], "completed")
-        self.assertIn("image-ch01", repair["artifact_successors"])
 
     def test_factcheck_receipt_does_not_invalidate_source_packet(self):
         self.until("factcheck-ch01")
@@ -160,10 +180,9 @@ class SurveyFreshnessTests(unittest.TestCase):
         review_path.write_text(json.dumps(review))
         start_task(self.state, "qa-ch01", "agent-reviewer-123")
         complete_task(self.root, self.state, "qa-ch01")
-        repairs = [task for task in self.state["tasks"] if task["phase"] == "remediate"]
         self.assertFalse(self.task("qa-ch01")["accepted"])
-        self.assertEqual(len(repairs), 1)
-        self.assertEqual(repairs[0]["owner"], "qa_reviewer")
+        self.assertEqual(self.task("qa-ch01")["pending_diagnosis"], "chapter-synthesis-ch01")
+        self.assertEqual([task["id"] for task in ready_tasks(self.state)], ["qa-ch01"])
 
     def test_reviewer_cannot_reuse_writer_identity(self):
         self.until("qa-ch01")
@@ -180,16 +199,83 @@ class SurveyFreshnessTests(unittest.TestCase):
         start_task(self.state, "qa-ch01", "agent-reviewer-123")
         complete_task(self.root, self.state, "qa-ch01")
         for score in (40, 92):
-            repair = next(task for task in self.state["tasks"] if task["phase"] == "remediate" and task["status"] == "pending")
-            start_task(self.state, repair["id"], "agent-reviewer-123")
+            start_task(self.state, "qa-ch01", "agent-reviewer-456")
+            review["reviewer_id"] = "agent-reviewer-456"
             review["synthesis"]["score"] = score
             path.write_text(json.dumps(review))
-            evidence = self.base / repair["artifacts"][0]
-            evidence.parent.mkdir(parents=True, exist_ok=True)
-            evidence.write_text(json.dumps({"failure_ids": repair["failure_ids"], "before": 40, "after": score, "changed_artifacts": ["_quality/chapters/ch01.json"], "evidence": "Reviewed specific comparison and qualifying explanation.", "revised_diagnosis": "Re-read the concrete comparison with the source conditions."}))
-            complete_task(self.root, self.state, repair["id"])
+            complete_task(self.root, self.state, "qa-ch01")
             self.assertEqual(self.task("qa-ch01")["accepted"], score == 92)
         self.assertIn("qa-book", [task["id"] for task in ready_tasks(self.state)])
+
+    def test_two_repairs_recheck_stable_failure_and_preserve_evidence_through_resume(self):
+        self.until("qa-ch01")
+        qa = self.task("qa-ch01")
+        review_path = self.base / qa["artifacts"][0]
+        review = json.loads(review_path.read_text())
+        finding = {
+            "id": "missing-comparison", "severity": "blocker",
+            "location": {"path": "book/en/ch01.md", "anchor": "Foundations"},
+            "excerpt": "enevidence0 enevidence1 enevidence2",
+            "problem": "The comparison lacks a common test condition.",
+            "impact": "Readers cannot interpret the difference between methods.",
+            "expected": "Name the shared experimental condition in the comparison.",
+            "action": "rewrite",
+        }
+        review["synthesis"]["score"] = 40
+        review["findings"] = [finding]
+        review_path.write_text(json.dumps(review))
+        start_task(self.state, qa["id"], "agent-reviewer-123")
+        complete_task(self.root, self.state, qa["id"])
+        archived_receipts = {}
+        chapter = self.base / finding["location"]["path"]
+        for index, status in enumerate(("open", "resolved")):
+            repair, = ready_tasks(self.state)
+            self.assertEqual(repair["owner"], "book_writer")
+            self.assertNotIn("pending_diagnosis", qa)
+            start_task(self.state, repair["id"], f"fixture-repair-{index}")
+            receipt = self.base / repair["artifacts"][0]
+            receipt.parent.mkdir(parents=True, exist_ok=True)
+            receipt.write_text(json.dumps({
+                "failure_ids": repair["failure_ids"], "before": "Unclear comparison",
+                "after": "A clearer comparison", "changed_artifacts": [finding["location"]["path"]],
+                "evidence": "Clarified the comparison condition in the prose.",
+            }))
+            with self.assertRaisesRegex(ValueError, "actual manuscript changes"):
+                complete_task(self.root, self.state, repair["id"])
+            corrected = f"The benchmark ran under comparison condition {index + 1}."
+            chapter.write_text(chapter.read_text() + "\n" + corrected + "\n")
+            resume_state(self.root, self.state)
+            self.assertEqual([task["id"] for task in ready_tasks(self.state)], [repair["id"]])
+            start_task(self.state, repair["id"], f"fixture-repair-resumed-{index}")
+            complete_task(self.root, self.state, repair["id"])
+            self.assertTrue(repair["revision_check"]["required"])
+            archived_receipts[receipt] = receipt.read_bytes()
+            self.until(qa["id"])
+            packet = task_packet(self.root, self.state, qa)
+            failure_id, = repair["failure_ids"]
+            self.assertEqual(packet["review_findings"], {repair["id"]: {failure_id: finding}})
+            start_task(self.state, qa["id"], "agent-reviewer-456")
+            review["reviewer_id"] = "agent-reviewer-456"
+            review["manuscript_digests"] = manuscript_digests(self.base, 1)
+            review["synthesis"]["score"] = 40 if status == "open" else 92
+            review["findings"] = [finding] if status == "open" else []
+            review.pop("rechecks", None)
+            review_path.write_text(json.dumps(review))
+            with self.assertRaisesRegex(ValueError, "rechecks"):
+                complete_task(self.root, self.state, qa["id"])
+            review["rechecks"] = {repair["id"]: {failure_id: {
+                "status": status, "path": finding["location"]["path"], "excerpt": corrected,
+                "reason": "The revised section is tied to the benchmark comparison.",
+            }}}
+            review_path.write_text(json.dumps(review))
+            complete_task(self.root, self.state, qa["id"])
+            self.assertEqual(qa["accepted"], status == "resolved")
+            for path, payload in archived_receipts.items():
+                self.assertEqual(path.read_bytes(), payload)
+        self.assertEqual([task["id"] for task in ready_tasks(self.state)], ["qa-book"])
+        self.assertEqual([list(item["review"].get("rechecks", {})) for item in qa["review_history"]],
+                         [[], *([path.stem] for path in archived_receipts)])
+        self.assertEqual(self.state["quality"]["remediation_attempts"][failure_id], 2)
 
     def test_legacy_resume_preserves_evidence_without_fabricating_freshness(self):
         self.until()

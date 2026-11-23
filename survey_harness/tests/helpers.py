@@ -21,10 +21,20 @@ def write_current_reviews(survey: Path, chapters=(1,), write_state=False) -> Non
     for chapter in chapters:
         key = f"ch{chapter:02d}"
         all_digests[key] = manuscript_digests(survey, chapter)
+        ko = {"path": f"book/ko/{key}.md", "excerpt": "근거가 근거각 근거갂 근거갃",
+              "reason": "본문에서 공통 비교 조건을 제시한 뒤 방법별 근거를 살핀다.", "verdict": "pass"}
+        en = {"path": f"book/en/{key}.md", "excerpt": "enevidence0 enevidence1 enevidence2",
+              "reason": "The passage introduces a common condition for comparing the evidence.", "verdict": "pass"}
+        visuals = [
+            {"path": f"book/{lang}/{key}.md", "excerpt": "![first](../../assets/figures/first.png)",
+             "reason": "The figure follows the evidence it illustrates.", "verdict": "pass"} for lang in ("ko", "en")
+        ]
         write_json(survey / f"_quality/chapters/{key}.json", {
-            "schema_version": "2.1", "chapter": chapter, "reviewer_id": reviewer,
+            "schema_version": "2.2", "chapter": chapter, "reviewer_id": reviewer,
             "independent": True, "manuscript_digests": all_digests[key],
             "synthesis": {"score": 92, "evidence": "Independent fixture review: clear thesis, comparison, limits and evidence-backed judgment."},
+            "judgments": {"korean_prose": [ko], "explanation_flow": [ko, en], "visual_placement": visuals},
+            "editorial_principles": [dict(ko, principle="State the purpose of a comparison before introducing the evidence.")],
             "findings": [],
         })
     write_json(survey / "_quality/reviewer_scores.json", {

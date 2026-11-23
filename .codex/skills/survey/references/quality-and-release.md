@@ -19,9 +19,10 @@ every dimension floor, and zero hard blockers. Synthesis is an evidence-backed
 editorial judgment, including a separate passing judgment for each chapter;
 table volume cannot stand in for it. Deterministic evidence still verifies
 claims, citations, provenance, artifacts, fingerprints, and release integrity.
-Word bands, table count/volume, and learning-outcome formatting produce editorial
-warnings rather than prose blockers. A warning requires review, not automatic
-padding, deletion, or another boilerplate section.
+Word bands, table count and volume, learning-outcome formatting, and visual
+spacing produce editorial warnings. Figure coverage and provenance contribute
+to the automatic visual score. Chapter reviewers judge whether visual placement
+helps readers follow the explanation.
 
 ## Remediation
 
@@ -29,24 +30,49 @@ The controller groups stable failures by owner. A repair worker receives the
 current editorial contract and refreshed input packet, stable failure IDs,
 affected artifact, location, excerpt, problem, reader impact, expected result,
 and action (`add`, `cut`, `rewrite`, `reorder`, `evidence`).
-Metrics can accompany a diagnosis; a low synthesis score alone cannot dispatch
-a prose repair. Ask the reviewer to diagnose it instead. The owner must
-record the specific changes and evidence, complete its repair task, then the
-orchestrator reruns the whole score. Never delete a failure from the scorecard or
-weaken a threshold to make the run pass.
+Concrete blockers go to the writer first. A low synthesis score alone returns
+the chapter to QA for a diagnosis. The writer records `failure_ids`, `before`,
+`after`, `changed_artifacts`, and `evidence` in the repair report. The controller
+checks the claimed changes against the raw manuscript fingerprints from before
+and after the edit. Chapter QA rechecks every original finding ID against the
+revised passages. The controller preserves the accepted reviews and repair
+checks as evidence across resumes.
 
 Chapter QA writes `_quality/chapters/chNN.json` independently and never
 overwrites the global review. Final `qa-book` checks the current chapter
 digests, real reviewer identities, cross-chapter argument, and integration.
 Old QA artifacts remain as history but cannot certify a changed manuscript.
 
-After three failed repair passes for the same failure ID, preserve all score
+For build evidence, run the local build command that produces the deployment
+artifact. Use `python3 build.py <slug>` for the shared build or the command
+specified by the book's deployment workflow for a custom build. Run structural
+validation as a separate check. Inspect both rendered indexes on desktop and
+mobile, compare their layout and links with the rendered S1/S4 indexes and the
+book's editorial contract, and verify companion routes and chapter navigation.
+Record the command, working directory, and exit code in
+`_quality/build_validation.json`. Under `checks.rendered_indexes`, record the
+S1/S4 pages consulted, both viewport sizes, and separate `ko` and `en` results
+with each rendered page path and observations for the cover, introduction,
+reading button, table of contents, glossary, bibliography, and companion
+routes. Include discrepancies and their resolution or approved rationale.
+Set top-level `passed` only after these checks and the existing build checks
+pass.
+
+At the profile's retry limit for the same failure ID, preserve all score
 history and stop in resumable blocked state. A later `--resume` may succeed after
 new sources, corrected assets, credentials, or user direction arrive.
 
-## Preview chain (default)
+## Private terryum.ai deployment (default)
 
-After state becomes `ready`, record release start:
+Run the [private deployment preflight](private-deployment-preflight.md)
+before dispatching a full run and repeat the transport checks before
+provisioning. `ready` means editorial QA passed. The user's private edition
+is delivered when the protected KO/EN detail routes work on terryum.ai and
+the preview receipt has been recorded. An explicitly scoped local or draft
+run can end before deployment.
+
+After state becomes `ready` and the current full score is recorded, record
+release start:
 
 ```bash
 python3 .codex/skills/survey/scripts/survey_harness.py release <slug> running
@@ -59,13 +85,21 @@ old survey entry from masquerading as a refresh sync.
 Then perform, in order:
 
 1. Restore/verify local assets, then local survey build and validation.
-2. Create/verify `<slug>-preview` Pages, provision its Cloudflare Access
-   application and existing admin/service-token policies, then upload and check
-   the protected preview. Never upload first and add Access later.
+2. Create/verify `<slug>-preview` Pages and provision its Access application
+   with the approved admin identity and existing private-survey service
+   token. Confirm coverage for the preview hostname and any deployment
+   alias that can serve the uploaded artifact. Upload the manuscript only
+   after protection is verified, then test the origin anonymously.
 3. Exact Terry post/paper links and master reference index rebuild.
-4. Cover/OG/thumb validation and private `terryum-ai` gallery registration using
-   `preview_embed_url`. Preserve an existing public `embed_url` during refresh.
-5. `terryum-ai` type-check/build, commit, push, and Workers workflow success.
+4. Validate cover, OG, and thumbnail. Register a new book with
+   `visibility: private` and `preview_embed_url` in the terryum.ai survey
+   registry. Keep the public `embed_url` unset for a new book. Preserve an
+   existing public `embed_url` during refresh.
+5. Type-check and build the homepage, then push the scoped registry change
+   and verify the existing GitHub Actions `Deploy to Cloudflare Workers`
+   run succeeded for that commit. This is the same homepage delivery path
+   used by `$paper`; the Pages and Access setup is specific to the survey
+   book origin.
 6. Upload changed local assets to private R2 and refresh
    `assets/manifest.json`. Re-run the `source-repositories.md` gate, then commit
    and push text source plus the manifest to private `terry-surveys-contents`.
@@ -74,16 +108,25 @@ Then perform, in order:
    Record the public skill/harness version used for scoring as
    `framework_commit`; this commit must contain no survey content.
 7. Candidate/KG sync-back.
-8. Live checks: anonymous and ordinary member denial, admin KO/EN preview iframe
-   success, expected iframe source, and absence of an active not-found tree.
+8. Verify anonymous and ordinary member denial on the gallery and detail
+   routes. Verify that admins can load the KO and EN detail routes and the
+   books inside their iframes, using the expected private proxy origin. Check
+   the deployed revision and absence of an active not-found tree.
 
-Record a preview receipt under `_quality/releases/`. Access API permission or
-protection-check failure is `deploy_blocked`: preserve the source commits and do
-not report the run complete.
+After those checks, record a preview receipt under `_quality/releases/`:
 
-Use `survey_harness.py publication <slug> preview released --artifact ...` only
-after the access checks have actually passed. Record failures with
-`publication <slug> preview blocked --reason ...`.
+```bash
+python3 .codex/skills/survey/scripts/survey_harness.py publication <slug> preview released \
+  --artifact content_commit=<private-content-sha> --artifact framework_commit=<framework-sha> \
+  --artifact gallery_commit=<site-sha> --artifact workflow_id=<workers-run-id> \
+  --artifact pages_url=https://<slug>-preview.pages.dev \
+  --artifact anonymous=denied --artifact member=denied \
+  --artifact admin_ko=passed --artifact admin_en=passed
+```
+
+Report both private terryum.ai detail URLs and the workflow result. If a step
+is blocked, record its exact error with
+`publication <slug> preview blocked --reason ...` and preserve prior evidence.
 
 ## Production promotion
 

@@ -207,7 +207,7 @@ def _verify_release_evidence(root: Path, slug: str, evidence: Dict[str, str], ex
             checks.append(iframe_check)
     asset_script = root / ".codex/skills/survey/scripts/validate_gallery_assets.py"
     checks.append(_checked([sys.executable, str(asset_script), slug, "--terryum-ai-root", str(gallery_root)], root, "asset-validation"))
-    kg_path = root.parent.parent / "terry-papers" / "knowledge-index.json"
+    kg_path = root.parent.parent / "papers" / "knowledge-index.json"
     try:
         kg_data = json.loads(kg_path.read_text(encoding="utf-8"))
         candidates = kg_data.get("candidate_index", {}).get("candidates", [])
@@ -390,7 +390,7 @@ def command_release(args, root: Path) -> int:
         key, value = item.split("=", 1)
         artifacts[key] = value
     if args.status == "running":
-        kg_path = root.parent.parent / "terry-papers" / "knowledge-index.json"
+        kg_path = root.parent.parent / "papers" / "knowledge-index.json"
         if not kg_path.is_file():
             raise ValueError(f"KG baseline unavailable: {kg_path}")
         artifacts["kg_baseline_sha256"] = hashlib.sha256(kg_path.read_bytes()).hexdigest()
@@ -485,7 +485,7 @@ def command_publication(args, root: Path) -> int:
 
 def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--repo-root", help="terry-surveys repository root; defaults to cwd")
+    p.add_argument("--repo-root", help="framework checkout; defaults to the runner's checkout or cwd")
     sub = p.add_subparsers(dest="command", required=True)
 
     init = sub.add_parser("init", help="create a v2 task DAG")
@@ -564,10 +564,10 @@ def parser() -> argparse.ArgumentParser:
     return p
 
 
-def main(argv=None) -> int:
+def main(argv=None, *, default_root: Path | None = None) -> int:
     args = parser().parse_args(argv)
     try:
-        root = repo_root(args.repo_root)
+        root = repo_root(args.repo_root or default_root)
         return args.func(args, root)
     except (FileNotFoundError, FileExistsError, KeyError, ValueError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

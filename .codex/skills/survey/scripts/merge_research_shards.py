@@ -45,7 +45,7 @@ import argparse
 from pathlib import Path
 
 
-DEFAULT_MONOREPO = Path("/Users/terrytaewoongum/Codes/personal/terryum-ai/terry-surveys/framework")
+DEFAULT_MONOREPO = Path("/Users/terrytaewoongum/Codes/personal/terryum-ai/surveys/framework")
 MONOREPO = DEFAULT_MONOREPO
 
 

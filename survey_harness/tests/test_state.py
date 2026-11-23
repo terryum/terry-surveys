@@ -55,6 +55,33 @@ class StateTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "artifacts missing"):
             complete_task(self.root, state, "kg-seed")
 
+    def test_deploying_run_rejects_cross_role_identity_at_task_start(self):
+        state = new_state(self.root, "test-survey", "full", "auto")
+        seed = next(task for task in state["tasks"] if task["id"] == "kg-seed")
+        strategy = next(task for task in state["tasks"] if task["id"] == "source-strategy")
+        strategy["dependencies"] = []
+        start_task(state, "kg-seed", "shared-worker")
+        seed["status"] = "blocked"
+
+        with self.assertRaisesRegex(ValueError, "shared-worker already assigned to kg_mapper"):
+            start_task(state, "source-strategy", " shared-worker ")
+        self.assertEqual(strategy["status"], "pending")
+        self.assertEqual(strategy["agent_ids"], [])
+
+    def test_role_separation_preserves_same_role_reuse_and_local_runs(self):
+        for deploy, task_id in (("auto", "packet-ch01"), ("off", "kg-seed")):
+            with self.subTest(deploy=deploy):
+                state = new_state(self.root, "test-survey", "full", deploy)
+                strategy = next(task for task in state["tasks"] if task["id"] == "source-strategy")
+                strategy["dependencies"] = []
+                start_task(state, "source-strategy", "librarian-worker")
+                strategy["status"] = "blocked"
+                task = next(task for task in state["tasks"] if task["id"] == task_id)
+                task["dependencies"] = []
+                task["acceptance_dependencies"] = []
+                start_task(state, task_id, "librarian-worker")
+                self.assertEqual(task["status"], "running")
+
     def test_remediation_exhausts_after_configured_attempts(self):
         state = new_state(self.root, "test-survey", "full")
         manuscript = self.survey / "book/ko/ch01.md"
@@ -69,6 +96,7 @@ class StateTests(unittest.TestCase):
             evidence.parent.mkdir(parents=True, exist_ok=True)
             evidence.write_text('{"failure_ids":["depth-ko-ch01"],"before":{"words":100},"after":{"words":3000},"changed_artifacts":["book/ko/ch01.md"],"evidence":"word count increased"}\n', encoding="utf-8")
             start_task(state, task["id"], f"agent-repair-{_}")
+            manuscript.write_text(manuscript.read_text() + "\n수정한 실제 원고.", encoding="utf-8")
             complete_task(self.root, state, task["id"])
         self.assertEqual(plan_remediation(state, failure), [])
         self.assertEqual(state["status"], "blocked")

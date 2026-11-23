@@ -2,7 +2,7 @@
 
 The score is diagnostic. Release still requires every configured hard gate and
 an independent reviewer artifact, so high word or citation counts cannot buy a
-pass for unsupported claims or wall-text chapters.
+pass for unsupported claims or unsupported editorial judgments.
 """
 
 from __future__ import annotations
@@ -637,8 +637,6 @@ def evaluate(root: Path, slug: str, profile_name: str = "full") -> Dict[str, Any
     chapter_metrics: Dict[str, Any] = {}
     all_word_ratios: List[float] = []
     figure_ratios: List[float] = []
-    late_passes: List[float] = []
-    gap_passes: List[float] = []
     parity_scores: List[float] = []
     referenced_local_image_paths = set()
     paragraph_norms: List[Tuple[str, str]] = []
@@ -683,8 +681,6 @@ def evaluate(root: Path, slug: str, profile_name: str = "full") -> Dict[str, Any
                 cm[lang]["top_repeated_english_glosses"] = ko_language["top_repeated_english_glosses"]
             all_word_ratios.append(min(1.0, words / min_words) if min_words else 1.0)
             figure_ratios.append(min(1.0, len(figures) / min_figures) if min_figures else 1.0)
-            late_passes.append(1.0 if last_fraction >= late_fraction else 0.0)
-            gap_passes.append(1.0 if gap <= max_gap_target else max(0.0, max_gap_target / max(1, gap)))
             if words < min_words_with_tolerance:
                 add_failure(failures, f"depth-{lang}-ch{ch:02d}", "book_writer", f"{lang.upper()} chapter {ch} has {words} rough words; requires {min_words} with {word_tolerance_pct:g}% gate tolerance ({min_words_with_tolerance} minimum).", words, min_words_with_tolerance)
             if max_words and words > max_words:
@@ -720,9 +716,9 @@ def evaluate(root: Path, slug: str, profile_name: str = "full") -> Dict[str, Any
             if missing_figures:
                 add_failure(failures, f"figure-files-{lang}-ch{ch:02d}", "image_curator", f"{lang.upper()} chapter {ch} references missing local figures: {missing_figures}.", len(missing_figures), 0)
             if last_fraction < late_fraction:
-                add_failure(failures, f"visual-pacing-{lang}-ch{ch:02d}", "image_curator", f"{lang.upper()} chapter {ch} has no figure or table after {late_fraction:.0%} of the prose.", round(last_fraction, 3), late_fraction)
+                add_failure(warnings, f"visual-pacing-{lang}-ch{ch:02d}", "image_curator", f"{lang.upper()} chapter {ch} has no figure or table after {late_fraction:.0%} of the prose.", round(last_fraction, 3), late_fraction)
             if gap > max_gap_target:
-                add_failure(failures, f"wall-text-{lang}-ch{ch:02d}", "image_curator", f"{lang.upper()} chapter {ch} has a {gap}-word learning-aid gap; maximum is {max_gap_target}.", gap, max_gap_target)
+                add_failure(warnings, f"wall-text-{lang}-ch{ch:02d}", "image_curator", f"{lang.upper()} chapter {ch} has a {gap}-word learning-aid gap; review guidance is {max_gap_target}.", gap, max_gap_target)
         high, low = max(lang_words.values(), default=0), min(lang_words.values(), default=0)
         parity = 100.0 if high == 0 else 100.0 * low / high
         cm["bilingual_depth_parity"] = round(parity, 1)
@@ -977,7 +973,9 @@ def evaluate(root: Path, slug: str, profile_name: str = "full") -> Dict[str, Any
         else reviewers.get("synthesis", 72.0 if profile_name == "legacy_baseline" else 0.0)
     )
     accuracy_auto = 0.55 * claim_coverage + 0.45 * ref_verification
-    visual_auto = 100.0 * (0.40 * (sum(figure_ratios) / max(1, len(figure_ratios))) + 0.25 * (sum(late_passes) / max(1, len(late_passes))) + 0.20 * (sum(gap_passes) / max(1, len(gap_passes))) + 0.15 * (provenance_coverage / 100.0 if images else (1.0 if profile_name == "legacy_baseline" else 0.0)))
+    figure_coverage = sum(figure_ratios) / max(1, len(figure_ratios))
+    provenance_ratio = provenance_coverage / 100.0 if images else float(profile_name == "legacy_baseline")
+    visual_auto = 100.0 * (0.40 * figure_coverage + 0.15 * provenance_ratio) / 0.55
     links_auto = 0.6 * link_coverage + 0.4 * min(100.0, ref_verification / 0.9 if refs else 0.0)
     bilingual_auto = 0.6 * (100.0 * sum(all_word_ratios) / max(1, len(all_word_ratios))) + 0.4 * (sum(parity_scores) / max(1, len(parity_scores)))
     if editorial_advisory:

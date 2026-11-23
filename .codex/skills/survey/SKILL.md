@@ -1,27 +1,30 @@
 ---
 name: survey
-description: "Build, refresh, fact-check, illustrate, score, publish, and maintain Terry's bilingual research survey books. Use for $survey, new survey books, major survey refreshes, authoring prompts, Markdown/text notes, paper PDFs, ChatGPT share links, prior survey IDs such as #S1, Terry paper-summary post numbers, KG-seeded literature research, chapter writing, image curation, reference/post linking, QA remediation, resume, deployment, and survey skill calibration. Full runs must use the repository-backed v2 harness and continue until READY or a resumable BLOCKED checkpoint."
+description: "Build, refresh, fact-check, illustrate, score, publish, and maintain Terry's bilingual research survey books. Use for $survey, new survey books, major survey refreshes, authoring prompts, Markdown/text notes, paper PDFs, ChatGPT share links, prior survey IDs such as #S1, Terry paper-summary post numbers, KG-seeded literature research, chapter writing, image curation, reference/post linking, QA remediation, resume, deployment, and survey skill calibration. A full run uses the v2 harness and finishes when the book is live as an admin-only survey on terryum.ai, or reaches a resumable blocked checkpoint. Public promotion requires explicit authorization."
 ---
 
 # Survey
 
-Operate in the sibling workspace
-`/Users/terrytaewoongum/Codes/personal/{terry-surveys,terry-surveys-contents}`.
-Treat the public framework copy at `terry-surveys/.codex/skills/survey` and its
-runtime-neutral `survey_harness` package as canonical. Treat
-`terry-surveys-contents` as the only canonical survey-content Git repository.
-Never edit the installed skill copy first.
+The workspace is `~/Codes/terry/terryum-ai`. The canonical skill and harness
+live in `surveys/framework`. The private manuscript repository is
+`surveys/contents`. Start sessions that dispatch native workers in
+`surveys/framework`. The installed runner also works from the parent workspace.
+Pass `--repo-root` before the command to select another checkout.
 
 ## Route the request
 
-- New title or full refresh: run the complete v2 workflow below.
+- New title or full refresh: run the complete v2 workflow through private
+  terryum.ai deployment. An explicitly requested local or draft run ends at
+  its requested checkpoint.
 - `--resume`: read `_workspace/harness_state.json`, revalidate completed
   artifacts, and dispatch only ready or failed work.
 - Research map or shortlist only: read `references/kg-first-workflow.md`; stop at
   the requested research artifact without scaffolding a book.
 - `--factcheck`, `--link-posts`, `--refresh`, `--sync-agents`: preserve the
   existing maintenance behavior, but record book-scale work in v2 state.
-- `--deploy`: require a passing v2 scorecard, then follow
+- `--deploy` or “deploy as a private survey”: keep the book in Surveys and
+  deliver the protected admin-only KO/EN edition. Require a current recorded
+  full score, then follow
   `references/quality-and-release.md`.
 - `--publish <slug>`: promote the exact approved preview digest to public
   production. Never infer this authorization from create, refresh, or deploy.
@@ -36,6 +39,8 @@ research or worker dispatch.
 Read `references/orchestration-v2.md` for any book-scale run. Read
 `references/role-contracts-v2.md` before spawning workers. Read
 `references/quality-and-release.md` before scoring, remediation, or publishing.
+For deployment runs, follow `references/private-deployment-preflight.md` before
+dispatch and again before Cloudflare writes.
 
 ## Full workflow
 
@@ -51,7 +56,7 @@ Read `references/orchestration-v2.md` for any book-scale run. Read
    `terryum/terry-surveys-contents` repository;
    `survey.json.visibility: public` may still publish the rendered book for
    public readers. Never create a per-survey repository; create
-   `terry-surveys-contents/surveys/<slug>` instead.
+   `surveys/contents/surveys/<slug>` through the framework's `surveys/` link.
 3. Initialize the controller:
 
    ```bash
@@ -64,17 +69,24 @@ Read `references/orchestration-v2.md` for any book-scale run. Read
    slots, run no more than three workers at once.
    Cross-check each recorded ID against the runtime's actual spawn result;
    controller strings are an audit trail, not proof that a worker existed.
+   Assign distinct real worker identities to each release role from the first
+   task. Reuse a worker ID within its role only. Free and reassign worker slots
+   across waves as needed.
 5. Read `references/editorial-contract.md`. After research, run critical
    analysis before the librarian produces source packets. Include the resulting
    comparisons, counterevidence, judgments, and book-specific editorial contract
-   in every writer's packet. Write and independently review one representative
-   chapter before dispatching the remaining chapters; this is an automatic
-   editorial checkpoint, not an additional user approval step.
+   in every writer's packet. Before drafting, compare rendered KO/EN indexes
+   and representative chapter pages from S1 and S4. Independently review the
+   representative chapter's prose and rendered section navigation before
+   dispatching the remaining chapters. Later writers read the accepted review
+   and apply its passage-backed principles.
 6. Keep KO and EN for a chapter under the same writer. Stream image and
    fact-check work after that chapter is written. Reviewers never edit their own
    reviewed artifact; they return evidence-backed defects to its owner. Each
    chapter reviewer owns `_quality/chapters/chNN.json`; final `qa-book` owns the
-   book report and aggregate scores.
+   book report and aggregate scores. Final QA runs the deployment build command
+   locally and records its rendered KO/EN index comparison in
+   `_quality/build_validation.json`.
 7. When QA artifacts exist, score and generate repair tasks:
 
    ```bash
@@ -85,12 +97,11 @@ Read `references/orchestration-v2.md` for any book-scale run. Read
    failure gets at most three automatic repair passes. After that, leave a
    resumable `blocked` state with the exact failure IDs; do not call the survey
    complete.
-9. A full run that reaches `ready` defaults to the complete protected-preview
-   chain: local build, `<slug>-preview` Pages deployment after Access
-   provisioning, private gallery registration, Workers deploy, private-R2 asset
-   sync, text-only source push, KG candidate sync, and anonymous/member denial
-   plus admin KO/EN assertions. Production stays unchanged until an explicit
-   `--publish`. Never publish a blocked draft as release-ready.
+9. Continue from `ready` through the protected private-deployment chain in
+   `references/quality-and-release.md`. Completion requires live KO/EN survey
+   detail routes on terryum.ai, working admin book iframes, denial for anonymous
+   visitors and ordinary members, and a recorded preview receipt. Preserve a
+   resumable checkpoint when an authenticated or verified step is blocked.
 
 ## Non-negotiable behavior
 
@@ -102,18 +113,18 @@ Read `references/orchestration-v2.md` for any book-scale run. Read
 - Do not reduce research to a fixed paper count. Meet the configured corpus and
   chapter floors, then continue until the search protocol's coverage and
   saturation conditions are satisfied.
-- Place figures throughout every chapter. A cover or opening cluster is not a
-  visual pass. Record insertion anchors, provenance, license basis, and generated
-  prompts in the image plan.
+- Place figures where they help explain the argument. Chapter QA judges their
+  placement and contribution. Record insertion anchors, provenance, license
+  basis, and generated prompts in the image plan.
 - Insert every eligible exact Terry post/paper link. Keep fuzzy candidates as a
   review list; never auto-link them.
 - Counts cannot override hard blockers. Repeated prose, unsupported claims,
-  missing source packets, wall-text endings, broken references, missing image
+  missing source packets, broken references, missing image
   provenance, or an unready QA verdict block release.
 - Aim for about 4,000 rough words per language chapter. Length, table volume,
-  table count, and learning-outcome formatting are editorial signals, not
-  mandatory prose quotas. Review argument, useful comparison, justified author
-  judgment, and reader understanding; never add text only to satisfy a count.
+  table count, learning-outcome formatting, and gaps between visuals are
+  editorial signals. Review argument, useful comparison, justified author
+  judgment, and reader understanding. Add prose when it helps the reader.
 - Write Korean manuscripts in Korean ordinary prose. **통용 영어 용어는 영어로
   유지한다.** 한국 로보틱스·AI 실무자가 실제로 영어로 말하는 용어(`action head`,
   `diffusion policy`, `end-effector`, `sim-to-real`, `teacher-student`,

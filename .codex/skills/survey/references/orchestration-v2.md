@@ -28,18 +28,25 @@ silently edit another role's owned files.
 4. `critical-analysis` reads both shards and produces grounded comparisons,
    disagreements, solved/open problems, and book positioning. Then the
    book writer/editor's `editorial-contract` task fixes audience, explanation
-   depth, terminology, and S1/S4 examples.
+   depth, and terminology. Compare the rendered S1/S4 KO/EN indexes and
+   representative chapters to specify index, heading, and prose conventions.
 5. Evidence synthesis consumes that analysis, merges shards, and produces the
    source ledger and claim ledger. Separate librarian `packet-chNN` tasks then
    produce each chapter source packet, so revising one packet invalidates its
    consumers without rerunning unrelated research.
-6. Write and review the representative chapter first. Once its editorial defects
-   are resolved, remaining writers run in bounded parallel. One writer owns KO
-   and EN for the same chapter.
+6. Write and review the representative chapter first, including its prose and
+   rendered section navigation in both languages. Once its editorial defects
+   are resolved, remaining writers run in bounded parallel. Their packets bind
+   the accepted review and its passage-backed editorial principles. One writer
+   owns KO and EN for the same chapter.
 7. Image and fact-check tasks stream behind each written chapter. QA waits for
    both and stays independent of the producer.
-   Each chapter QA writes only `_quality/chapters/chNN.json`; `qa-book` then
-   checks cross-chapter repetition, contradiction, progression, and integration.
+   Each chapter QA writes only `_quality/chapters/chNN.json`. After chapter
+   repairs, the controller verifies actual file changes and requires independent
+   rechecks by original failure ID. Once every chapter passes, `qa-book` checks
+   cross-chapter repetition, contradiction, progression, and integration. Final
+   QA runs the deployment build locally and records the rendered KO/EN index
+   comparison with S1/S4 and the editorial contract.
 8. Scoring groups failures by owner. Repairs carry location, excerpt, problem,
    reader impact, expected result, and an action: add, delete, rewrite, reorder,
    or strengthen evidence. Report the actual correction and verification, not

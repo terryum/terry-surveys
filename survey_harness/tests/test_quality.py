@@ -96,17 +96,29 @@ class QualityTests(unittest.TestCase):
         failures = {item["id"] for item in scorecard["hard_blockers"]}
         self.assertIn("claim-manuscript-anchors", failures)
 
-    def test_front_loaded_figures_route_to_image_curator(self):
+    def test_adding_a_late_table_changes_warnings_without_improving_score_or_pass(self):
         chapter = self.survey / "book/en/ch01.md"
         text = chapter.read_text(encoding="utf-8")
         text = text.replace("\n\n![first](../../assets/figures/first.png)", "")
         text = text.replace("\n\n![late](../../assets/figures/late.png)", "")
         text = text.replace("\n\n| Method | Evidence |\n|---|---|\n| A | Primary |", "")
-        text = text.replace("# Chapter\n\n", "# Chapter\n\n![first](../../assets/figures/first.png)\n![second](../../assets/figures/second.png)\n\n", 1)
+        text = text.replace("# Chapter\n\n", "# Chapter\n\n![first](../../assets/figures/first.png)\n![late](../../assets/figures/late.png)\n\n", 1)
+        text = text.replace("\n## References", "\n\n" + " ".join(f"additional{i}" for i in range(1200)) + "\n\n## References")
         chapter.write_text(text, encoding="utf-8")
-        scorecard = evaluate(self.root, "test-survey", "mini")
-        pacing = [item for item in scorecard["hard_blockers"] if item["id"] == "visual-pacing-en-ch01"]
-        self.assertEqual(pacing[0]["owner"], "image_curator")
+        write_current_reviews(self.survey)
+        before = evaluate(self.root, "test-survey", "mini")
+        advisory = {"visual-pacing-en-ch01", "wall-text-en-ch01"}
+        self.assertTrue(advisory <= {item["id"] for item in before["warnings"]})
+        self.assertFalse(advisory & {item["id"] for item in before["hard_blockers"]})
+        marker = " ".join(f"additional{i}" for i in range(1200))
+        left, right = marker.split(" additional449 ", 1)
+        text = text.replace(marker, left + " additional449\n\n| Method | Evidence |\n|---|---|\n| A | Primary |\n\n" + right)
+        chapter.write_text(text, encoding="utf-8")
+        write_current_reviews(self.survey)
+        after = evaluate(self.root, "test-survey", "mini")
+        self.assertFalse(advisory & {item["id"] for item in after["warnings"]})
+        self.assertEqual(after["dimensions"]["visuals"], before["dimensions"]["visuals"])
+        self.assertEqual((after["score"], after["passed"]), (before["score"], before["passed"]))
 
     def test_reviewer_cannot_reuse_a_non_qa_worker_identity(self):
         state_path = self.survey / "_workspace/harness_state.json"
