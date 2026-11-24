@@ -72,9 +72,41 @@ For Node TLS trust errors, check the
 and the approved system or organizational CA configuration.
 `NODE_USE_SYSTEM_CA=1 wrangler whoami` can verify Wrangler on a supported Node
 version when the expected CA is in the OS trust store. Recheck the native
-provisioner separately. If either command still fails, use a permitted
-environment where both preflight commands pass. Report the failing command
-and error if that environment is unavailable.
+provisioner separately. A successful `whoami` establishes identity only.
+On a new project, deploy an inert page first and check the deployment ID
+against the Pages API even if Wrangler exits zero.
+
+## Recover a protected deployment
+
+If Wrangler fails locally after authentication (for example,
+`SecItemCopyMatching failed -50` on macOS) and authenticated API requests
+succeed, use the same account and credentials from a permitted Wrangler
+runner or use the authenticated Pages Direct Upload API. Apply the
+mode-600 FIFO transport above to authenticated Access and Pages calls when
+only direct shell curl can reach the API. No new token is needed when the
+existing credentials authorize the calls.
+
+1. Provision and re-read the Access apps and policies for both
+   `<slug>-preview.pages.dev` and `*.<slug>-preview.pages.dev`. Confirm that
+   the only grants are the approved admin identity and the existing proxy
+   Service Token. Deploy an inert file, then request both the project root
+   and the deployment-specific URL without credentials. Require an Access
+   login or denial at both before uploading the manuscript.
+2. For API upload, follow the pinned Wrangler version's Direct Upload
+   implementation for the short-lived project upload token, asset hashes
+   and upload batches. Send the complete manifest and any applicable
+   `_headers` and `_redirects` in the
+   [Create Pages deployment](https://developers.cloudflare.com/api/resources/pages/subresources/projects/subresources/deployments/methods/create/)
+   request. Use the preview project name and confirm the returned deployment
+   ID and both protected URLs. Remove temporary token responses after use.
+3. Push the gallery via the existing Workers workflow. When a managed
+   session prevents the local Next.js build from binding to loopback,
+   verify the type-check and build from the workflow for the exact gallery
+   commit. Finish with the deployed access matrix, including the KO/EN
+   iframe responses through `private-surveys.terryum.ai`.
+
+If neither permitted transport works, record the failed command or endpoint,
+its error, and the last verified stage in the resumable checkpoint.
 
 ## Check task and release evidence
 
